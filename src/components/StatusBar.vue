@@ -3,10 +3,11 @@
     <div class="status-bar">
       <div class="status-item analysis-mode-item">
         <BarChartOutlined />
-        <a-radio-group v-model:value="analysisMode" size="small" style="margin-right: 8px;">
-          <a-radio-button value="single">单埋点</a-radio-button>
-          <a-radio-button value="dual">双埋点</a-radio-button>
-        </a-radio-group>
+        <span style="margin-right: 8px; font-size: 12px; color: #666;">数据模式：</span>
+        <a-tag :color="analysisMode === 'dual' ? 'blue' : 'green'" style="margin-right: 8px;">
+          {{ analysisMode === 'dual' ? '双埋点' : '单埋点' }}
+        </a-tag>
+        <span style="font-size: 11px; color: #999;">(自动选择)</span>
       </div>
       <div class="status-item date-picker-item">
         <CalendarOutlined />
@@ -51,18 +52,14 @@ const props = defineProps({
 
 // Emits
 const emit = defineEmits([
-  'update:analysisMode',
-  'update:dateRange',
+  'update:dateRange', 
   'date-range-change',
   'refresh-data',
   'show-config-modal'
 ])
 
 // Computed
-const analysisMode = computed({
-  get: () => props.analysisMode,
-  set: (value) => emit('update:analysisMode', value)
-})
+const analysisMode = computed(() => props.analysisMode)
 
 const dateRange = computed({
   get: () => props.dateRange,

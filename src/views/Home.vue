@@ -2,7 +2,7 @@
   <div class="home-container">
     <!-- 系统状态栏 -->
     <StatusBar
-      v-model:analysis-mode="analysisMode"
+      :analysis-mode="analysisMode"
       v-model:date-range="dateRange"
       @date-range-change="onDateRangeChange"
       @refresh-data="refreshData"
@@ -207,6 +207,12 @@ const analyzeRequirement = async () => {
     }
     
     console.log('需求分析结果:', analysis)
+    
+    // 根据分析结果自动设置埋点类型
+    if (analysis.buryPointType) {
+      analysisMode.value = analysis.buryPointType
+      console.log(`自动设置埋点类型: ${analysis.buryPointType}`)
+    }
     
     // 更新状态
     store.dispatch('updateRequirement', currentRequirement.value)

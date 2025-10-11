@@ -73,6 +73,7 @@ export class RequirementParser {
         dataFields: aiAnalysis.dataFields || [],
         dimensions: aiAnalysis.dimensions || [],
         metrics: aiAnalysis.metrics || [],
+        buryPointType: this.inferBuryPointType(aiAnalysis.intent || 'comparison'),
         originalText: requirement,
         source: 'ai',
         rawAIResponse: result.rawResponse
@@ -108,12 +109,14 @@ export class RequirementParser {
       analysis.chartType = bestMatch.mapping.chartType
       analysis.confidence = bestMatch.score
       analysis.description = bestMatch.mapping.description
+      analysis.buryPointType = this.inferBuryPointType(bestMatch.category)
     } else {
       // 默认使用柱状图
       analysis.intent = 'comparison'
       analysis.chartType = 'bar'
       analysis.confidence = 0.3
       analysis.description = '数据对比分析'
+      analysis.buryPointType = 'single' // 默认单埋点
     }
     
     // 3. 参数提取
@@ -244,6 +247,25 @@ export class RequirementParser {
     return summary
   }
   
+  /**
+   * 根据分析意图推断埋点类型
+   * @param {string} intent 分析意图
+   * @returns {string} 埋点类型 'single' 或 'dual'
+   */
+  inferBuryPointType(intent) {
+    // 需要双埋点的分析类型
+    const dualBuryPointIntents = [
+      'conversion_analysis',
+      'user_behavior_path', 
+      'visit_to_click_conversion',
+      'user_journey',
+      'funnel_analysis',
+      'behavior_analysis'
+    ]
+    
+    return dualBuryPointIntents.includes(intent) ? 'dual' : 'single'
+  }
+
   /**
    * 获取图表类型中文名称
    * @param {string} chartType 图表类型
