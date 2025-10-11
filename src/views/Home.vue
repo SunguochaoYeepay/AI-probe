@@ -9,16 +9,6 @@
       @show-config-modal="showConfigModal"
     />
 
-    <!-- 数据获取进度提示 -->
-    <a-card v-if="fetchProgress.visible" class="progress-card" :bordered="false">
-      <a-progress 
-        :percent="Math.round((fetchProgress.current / fetchProgress.total) * 100)" 
-        :status="fetchProgress.current === fetchProgress.total ? 'success' : 'active'"
-      />
-      <div style="text-align: center; margin-top: 8px; color: #666;">
-        正在获取数据... ({{ fetchProgress.current }}/{{ fetchProgress.total }}天)
-      </div>
-    </a-card>
 
     <!-- 需求描述区域 -->
     <RequirementSection
@@ -73,7 +63,7 @@ import PageSelectionModal from '@/components/PageSelectionModal.vue'
 const store = useStore()
 
 // 使用 composables
-const { fetchProgress, availablePages, fetchMultiDayData, loadAvailablePages, validateConnection } = useDataFetch()
+const { availablePages, fetchMultiDayData, loadAvailablePages, validateConnection } = useDataFetch()
 const { chartGenerator, initChartGenerator, generateChart, regenerateChart, exportChart, extractPageNames } = useChart()
 
 // 响应式数据

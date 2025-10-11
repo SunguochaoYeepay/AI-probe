@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { useStore } from 'vuex'
+import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import { yeepayAPI } from '@/api'
 
@@ -33,16 +34,19 @@ export function useDataFetch() {
     
     console.log(`========== 批量获取数据 (${dates.length}天) ==========`)
     
-    // 显示进度
-    fetchProgress.value = { current: 0, total: dates.length, visible: true }
+    // 显示全局Loading
+    const hideLoading = message.loading(`正在获取数据... (0/${dates.length}天)`, 0)
     
     const allData = []
     const currentPageSize = store.state.apiConfig.pageSize || 1000
     
     for (let i = 0; i < dates.length; i++) {
       try {
-        fetchProgress.value.current = i + 1
         console.log(`正在获取第 ${i + 1}/${dates.length} 天数据: ${dates[i]}`)
+        
+        // 更新Loading消息
+        hideLoading()
+        const newHideLoading = message.loading(`正在获取数据... (${i + 1}/${dates.length}天)`, 0)
         
         const response = await yeepayAPI.searchBuryPointData({
           pageSize: currentPageSize,
@@ -57,14 +61,17 @@ export function useDataFetch() {
         if (i < dates.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 100))
         }
+        
+        newHideLoading()
       } catch (error) {
         console.error(`获取 ${dates[i]} 数据失败:`, error)
+        hideLoading()
         // 继续获取其他天的数据
       }
     }
     
-    // 隐藏进度
-    fetchProgress.value.visible = false
+    // 隐藏Loading
+    hideLoading()
     
     console.log(`批量获取完成，共 ${allData.length} 条数据`)
     console.log('====================================')
@@ -90,8 +97,8 @@ export function useDataFetch() {
     
     console.log(`获取日期范围双埋点数据: ${dates.length}天`)
     
-    // 显示进度
-    fetchProgress.value = { current: 0, total: dates.length * 2, visible: true }
+    // 显示全局Loading
+    const hideLoading = message.loading(`正在获取双埋点数据... (0/${dates.length}天)`, 0)
     
     const allVisitData = []
     const allClickData = []
@@ -102,8 +109,11 @@ export function useDataFetch() {
         const date = dates[i]
         console.log(`正在获取第 ${i + 1}/${dates.length} 天双埋点数据: ${date}`)
         
+        // 更新Loading消息
+        hideLoading()
+        const newHideLoading = message.loading(`正在获取双埋点数据... (${i + 1}/${dates.length}天)`, 0)
+        
         // 获取访问数据
-        fetchProgress.value.current = i * 2 + 1
         const visitResponse = await yeepayAPI.searchBuryPointData({
           pageSize: currentPageSize,
           date: date,
@@ -114,7 +124,6 @@ export function useDataFetch() {
         console.log(`  ${date} 访问数据: ${dayVisitData.length} 条`)
         
         // 获取点击数据
-        fetchProgress.value.current = i * 2 + 2
         const clickResponse = await yeepayAPI.searchBuryPointData({
           pageSize: currentPageSize,
           date: date,
@@ -128,14 +137,17 @@ export function useDataFetch() {
         if (i < dates.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 200))
         }
+        
+        newHideLoading()
       } catch (error) {
         console.error(`获取 ${dates[i]} 双埋点数据失败:`, error)
+        hideLoading()
         // 继续获取其他天的数据
       }
     }
     
-    // 隐藏进度
-    fetchProgress.value.visible = false
+    // 隐藏Loading
+    hideLoading()
     
     // 关联所有数据
     const correlatedData = correlateVisitAndClickData(allVisitData, allClickData)
