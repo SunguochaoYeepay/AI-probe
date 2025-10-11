@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>易宝支付用户体验监控看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .dashboard {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 15px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 5px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .metric-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .metric-trend {
+            display: flex;
+            align-items: center;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .trend-up {
+            color: #52c41a;
+        }
+
+        .trend-down {
+            color: #ff4d4f;
+        }
+
+        .trend-stable {
+            color: #1890ff;
+        }
+
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .metric-subtitle {
+            color: #666;
+            font-size: 0.8rem;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #2c3e50;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .tab-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+
+        .tab-header {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .tab-content {
+            padding: 20px;
+            min-height: 300px;
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .funnel-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .funnel-step {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 30px;
+            margin: 5px 0;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .funnel-step:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .funnel-step:nth-child(1) { width: 100%; }
+        .funnel-step:nth-child(2) { width: 85%; }
+        .funnel-step:nth-child(3) { width: 70%; }
+        .funnel-step:nth-child(4) { width: 55%; }
+
+        .funnel-percentage {
+            position: absolute;
+            right: -60px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .heatmap-container {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .heatmap-cell {
+            aspect-ratio: 1;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .heatmap-cell:hover {
+            transform: scale(1.1);
+            z-index: 10;
+            position: relative;
+        }
+
+        .heat-0 { background: #f0f0f0; }
+        .heat-1 { background: #d9f7be; }
+        .heat-2 { background: #95de64; }
+        .heat-3 { background: #73d13d; }
+        .heat-4 { background: #52c41a; }
+        .heat-5 { background: #389e0d; }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-success { background: #52c41a; }
+        .status-warning { background: #faad14; }
+        .status-error { background: #ff4d4f; }
+
+        .realtime-feed {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .feed-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .feed-item:last-child {
+            border-bottom: none;
+        }
+
+        .feed-time {
+            color: #999;
+            font-size: 0.8rem;
+            margin-right: 15px;
+            min-width: 80px;
+        }
+
+        .feed-content {
+            flex: 1;
+        }
+
+        .feed-user {
+            font-weight: 600;
+            color: #1890ff;
+        }
+
+        .feed-action {
+            color: #666;
+        }
+
+        .alert-badge {
+            background: #ff4d4f;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .filter-btn:hover, .filter-btn.active {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+
+        @media (max-width: 768px) {
+            .dashboard {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+            
+            .metric-card {
+                padding: 12px;
+            }
+            
+            .metric-value {
+                font-size: 1.5rem;
+            }
+            
+            .tab-btn {
+                padding: 8px 12px;
+                font-size: 0.8rem;
+            }
+            
+            .tab-content {
+                padding: 15px;
+                min-height: 250px;
+            }
+            
+            .realtime-feed {
+                padding: 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>易宝支付用户体验监控看板</h1>
+            <p>实时监控 · 数据驱动 · 持续优化</p>
+        </div>
+
+        <div class="filter-bar">
+            <button class="filter-btn active" onclick="filterData('realtime')">实时</button>
+            <button class="filter-btn" onclick="filterData('today')">今日</button>
+            <button class="filter-btn" onclick="filterData('week')">本周</button>
+            <button class="filter-btn" onclick="filterData('month')">本月</button>
+        </div>
+
+        <div class="metrics-grid">
+            <!-- 商户变更完成率 -->
+            <div class="metric-card" onclick="showDetail('merchant')">
+                <div class="metric-header">
+                    <span class="metric-title">商户变更完成率</span>
+                    <span class="metric-trend trend-up">↗ +2.3%</span>
+                </div>
+                <div class="metric-value">65.2%</div>
+                <div class="metric-subtitle">vs 上周 62.9%</div>
+            </div>
+
+            <!-- 查询转化率 -->
+            <div class="metric-card" onclick="showDetail('conversion')">
+                <div class="metric-header">
+                    <span class="metric-title">查询→提交转化率</span>
+                    <span class="metric-trend trend-up">↗ +1.8%</span>
+                </div>
+                <div class="metric-value">78.0%</div>
+                <div class="metric-subtitle">2,406/3,085 次操作</div>
+            </div>
+
+            <!-- 对账查询成功率 -->
+            <div class="metric-card" onclick="showDetail('reconciliation')">
+                <div class="metric-header">
+                    <span class="metric-title">对账查询成功率</span>
+                    <span class="metric-trend trend-stable">→ 稳定</span>
+                </div>
+                <div class="metric-value">95.8%</div>
+                <div class="metric-subtitle">今日查询 234 次</div>
+            </div>
+
+            <!-- 平均响应时间 -->
+            <div class="metric-card" onclick="showDetail('performance')">
+                <div class="metric-header">
+                    <span class="metric-title">平均响应时间</span>
+                    <span class="metric-trend trend-up">↗ 优化</span>
+                </div>
+                <div class="metric-value">2.3s</div>
+                <div class="metric-subtitle">vs 上周 3.1s (-25.8%)</div>
+            </div>
+        </div>
+
+        <!-- 图表标签页 -->
+        <div class="tab-container">
+            <div class="tab-header">
+                <button class="tab-btn active" onclick="switchTab('funnel')">转化分析</button>
+                <button class="tab-btn" onclick="switchTab('distribution')">功能分布</button>
+                <button class="tab-btn" onclick="switchTab('trend')">趋势分析</button>
+                <button class="tab-btn" onclick="switchTab('heatmap')">热力分析</button>
+            </div>
+            <div class="tab-content">
+                <!-- 转化漏斗 -->
+                <div id="funnel-panel" class="tab-panel active">
+                    <div class="chart-title">用户转化漏斗分析</div>
+                    <div class="funnel-container">
+                        <div class="funnel-step">
+                            访问页面
+                            <div class="funnel-percentage">100%</div>
+                        </div>
+                        <div class="funnel-step">
+                            点击查询
+                            <div class="funnel-percentage">85%</div>
+                        </div>
+                        <div class="funnel-step">
+                            填写信息
+                            <div class="funnel-percentage">70%</div>
+                        </div>
+                        <div class="funnel-step">
+                            提交申请
+                            <div class="funnel-percentage">55%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 功能分布 -->
+                <div id="distribution-panel" class="tab-panel">
+                    <div class="chart-title">功能使用分布</div>
+                    <canvas id="functionChart" width="400" height="250"></canvas>
+                </div>
+
+                <!-- 趋势分析 -->
+                <div id="trend-panel" class="tab-panel">
+                    <div class="chart-title">7天趋势分析</div>
+                    <canvas id="trendChart" width="400" height="250"></canvas>
+                </div>
+
+                <!-- 热力图 -->
+                <div id="heatmap-panel" class="tab-panel">
+                    <div class="chart-title">页面操作热力图</div>
+                    <div class="heatmap-container" id="heatmap"></div>
+                    <div style="margin-top: 15px; text-align: center; font-size: 0.9rem; color: #666;">
+                        热点区域：查询按钮区域 | 冷点区域：帮助链接区域
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 实时事件流 -->
+        <div class="realtime-feed">
+            <div class="chart-title">
+                实时事件流 
+                <span class="status-indicator status-success pulse"></span>
+                <span style="font-size: 0.9rem; color: #666; font-weight: normal;">系统运行正常</span>
+            </div>
+            <div id="eventFeed">
+                <div class="feed-item">
+                    <div class="feed-time">10:58:23</div>
+                    <div class="feed-content">
+                        <span class="feed-user">用户 10086624159</span>
+                        <span class="feed-action">在商户变更页面完成查询操作</span>
+                    </div>
+                </div>
+                <div class="feed-item">
+                    <div class="feed-time">10:58:15</div>
+                    <div class="feed-content">
+                        <span class="feed-user">用户 10091820212</span>
+                        <span class="feed-action">在对账管理页面提交查询请求</span>
+                    </div>
+                </div>
+                <div class="feed-item">
+                    <div class="feed-time">10:58:08</div>
+                    <div class="feed-content">
+                        <span class="feed-user">用户 10086624159</span>
+                        <span class="feed-action">访问易分账功能页面</span>
+                        <span class="alert-badge">新用户</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== 性能优化：节流和 RAF 控制 ==========
+        
+        // 节流函数：限制函数执行频率
+        function throttle(func, delay) {
+            let lastCall = 0;
+            return function(...args) {
+                const now = Date.now();
+                if (now - lastCall >= delay) {
+                    lastCall = now;
+                    func.apply(this, args);
+                }
+            };
+        }
+
+        // 使用 requestAnimationFrame 的节流
+        function rafThrottle(func) {
+            let rafId = null;
+            let lastArgs = null;
+            
+            return function(...args) {
+                lastArgs = args;
+                
+                if (rafId === null) {
+                    rafId = requestAnimationFrame(() => {
+                        func.apply(this, lastArgs);
+                        rafId = null;
+                        lastArgs = null;
+                    });
+                }
+            };
+        }
+
+        // 批量 DOM 更新：减少重排重绘
+        const DOMUpdateQueue = {
+            queue: [],
+            rafId: null,
+            
+            add(updateFn) {
+                this.queue.push(updateFn);
+                
+                if (this.rafId === null) {
+                    this.rafId = requestAnimationFrame(() => {
+                        // 批量执行所有 DOM 更新
+                        this.queue.forEach(fn => fn());
+                        this.queue = [];
+                        this.rafId = null;
+                    });
+                }
+            }
+        };
+
+        // ========== DOM 缓存 ==========
+        const cachedElements = {
+            completionRate: null,
+            eventFeed: null,
+            
+            init() {
+                this.completionRate = document.querySelector('.metric-card .metric-value');
+                this.eventFeed = document.getElementById('eventFeed');
+            }
+        };
+
+        // 初始化图表
+        document.addEventListener('DOMContentLoaded', function() {
+            cachedElements.init(); // 初始化 DOM 缓存
+            initFunctionChart();
+            initTrendChart();
+            initHeatmap();
+            startRealTimeUpdate();
+        });
+
+        // 功能使用分布饼图
+        function initFunctionChart() {
+            const ctx = document.getElementById('functionChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['易订货', '对账管理', '易分账', '其他'],
+                    datasets: [{
+                        data: [71.3, 19.6, 7.3, 1.8],
+                        backgroundColor: [
+                            '#667eea',
+                            '#764ba2',
+                            '#f093fb',
+                            '#f5576c'
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 趋势分析折线图
+        function initTrendChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['10/3', '10/4', '10/5', '10/6', '10/7', '10/8', '10/9'],
+                    datasets: [{
+                        label: '商户变更完成率',
+                        data: [58, 61, 63, 59, 64, 62, 65],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: '对账查询成功率',
+                        data: [94, 95, 96, 95, 96, 95, 96],
+                        borderColor: '#52c41a',
+                        backgroundColor: 'rgba(82, 196, 26, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            min: 50
+                        }
+                    }
+                }
+            });
+        }
+
+        // 生成热力图（优化版：使用 DocumentFragment）
+        function initHeatmap() {
+            const heatmap = document.getElementById('heatmap');
+            const fragment = document.createDocumentFragment();
+            
+            // 使用 DocumentFragment 批量添加，减少重排
+            for (let i = 0; i < 64; i++) {
+                const cell = document.createElement('div');
+                const heatLevel = Math.floor(Math.random() * 6);
+                cell.className = `heatmap-cell heat-${heatLevel}`;
+                cell.title = `点击次数: ${Math.floor(Math.random() * 100)}`;
+                fragment.appendChild(cell);
+            }
+            
+            // 一次性添加到 DOM
+            heatmap.appendChild(fragment);
+        }
+
+        // 标签页切换
+        function switchTab(tabName) {
+            // 移除所有active类
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            
+            // 添加active类到当前标签
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-panel').classList.add('active');
+        }
+
+        // 筛选数据
+        function filterData(period) {
+            // 移除所有active类
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // 添加active类到当前按钮
+            event.target.classList.add('active');
+            
+            // 这里可以根据period参数更新数据
+            console.log('切换到时间范围:', period);
+        }
+
+        // 显示详情
+        function showDetail(type) {
+            alert(`查看 ${type} 的详细分析页面`);
+        }
+
+        // ========== 优化后的实时更新 ==========
+        
+        // 实时更新（使用节流优化）
+        function startRealTimeUpdate() {
+            const throttledUpdate = throttle(() => {
+                // 使用 RAF 确保在浏览器下一帧更新
+                requestAnimationFrame(() => {
+                    updateRealTimeData();
+                });
+            }, 5000); // 5秒节流
+            
+            // 启动定时器
+            setInterval(throttledUpdate, 1000);
+        }
+
+        function updateRealTimeData() {
+            // 使用缓存的 DOM 元素
+            if (cachedElements.completionRate) {
+                const currentValue = parseFloat(cachedElements.completionRate.textContent);
+                const newValue = (currentValue + (Math.random() - 0.5) * 0.2).toFixed(1);
+                
+                // 批量更新
+                DOMUpdateQueue.add(() => {
+                    cachedElements.completionRate.textContent = newValue + '%';
+                });
+            }
+        }
+
+        // 添加新事件到实时流（优化版）
+        function addEventToFeed(user, action, isNew = false) {
+            if (!cachedElements.eventFeed) return;
+            
+            const now = new Date();
+            const timeString = now.toTimeString().split(' ')[0];
+            
+            // 批量 DOM 操作
+            DOMUpdateQueue.add(() => {
+                const eventDiv = document.createElement('div');
+                eventDiv.className = 'feed-item';
+                eventDiv.innerHTML = `
+                    <div class="feed-time">${timeString}</div>
+                    <div class="feed-content">
+                        <span class="feed-user">用户 ${user}</span>
+                        <span class="feed-action">${action}</span>
+                        ${isNew ? '<span class="alert-badge">新用户</span>' : ''}
+                    </div>
+                `;
+                
+                cachedElements.eventFeed.insertBefore(eventDiv, cachedElements.eventFeed.firstChild);
+                
+                // 保持最多5个事件
+                if (cachedElements.eventFeed.children.length > 5) {
+                    cachedElements.eventFeed.removeChild(cachedElements.eventFeed.lastChild);
+                }
+            });
+        }
+
+        // 模拟实时事件（使用节流）
+        const throttledAddEvent = throttle(() => {
+            const users = ['10086624159', '10091820212', '10086624160', '10091820213'];
+            const actions = [
+                '在商户变更页面完成查询操作',
+                '在对账管理页面提交查询请求',
+                '访问易分账功能页面',
+                '完成商户变更申请提交',
+                '在对账中心查看结算信息'
+            ];
+            
+            const randomUser = users[Math.floor(Math.random() * users.length)];
+            const randomAction = actions[Math.floor(Math.random() * actions.length)];
+            const isNew = Math.random() > 0.8;
+            
+            addEventToFeed(randomUser, randomAction, isNew);
+        }, 8000); // 8秒节流
+        
+        // 启动事件模拟
+        setInterval(throttledAddEvent, 2000);
+    </script>
+</body>
+</html>
