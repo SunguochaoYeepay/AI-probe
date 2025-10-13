@@ -1,14 +1,24 @@
 import { createStore } from 'vuex'
+import { API_CONFIG } from '@/config/api'
 
 export default createStore({
   state: {
     // API配置
     apiConfig: {
-      projectId: 'event1021',
-      selectedPointId: 110,
-      baseUrl: 'https://probe.yeepay.com',
-      accessToken: '',
-      pageSize: 1000
+      ...API_CONFIG.environments.development,
+      defaults: API_CONFIG.defaults
+    },
+    
+    // 动态项目配置
+    projectConfig: {
+      currentProject: null,
+      buryPoints: [],
+      visitPoint: null,
+      clickPoint: null,
+      hasVisitPoint: false,
+      hasClickPoint: false,
+      supportDualBuryPoint: false,
+      selectedBuryPointIds: JSON.parse(localStorage.getItem('selectedBuryPointIds') || '[]') // 用户选中的埋点ID列表，从localStorage加载
     },
     
     // Ollama AI 配置
@@ -41,6 +51,14 @@ export default createStore({
       state.apiConfig = { ...state.apiConfig, ...config }
     },
     
+    SET_PROJECT_CONFIG(state, config) {
+      state.projectConfig = { ...state.projectConfig, ...config }
+      // 持久化埋点选择到localStorage
+      if (config.selectedBuryPointIds !== undefined) {
+        localStorage.setItem('selectedBuryPointIds', JSON.stringify(config.selectedBuryPointIds))
+      }
+    },
+    
     SET_OLLAMA_CONFIG(state, config) {
       state.ollamaConfig = { ...state.ollamaConfig, ...config }
     },
@@ -65,6 +83,10 @@ export default createStore({
   actions: {
     updateApiConfig({ commit }, config) {
       commit('SET_API_CONFIG', config)
+    },
+    
+    updateProjectConfig({ commit }, config) {
+      commit('SET_PROJECT_CONFIG', config)
     },
     
     updateOllamaConfig({ commit }, config) {

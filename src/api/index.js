@@ -19,7 +19,7 @@ api.interceptors.request.use(
     
     // 设置 baseURL（如果在请求配置中没有完整的 URL）
     if (!config.url.startsWith('http')) {
-      config.baseURL = currentConfig.baseUrl || API_CONFIG.environments.development.baseUrl
+      config.baseURL = API_CONFIG.environments.development.baseUrl // 直接使用写死的 URL
     }
     
     // 自动添加访问令牌（优先使用 store 中的配置）
@@ -78,7 +78,7 @@ export const yeepayAPI = {
       calcInfo: {},
       dataType: "list",
       filterList: [],
-      page: 1,
+      page: params.page || 1,
       pageSize: params.pageSize || currentConfig.pageSize || API_CONFIG.environments.development.pageSize,
       order: "descend",
       date: params.date || new Date().toISOString().split('T')[0]
@@ -123,6 +123,23 @@ export const yeepayAPI = {
     }
     
     return api.post('/tracker/buryPointTest/search', requestData)
+  },
+  
+  // 获取团队列表
+  getTeamList: () => {
+    console.log('获取团队列表...')
+    return api.post(API_CONFIG.endpoints.getTeamList.path, {})
+  },
+  
+  // 获取项目和点位列表
+  getProjectAndPoints: (projectId) => {
+    const currentConfig = store.state.apiConfig
+    const pid = projectId || currentConfig.projectId || API_CONFIG.environments.development.projectId
+    
+    console.log('获取项目点位列表，项目ID:', pid)
+    return api.post(API_CONFIG.endpoints.getProjectAndPoints.path, {
+      projectId: pid
+    })
   }
 }
 

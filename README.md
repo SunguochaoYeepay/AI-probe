@@ -9,6 +9,8 @@
 - **自动图表生成**：根据需求自动选择最合适的图表类型
 - **核心指标分析**：转化率、错误率、耗时分析等
 - **API配置管理**：自动配置管理，无需手动设置
+- **项目配置管理**：支持团队、项目、点位的统一管理
+- **动态点位加载**：自动获取和管理埋点配置
 
 ### 支持的图表类型
 - 漏斗图：转化流程分析
@@ -79,6 +81,13 @@ npm run preview
 - **导出图表**：将图表导出为PNG图片
 - **保存配置**：保存当前分析配置
 
+### 5. 项目配置管理（新增）
+访问 `/project-config` 页面可以：
+- 查看和管理团队列表
+- 获取项目下的所有埋点配置
+- 搜索和选择特定点位
+- 查看统计信息
+
 ## 🔧 配置说明
 
 ### API配置
@@ -87,6 +96,12 @@ npm run preview
 - **埋点ID**：110
 - **基础URL**：https://probe.yeepay.com
 - **访问令牌**：已预设JWT token
+
+### API端点配置（新增）
+系统支持以下API端点：
+- **获取团队列表**：`/wfManage/getSimpleTeamList`
+- **获取项目点位**：`/tracker/buryPointWarehouse/getProjectAndWeList`
+- **搜索埋点数据**：`/tracker/buryPointTest/search`
 
 ### 需求理解映射
 系统支持以下关键词识别：
@@ -104,6 +119,16 @@ src/
 ├── api/                 # API接口
 │   └── index.js        # API配置和请求方法
 ├── components/         # 组件
+│   ├── ChartSection.vue           # 图表展示组件
+│   ├── ConfigModal.vue            # 配置弹窗组件
+│   ├── PageSelectionModal.vue     # 页面选择组件
+│   ├── RequirementSection.vue     # 需求描述组件
+│   ├── StatusBar.vue              # 状态栏组件
+│   └── ProjectConfigPanel.vue     # 项目配置管理面板（新增）
+├── composables/        # 可组合函数
+│   ├── useChart.js                # 图表逻辑
+│   ├── useDataFetch.js            # 数据获取逻辑
+│   └── useProjectConfig.js        # 项目配置管理（新增）
 ├── config/            # 配置文件
 │   └── api.js         # API配置和需求映射
 ├── router/            # 路由配置
@@ -111,10 +136,12 @@ src/
 ├── store/             # 状态管理
 │   └── index.js       # Vuex store
 ├── utils/             # 工具类
-│   ├── requirementParser.js  # 需求理解引擎
-│   └── chartGenerator.js     # 图表生成器
+│   ├── chartGenerator.js          # 图表生成器
+│   ├── ollamaService.js           # AI服务
+│   └── requirementParser.js       # 需求理解引擎
 ├── views/             # 页面
-│   └── Home.vue       # 主页面
+│   ├── Home.vue                   # 主页面
+│   └── ProjectConfigTest.vue      # 项目配置测试页面（新增）
 ├── App.vue            # 根组件
 └── main.js            # 入口文件
 ```
@@ -171,5 +198,12 @@ MIT License
 
 ---
 
+## 📚 更多文档
+
+- [API使用示例](doc/API使用示例.md) - 详细的API接口使用说明
+- [更新日志](CHANGELOG.md) - 查看最新的功能更新
+
+---
+
 **开发团队**：易宝支付产品团队  
-**最后更新**：2025-01-10
+**最后更新**：2025-10-11

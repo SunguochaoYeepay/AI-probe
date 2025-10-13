@@ -1,6 +1,21 @@
 <template>
-  <a-card class="requirement-card" title="智能分析需求" :bordered="false">
+  <a-card class="requirement-card" :bordered="false">
+
     <div class="requirement-section">
+      <!-- 日期范围选择器 -->
+      <div class="date-range-section">
+        <div class="date-picker-item">
+          <span class="date-label">日期范围：</span>
+          <a-range-picker
+            v-model:value="dateRange"
+            style="width: 250px;"
+            size="small"
+            :disabled-date="disabledDate"
+            @change="onDateRangeChange"
+          />
+        </div>
+      </div>
+
       <a-textarea
         v-model:value="currentRequirement"
         placeholder="请描述您想要的分析需求，或点击下方常用提示词快速填充..."
@@ -40,7 +55,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { BulbOutlined, ClearOutlined } from '@ant-design/icons-vue'
+import { BulbOutlined, ClearOutlined, CalendarOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons-vue'
 
 // Props
 const props = defineProps({
@@ -59,6 +74,10 @@ const props = defineProps({
   quickPrompts: {
     type: Array,
     default: () => []
+  },
+  dateRange: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -67,13 +86,22 @@ const emit = defineEmits([
   'update:currentRequirement',
   'analyze-requirement',
   'clear-requirement',
-  'fill-prompt'
+  'fill-prompt',
+  'update:dateRange',
+  'date-range-change',
+  'refresh-data',
+  'show-config-modal'
 ])
 
 // Computed
 const currentRequirement = computed({
   get: () => props.currentRequirement,
   set: (value) => emit('update:currentRequirement', value)
+})
+
+const dateRange = computed({
+  get: () => props.dateRange,
+  set: (value) => emit('update:dateRange', value)
 })
 
 // Methods
@@ -88,11 +116,46 @@ const clearRequirement = () => {
 const fillPrompt = (text) => {
   emit('fill-prompt', text)
 }
+
+const onDateRangeChange = (dates, dateStrings) => {
+  console.log('RequirementSection: 日期范围变化', { dates, dateStrings })
+  console.log('RequirementSection: 事件类型', typeof dates, typeof dateStrings)
+  emit('date-range-change', dates, dateStrings)
+}
+
+const refreshData = () => {
+  emit('refresh-data')
+}
+
+const showConfigModal = () => {
+  emit('show-config-modal')
+}
+
+const disabledDate = (current) => {
+  return current && current > new Date()
+}
 </script>
 
 <style scoped>
 .requirement-card {
   margin-bottom: 24px;
+}
+
+
+.date-range-section {
+  margin-bottom: 16px;
+}
+
+.date-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.date-label {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
 }
 
 .requirement-section {

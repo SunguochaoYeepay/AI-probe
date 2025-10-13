@@ -100,10 +100,11 @@ export class OllamaService {
    * 理解用户的数据分析需求
    * @param {string} requirement - 用户需求描述
    * @param {Array} availableFields - 可用的数据字段
+   * @param {Object} context - 上下文信息（如页面名称等）
    * @returns {Promise<Object>} 解析结果
    */
-  async parseRequirement(requirement, availableFields = []) {
-    const prompt = this.buildAnalysisPrompt(requirement, availableFields)
+  async parseRequirement(requirement, availableFields = [], context = {}) {
+    const prompt = this.buildAnalysisPrompt(requirement, availableFields, context)
     
     try {
       const response = await this.generate(prompt, {
@@ -195,7 +196,7 @@ export class OllamaService {
    * @param {Array} availableFields - 可用字段
    * @returns {string} Prompt
    */
-  buildAnalysisPrompt(requirement, availableFields) {
+  buildAnalysisPrompt(requirement, availableFields, context = {}) {
     const fieldsDescription = availableFields.length > 0 
       ? `可用的数据字段：\n${availableFields.map(f => `- ${f.fieldAlias || f.fieldName}: ${f.fieldName}`).join('\n')}`
       : `可用的数据字段：
@@ -211,9 +212,15 @@ export class OllamaService {
 - weIp: IP地址
 - weCity: 城市`
 
+    // 构建上下文信息
+    let contextInfo = ''
+    if (context.pageName && context.pageName !== '__ALL__') {
+      contextInfo = `\n**重要上下文**：用户选择了特定页面 "${context.pageName}"，请针对此页面进行分析。\n`
+    }
+
     return `分析需求，返回JSON。
 
-需求："${requirement}"
+需求："${requirement}"${contextInfo}
 
 规则：
 - 趋势/时间→line
@@ -238,6 +245,9 @@ A:{"intent":"funnel","chartType":"funnel","description":"用户转化流程","co
 
 Q:"页面访问量"
 A:{"intent":"uv_pv_analysis","chartType":"uv_pv_chart","description":"页面访问UV/PV分析","confidence":0.95}
+
+Q:"整站UV/PV趋势分析"
+A:{"intent":"uv_pv_analysis","chartType":"line","description":"整站UV/PV趋势分析","confidence":0.95}
 
 Q:"#首页 页面访问量"
 A:{"intent":"single_page_analysis","chartType":"line","description":"首页访问量时间趋势","confidence":0.95}
@@ -317,6 +327,121 @@ ${JSON.stringify(dataSample, null, 2)}
         insights: []
       }
     }
+  }
+
+  /**
+   * 与用户进行智能对话
+   * @param {Object} params 对话参数
+   * @returns {Promise<Object>}
+   */
+  async chatWithUser({ message, conversationHistory = [], context = {} }) {
+    const systemPrompt = `你是一个专业的数据分析师助手，专门帮助用户明确数据分析需求。
+
+你的任务：
+1. 理解用户的分析需求
+2. 通过提问澄清不明确的地方
+3. 提供专业的分析建议
+4. 生成可操作的分析方案
+
+可用数据字段：${context.availableFields?.join(', ') || '页面访问量、UV、PV、点击量等'}
+分析时间范围：${context.dateRange ? `${context.dateRange[0]} 至 ${context.dateRange[1]}` : '未设置'}
+
+请用友好、专业的语调回复，并适时提供快捷操作按钮。`
+
+    // 构建对话历史
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...conversationHistory,
+      { role: 'user', content: message }
+    ]
+
+    try {
+      const response = await this.generateChat(messages, {
+        temperature: 0.7,
+        num_predict: 400
+      })
+
+      // 解析AI回复，提取可能的操作按钮
+      const actions = this.extractActions(response)
+      
+      return {
+        success: true,
+        content: response,
+        actions,
+        rawResponse: response
+      }
+    } catch (error) {
+      console.error('AI对话失败:', error)
+      return {
+        success: false,
+        content: '抱歉，我遇到了一些技术问题。请稍后再试。',
+        actions: []
+      }
+    }
+  }
+
+  /**
+   * 生成聊天对话
+   * @param {Array} messages 消息数组
+   * @param {Object} options 生成选项
+   * @returns {Promise<string>}
+   */
+  async generateChat(messages, options = {}) {
+    const prompt = messages.map(msg => {
+      const role = msg.role === 'system' ? 'System' : 
+                   msg.role === 'user' ? 'Human' : 'Assistant'
+      return `${role}: ${msg.content}`
+    }).join('\n\n') + '\n\nAssistant:'
+
+    return await this.generate(prompt, options)
+  }
+
+  /**
+   * 从AI回复中提取可能的操作按钮
+   * @param {string} response AI回复内容
+   * @returns {Array} 操作按钮数组
+   */
+  extractActions(response) {
+    const actions = []
+    const text = response.toLowerCase()
+
+    // 检测页面访问量相关
+    if (text.includes('页面访问量') || text.includes('访问量')) {
+      actions.push({
+        text: '分析页面访问量',
+        type: 'analyze',
+        params: { type: 'page_visits', scope: 'all' }
+      })
+    }
+
+    // 检测趋势分析
+    if (text.includes('趋势') || text.includes('变化')) {
+      actions.push({
+        text: '显示访问趋势',
+        type: 'analyze',
+        params: { type: 'trend', scope: 'overall' }
+      })
+    }
+
+    // 检测转化分析
+    if (text.includes('转化') || text.includes('漏斗')) {
+      actions.push({
+        text: '分析转化流程',
+        type: 'analyze',
+        params: { type: 'conversion', scope: 'funnel' }
+      })
+    }
+
+    // 检测设备分析
+    if (text.includes('设备') || text.includes('浏览器')) {
+      actions.push({
+        text: '设备类型分析',
+        type: 'analyze',
+        params: { type: 'device', scope: 'type' }
+      })
+    }
+
+    return actions
   }
 }
 

@@ -1,0 +1,215 @@
+<template>
+  <div class="data-sync-status" v-if="showStatus">
+    <!-- 预加载进度 -->
+    <a-alert
+      v-if="preloadStatus.isPreloading"
+      type="info"
+      message="数据同步中"
+      :description="`正在预加载最近7天数据... (${preloadStatus.progress.current}/${preloadStatus.progress.total})`"
+      show-icon
+      closable
+      @close="hidePreloadStatus"
+      class="sync-alert"
+    >
+      <template #icon>
+        <LoadingOutlined />
+      </template>
+      <a-progress
+        :percent="Math.round((preloadStatus.progress.current / preloadStatus.progress.total) * 100)"
+        :show-info="false"
+        size="small"
+      />
+    </a-alert>
+
+    <!-- 同步完成提示 -->
+    <a-alert
+      v-else-if="showSuccessMessage"
+      type="success"
+      message="数据同步完成"
+      description="最近7天数据已缓存，后续操作将使用本地数据，无需重复调用接口"
+      show-icon
+      closable
+      @close="hideSuccessMessage"
+      class="sync-alert"
+    >
+      <template #icon>
+        <CheckCircleOutlined />
+      </template>
+    </a-alert>
+
+    <!-- 缓存状态信息 -->
+    <a-alert
+      v-if="showCacheInfo"
+      type="info"
+      message="使用缓存数据"
+      :description="`已从本地缓存加载数据，无需调用接口。最后同步时间: ${lastSyncTime}`"
+      show-icon
+      closable
+      @close="hideCacheInfo"
+      class="sync-alert"
+    >
+      <template #icon>
+        <DatabaseOutlined />
+      </template>
+    </a-alert>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted, onUnmounted } from 'vue'
+import {
+  LoadingOutlined,
+  CheckCircleOutlined,
+  DatabaseOutlined
+} from '@ant-design/icons-vue'
+import { dataPreloadService } from '@/services/dataPreloadService'
+
+// 状态
+const showStatus = ref(false)
+const showSuccessMessage = ref(false)
+const showCacheInfo = ref(false)
+const preloadStatus = ref({
+  isPreloading: false,
+  progress: { current: 0, total: 0 },
+  lastPreloadDate: null
+})
+const lastSyncTime = ref('')
+
+// 定时器
+let statusCheckTimer = null
+
+// 生命周期
+onMounted(() => {
+  startStatusCheck()
+})
+
+onUnmounted(() => {
+  stopStatusCheck()
+})
+
+// 方法
+const startStatusCheck = () => {
+  // 立即检查一次状态
+  checkStatus()
+  
+  // 每2秒检查一次状态
+  statusCheckTimer = setInterval(() => {
+    checkStatus()
+  }, 2000)
+}
+
+const stopStatusCheck = () => {
+  if (statusCheckTimer) {
+    clearInterval(statusCheckTimer)
+    statusCheckTimer = null
+  }
+}
+
+const checkStatus = () => {
+  const status = dataPreloadService.getStatus()
+  
+  // 更新预加载状态
+  preloadStatus.value = status
+  
+  // 显示状态
+  if (status.isPreloading) {
+    showStatus.value = true
+    showSuccessMessage.value = false
+    showCacheInfo.value = false
+  } else if (status.lastPreloadDate) {
+    // 预加载完成，显示成功消息（只显示一次）
+    if (!showSuccessMessage.value && !showCacheInfo.value) {
+      showStatus.value = true
+      showSuccessMessage.value = true
+      lastSyncTime.value = formatTime(status.lastPreloadDate)
+      
+      // 5秒后自动隐藏成功消息
+      setTimeout(() => {
+        hideSuccessMessage()
+      }, 5000)
+    }
+  }
+}
+
+const hidePreloadStatus = () => {
+  showStatus.value = false
+}
+
+const hideSuccessMessage = () => {
+  showSuccessMessage.value = false
+  if (!preloadStatus.value.isPreloading) {
+    showStatus.value = false
+  }
+}
+
+const hideCacheInfo = () => {
+  showCacheInfo.value = false
+  if (!preloadStatus.value.isPreloading) {
+    showStatus.value = false
+  }
+}
+
+const formatTime = (dateStr) => {
+  if (!dateStr) return ''
+  
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / (1000 * 60))
+  
+  if (diffMins < 1) {
+    return '刚刚'
+  } else if (diffMins < 60) {
+    return `${diffMins}分钟前`
+  } else if (diffMins < 1440) {
+    return `${Math.floor(diffMins / 60)}小时前`
+  } else {
+    return date.toLocaleDateString()
+  }
+}
+
+// 暴露方法给父组件
+const showCacheStatus = (message) => {
+  showStatus.value = true
+  showCacheInfo.value = true
+  lastSyncTime.value = message
+}
+
+defineExpose({
+  showCacheStatus
+})
+</script>
+
+<style scoped lang="less">
+.data-sync-status {
+  position: fixed;
+  top: 80px;
+  right: 24px;
+  z-index: 1000;
+  max-width: 400px;
+  
+  .sync-alert {
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+}
+
+// 响应式设计
+@media (max-width: 768px) {
+  .data-sync-status {
+    top: 70px;
+    right: 16px;
+    left: 16px;
+    max-width: none;
+  }
+}
+
+// 深色主题适配
+@media (prefers-color-scheme: dark) {
+  .data-sync-status {
+    .sync-alert {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+  }
+}
+</style>

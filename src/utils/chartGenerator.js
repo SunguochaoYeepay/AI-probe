@@ -89,8 +89,9 @@ export class ChartGenerator {
     const isDualMode = data && data.length > 0 && data[0].hasOwnProperty('dataType')
     
     // 检查是否为UV/PV分析
-    const isUVAnalysis = analysis.intent && analysis.intent.includes('uv')
-    const isPVAnalysis = analysis.intent && analysis.intent.includes('pv')
+    const isUVAnalysis = analysis.intent && (analysis.intent.includes('uv') || analysis.intent.includes('独立访客'))
+    const isPVAnalysis = analysis.intent && (analysis.intent.includes('pv') || analysis.intent.includes('访问量') || analysis.intent.includes('访问次数'))
+    const isUVPVAnalysis = analysis.intent === 'uv_pv_analysis' || (isUVAnalysis && isPVAnalysis)
     
     switch (analysis.chartType) {
       case 'funnel':
@@ -122,7 +123,7 @@ export class ChartGenerator {
       case 'click_uv_pv_chart':
         return this.generateClickUVPVComparisonOption(analysis, data)
       case 'single_page_uv_pv_chart':
-        return this.generateSinglePageUVPVChartOption(analysis, data)
+        return this.generateSinglePageUVPVChartOption(analysis, data, analysis.userDateRange)
       default:
         return isDualMode ? this.generateDualBarOption(analysis, data) : this.generateBarOption(analysis, data)
     }
@@ -196,9 +197,107 @@ export class ChartGenerator {
     
     // 检查是按小时还是按日期聚合
     const isHourly = timeData.categories.length > 0 && timeData.categories[0].includes(':')
-    const chartTitle = isHourly ? '当日访问量时段分布' : '访问量趋势分析'
-    const xAxisName = isHourly ? '时段' : '日期'
     
+    // 检查是否为UV/PV分析
+    const isUVAnalysis = analysis.intent && (analysis.intent.includes('uv') || analysis.intent.includes('独立访客'))
+    const isPVAnalysis = analysis.intent && (analysis.intent.includes('pv') || analysis.intent.includes('访问量') || analysis.intent.includes('访问次数'))
+    const isUVPVAnalysis = analysis.intent === 'uv_pv_analysis' || (isUVAnalysis && isPVAnalysis)
+    
+    // 根据分析类型确定图表标题
+    let chartTitle, xAxisName
+    if (isHourly) {
+      chartTitle = isUVPVAnalysis ? '当日UV/PV时段分布' : '当日访问量时段分布'
+      xAxisName = '时段'
+    } else {
+      chartTitle = isUVPVAnalysis ? 'UV/PV趋势分析' : '访问量趋势分析'
+      xAxisName = '日期'
+    }
+    
+    // 如果是UV/PV分析且有UV数据，生成双线图表
+    if (isUVPVAnalysis && timeData.uvValues) {
+      console.log('🎯 生成UV/PV双线图表配置:', {
+        isUVPVAnalysis,
+        hasUvValues: !!timeData.uvValues,
+        uvValues: timeData.uvValues,
+        pvValues: timeData.values
+      })
+      return {
+        title: {
+          text: chartTitle,
+          left: 'center',
+          top: 20,
+          textStyle: {
+            color: '#2c3e50',
+            fontSize: 16,
+            fontWeight: 'bold'
+          }
+        },
+        tooltip: {
+          trigger: 'axis',
+          formatter: (params) => {
+            let result = `${params[0].name}<br/>`
+            params.forEach(param => {
+              result += `${param.seriesName}: ${param.value}<br/>`
+            })
+            return result
+          }
+        },
+        legend: {
+          data: ['UV', 'PV'],
+          bottom: 10,
+          left: 'center'
+        },
+        grid: {
+          left: '3%',
+          right: '4%',
+          bottom: '15%',
+          top: '10%',
+          containLabel: true
+        },
+        xAxis: {
+          type: 'category',
+          data: timeData.categories,
+          name: xAxisName,
+          axisLabel: {
+            rotate: isHourly ? 0 : 30,
+            fontSize: 10
+          }
+        },
+        yAxis: {
+          type: 'value',
+          name: '数量'
+        },
+        series: [
+          {
+            name: 'UV',
+            type: 'bar',
+            data: timeData.uvValues,
+            itemStyle: {
+              color: '#5470c6'
+            },
+            barWidth: '60%',
+            yAxisIndex: 0
+          },
+          {
+            name: 'PV',
+            type: 'line',
+            data: timeData.values,
+            smooth: true,
+            lineStyle: {
+              color: '#91cc75',
+              width: 3
+            },
+            itemStyle: {
+              color: '#91cc75'
+            },
+            symbol: 'circle',
+            symbolSize: 8
+          }
+        ]
+      }
+    }
+    
+    // 默认单线图表（PV）
     return {
       title: {
         text: chartTitle,
@@ -563,16 +662,22 @@ export class ChartGenerator {
     ))
     
     console.log('数据包含的不同日期数:', uniqueDates.size)
+    console.log('实际数据量:', data.length)
     
-    // 如果只有一天的数据，按小时聚合
-    if (uniqueDates.size === 1) {
-      console.log('单日数据，按小时聚合')
+    // 如果只有一天的数据且数据量较少，按小时聚合
+    // 但如果数据量很少（<10条），即使是单日也按日期聚合，避免图表异常
+    if (uniqueDates.size === 1 && data.length >= 10) {
+      console.log('单日数据且数据量充足，按小时聚合')
       const timeMap = {}
       data.forEach(item => {
         const date = new Date(item.createdAt)
         const hour = date.getHours()
         const hourLabel = `${hour}:00`
-        timeMap[hourLabel] = (timeMap[hourLabel] || 0) + 1
+        if (!timeMap[hourLabel]) {
+          timeMap[hourLabel] = { pv: 0, uv: new Set() }
+        }
+        timeMap[hourLabel].pv += 1
+        timeMap[hourLabel].uv.add(item.weCustomerKey)
       })
       
       // 按小时排序（0-23）
@@ -582,22 +687,83 @@ export class ChartGenerator {
       
       return {
         categories: sortedHours,
-        values: sortedHours.map(hour => timeMap[hour])
+        values: sortedHours.map(hour => timeMap[hour].pv),
+        uvValues: sortedHours.map(hour => timeMap[hour].uv.size)
       }
     } else {
-      // 多天数据，按日期聚合
-      console.log('多日数据，按日期聚合')
+      // 多天数据或单日数据量不足，按日期聚合
+      console.log('多日数据或单日数据量不足，按日期聚合')
       const timeMap = {}
       data.forEach(item => {
         const date = new Date(item.createdAt).toLocaleDateString()
-        timeMap[date] = (timeMap[date] || 0) + 1
+        if (!timeMap[date]) {
+          timeMap[date] = { pv: 0, uv: new Set() }
+        }
+        timeMap[date].pv += 1
+        
+        // UV统计：使用 weCustomerKey 去重
+        timeMap[date].uv.add(item.weCustomerKey)
       })
       
       const sortedDates = Object.keys(timeMap).sort()
-      return {
+      const result = {
         categories: sortedDates,
-        values: sortedDates.map(date => timeMap[date])
+        values: sortedDates.map(date => timeMap[date].pv),
+        uvValues: sortedDates.map(date => timeMap[date].uv.size)
       }
+      
+      // 调试：检查数据样本的用户标识字段
+      console.log('🔍 数据样本用户标识字段检查:', {
+        sampleData: data.slice(0, 5).map(item => ({
+          pageName: item.pageName,
+          weCustomerKey: item.weCustomerKey,
+          weUserId: item.weUserId,
+          weIp: item.weIp,
+          weDeviceName: item.weDeviceName,
+          weBrowserName: item.weBrowserName,
+          createdAt: item.createdAt
+        })),
+        totalRecords: data.length,
+        uniquePages: [...new Set(data.map(item => item.pageName))].length,
+        uniqueWeCustomerKey: [...new Set(data.map(item => item.weCustomerKey))].length,
+        uniqueWeUserId: [...new Set(data.map(item => item.weUserId))].length,
+        uniqueWeIp: [...new Set(data.map(item => item.weIp))].length,
+        pageDistribution: data.reduce((acc, item) => {
+          acc[item.pageName] = (acc[item.pageName] || 0) + 1
+          return acc
+        }, {})
+      })
+      
+      console.log('📊 UV/PV数据聚合结果:', {
+        categories: result.categories,
+        pvValues: result.values,
+        uvValues: result.uvValues,
+        totalPV: result.values.reduce((a, b) => a + b, 0),
+        totalUV: result.uvValues.reduce((a, b) => a + b, 0),
+        dailyDetails: result.categories.map((date, index) => ({
+          date,
+          pv: result.values[index],
+          uv: result.uvValues[index]
+        }))
+      })
+      
+      // 调试：检查10月10日的数据
+      const oct10Data = data.filter(item => {
+        const itemDate = new Date(item.createdAt).toLocaleDateString()
+        return itemDate === '2025/10/10'
+      })
+      console.log('🔍 10月10日数据检查:', {
+        totalOct10Records: oct10Data.length,
+        expectedRecords: 3366,
+        match: oct10Data.length === 3366 ? '✅ 匹配' : '❌ 不匹配',
+        sampleOct10Data: oct10Data.slice(0, 3).map(item => ({
+          pageName: item.pageName,
+          weCustomerKey: item.weCustomerKey,
+          createdAt: item.createdAt
+        }))
+      })
+      
+      return result
     }
   }
   
@@ -1378,8 +1544,10 @@ export class ChartGenerator {
         pageMap[pageName].uvSet.add(item.weCustomerKey)
       }
       
-      // PV：不去重，统计总数
-      pageMap[pageName].pvSet.add(item.createdAt)
+      // PV：只统计pageBehavior为"打开"的记录
+      if (item.pageBehavior === '打开') {
+        pageMap[pageName].pvSet.add(item.createdAt)
+      }
     })
     
     // 转换为数组并排序
@@ -1420,8 +1588,10 @@ export class ChartGenerator {
         contentMap[content].uvSet.add(item.weCustomerKey)
       }
       
-      // PV：不去重，统计总数
-      contentMap[content].pvSet.add(item.createdAt)
+      // PV：只统计pageBehavior为"打开"的记录
+      if (item.pageBehavior === '打开') {
+        contentMap[content].pvSet.add(item.createdAt)
+      }
     })
     
     // 转换为数组并排序
@@ -1444,8 +1614,8 @@ export class ChartGenerator {
   /**
    * 生成单页面UV/PV时间组合图配置
    */
-  generateSinglePageUVPVChartOption(analysis, data) {
-    const chartData = this.processSinglePageUVPVChartData(data)
+  generateSinglePageUVPVChartOption(analysis, data, userDateRange = null) {
+    const chartData = this.processSinglePageUVPVChartData(data, userDateRange)
     
     return {
       title: {
@@ -1472,7 +1642,8 @@ export class ChartGenerator {
       },
       legend: {
         data: ['UV', 'PV'],
-        top: 50
+        bottom: 10,
+        left: 'center'
       },
       xAxis: {
         type: 'category',
@@ -1481,11 +1652,16 @@ export class ChartGenerator {
           rotate: 45,
           interval: 0,
           formatter: function(value) {
-            // 如果是日期格式，只显示月-日
+            // 如果是完整日期格式，显示月-日
+            if (value.includes('-') && value.length === 10) {
+              return value.substring(5, 10) // 显示 MM-DD
+            }
+            // 如果是长日期格式，显示月-日
             if (value.includes('-') && value.length > 10) {
               return value.substring(5, 10) // 显示 MM-DD
             }
-            return value.length > 8 ? value.substring(0, 8) + '...' : value
+            // 其他情况，如果太长就截断
+            return value.length > 10 ? value.substring(0, 10) + '...' : value
           }
         }
       },
@@ -1524,16 +1700,23 @@ export class ChartGenerator {
   /**
    * 处理单页面UV/PV时间数据
    */
-  processSinglePageUVPVChartData(data) {
+  processSinglePageUVPVChartData(data, userDateRange = null) {
     const timeMap = {}
     
-    // 获取数据的日期范围
-    const dates = data.map(item => new Date(item.createdAt).toISOString().split('T')[0]).sort()
-    const startDate = dates[0]
-    const endDate = dates[dates.length - 1]
-    
-    // 生成完整的日期范围数组
-    const fullDateRange = this.generateDateRange(startDate, endDate)
+    let fullDateRange
+    if (userDateRange && userDateRange.length === 2) {
+      // 使用用户选择的日期范围
+      const [start, end] = userDateRange
+      fullDateRange = this.generateDateRange(start, end)
+      console.log(`使用用户选择的日期范围: ${fullDateRange.length}天`)
+    } else {
+      // 获取数据的日期范围
+      const dates = data.map(item => new Date(item.createdAt).toISOString().split('T')[0]).sort()
+      const startDate = dates[0]
+      const endDate = dates[dates.length - 1]
+      fullDateRange = this.generateDateRange(startDate, endDate)
+      console.log(`使用数据实际日期范围: ${fullDateRange.length}天`)
+    }
     
     // 初始化所有日期为0
     fullDateRange.forEach(date => {
@@ -1559,8 +1742,10 @@ export class ChartGenerator {
         timeMap[date].uvSet.add(item.weCustomerKey)
       }
       
-      // PV：不去重，统计总数
-      timeMap[date].pvCount++
+      // PV：只统计pageBehavior为"打开"的记录
+      if (item.pageBehavior === '打开') {
+        timeMap[date].pvCount++
+      }
     })
     
     // 转换为数组并按时间排序
@@ -1605,3 +1790,4 @@ export class ChartGenerator {
     }
   }
 }
+

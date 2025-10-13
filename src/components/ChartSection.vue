@@ -1,8 +1,5 @@
 <template>
   <a-card class="chart-card" :bordered="false">
-    <template #title>
-      <span>分析结果</span>
-    </template>
     <template #extra>
       <div v-if="hasChart" class="chart-actions">
         <a-button size="small" @click="regenerateChart">
@@ -13,9 +10,9 @@
           <DownloadOutlined />
           导出图表
         </a-button>
-        <a-button size="small" @click="saveConfig">
+        <a-button size="small" type="primary" @click="saveChart">
           <SaveOutlined />
-          保存配置
+          保存图表
         </a-button>
       </div>
     </template>
@@ -44,7 +41,7 @@ const props = defineProps({
 const emit = defineEmits([
   'regenerate-chart',
   'export-chart',
-  'save-config'
+  'save-chart'
 ])
 
 // Methods
@@ -56,8 +53,8 @@ const exportChart = () => {
   emit('export-chart')
 }
 
-const saveConfig = () => {
-  emit('save-config')
+const saveChart = () => {
+  emit('save-chart')
 }
 </script>
 

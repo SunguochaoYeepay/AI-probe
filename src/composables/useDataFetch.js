@@ -3,6 +3,8 @@ import { useStore } from 'vuex'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import { yeepayAPI } from '@/api'
+import { dataPreloadService } from '@/services/dataPreloadService'
+import { API_CONFIG } from '@/config/api'
 
 export function useDataFetch() {
   const store = useStore()
@@ -34,11 +36,37 @@ export function useDataFetch() {
     
     console.log(`========== 批量获取数据 (${dates.length}天) ==========`)
     
+    // 获取动态埋点配置（与fetchMultiDayData保持一致）
+    const apiConfig = store.state.apiConfig
+    const projectConfig = store.state.projectConfig
+    let selectedPointId = null
+    
+    // 优先使用apiConfig中的埋点ID（与缓存逻辑保持一致）
+    if (apiConfig && apiConfig.selectedPointId) {
+      selectedPointId = apiConfig.selectedPointId
+      console.log(`使用API配置的埋点: ${selectedPointId}`)
+    } else if (projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
+      // 回退到用户选择的埋点
+      selectedPointId = projectConfig.selectedBuryPointIds[0]
+      console.log(`使用用户选择的埋点: ${selectedPointId}`)
+    } else if (projectConfig.hasVisitPoint || projectConfig.hasClickPoint) {
+      // 使用动态配置，优先使用访问埋点
+      selectedPointId = projectConfig.visitPoint?.id || projectConfig.clickPoint?.id
+      console.log(`使用动态埋点配置: ${selectedPointId}`)
+    } else {
+      // 使用默认配置
+      selectedPointId = API_CONFIG.defaultBuryPoints.visit.id
+      console.log(`使用默认埋点配置: ${selectedPointId}`)
+    }
+    
     // 显示全局Loading
     const hideLoading = message.loading(`正在获取数据... (0/${dates.length}天)`, 0)
     
     const allData = []
     const currentPageSize = store.state.apiConfig.pageSize || 1000
+    let totalRequests = 0 // 统计总请求数
+    
+    console.log(`🚀 开始获取${dates.length}天数据，预计最多${dates.length * 25}个请求`)
     
     for (let i = 0; i < dates.length; i++) {
       try {
@@ -48,14 +76,65 @@ export function useDataFetch() {
         hideLoading()
         const newHideLoading = message.loading(`正在获取数据... (${i + 1}/${dates.length}天)`, 0)
         
-        const response = await yeepayAPI.searchBuryPointData({
+        // 获取第一页数据，检查总数
+        const firstResponse = await yeepayAPI.searchBuryPointData({
           pageSize: currentPageSize,
-          date: dates[i]
+          date: dates[i],
+          selectedPointId: selectedPointId
         })
+        totalRequests++ // 第一页请求
         
-        const dayData = response.data?.dataList || []
+        const totalRecords = firstResponse.data?.total || 0
+        const firstPageData = firstResponse.data?.dataList || []
+        let dayData = [...firstPageData]
+        
+        console.log(`  ${dates[i]}: 后台总数 ${totalRecords}，第一页获取 ${firstPageData.length} 条`)
+        
+        // 如果总数超过第一页，需要分页获取所有数据
+        if (totalRecords > currentPageSize) {
+          const totalPages = Math.ceil(totalRecords / currentPageSize)
+          console.log(`  ${dates[i]}: 需要分页获取，共 ${totalPages} 页，预计请求数: ${totalPages}`)
+          
+          // 如果页数过多，给出警告
+          if (totalPages > 20) {
+            console.warn(`⚠️  ${dates[i]}: 页数过多(${totalPages}页)，可能影响性能`)
+          }
+          
+          for (let page = 2; page <= totalPages; page++) {
+            console.log(`    获取第 ${page}/${totalPages} 页...`)
+            const pageResponse = await yeepayAPI.searchBuryPointData({
+              pageSize: currentPageSize,
+              page: page,
+              date: dates[i],
+              selectedPointId: selectedPointId
+            })
+            
+            const pageData = pageResponse.data?.dataList || []
+            dayData.push(...pageData)
+            totalRequests++ // 分页请求
+            console.log(`    第 ${page} 页获取 ${pageData.length} 条`)
+            
+            // 短暂延迟，避免请求过快
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+        }
+        
         allData.push(...dayData)
-        console.log(`  ${dates[i]}: 获取 ${dayData.length} 条数据`)
+        console.log(`  ${dates[i]}: 总计获取 ${dayData.length} 条数据`)
+        
+        // 调试：显示前几条数据的实际结构
+        if (dayData.length > 0) {
+          console.log(`  ${dates[i]} 前3条数据结构:`, dayData.slice(0, 3).map(d => ({
+            id: d.id,
+            pageName: d.pageName,
+            type: d.type,
+            createdAt: d.createdAt,
+            hasAllFields: !!(d.id && d.pageName && d.type && d.createdAt),
+            allKeys: Object.keys(d),
+            weCustomerKey: d.weCustomerKey,
+            content: d.content
+          })))
+        }
         
         // 短暂延迟，避免请求过快
         if (i < dates.length - 1) {
@@ -74,6 +153,7 @@ export function useDataFetch() {
     hideLoading()
     
     console.log(`批量获取完成，共 ${allData.length} 条数据`)
+    console.log(`📊 请求统计: 总请求数 ${totalRequests}，平均每天 ${(totalRequests/dates.length).toFixed(1)} 个请求`)
     console.log('====================================')
     
     return {
@@ -113,11 +193,28 @@ export function useDataFetch() {
         hideLoading()
         const newHideLoading = message.loading(`正在获取双埋点数据... (${i + 1}/${dates.length}天)`, 0)
         
+        // 获取动态埋点配置
+        const projectConfig = store.state.projectConfig
+        let visitPointId = null
+        let clickPointId = null
+        
+        if (projectConfig.hasVisitPoint && projectConfig.hasClickPoint) {
+          // 使用动态配置
+          visitPointId = projectConfig.visitPoint?.id
+          clickPointId = projectConfig.clickPoint?.id
+          console.log(`使用动态双埋点配置: 访问${visitPointId}, 点击${clickPointId}`)
+        } else {
+          // 使用默认配置
+          visitPointId = API_CONFIG.defaultBuryPoints.visit.id
+          clickPointId = API_CONFIG.defaultBuryPoints.click.id
+          console.log(`使用默认双埋点配置: 访问${visitPointId}, 点击${clickPointId}`)
+        }
+        
         // 获取访问数据
         const visitResponse = await yeepayAPI.searchBuryPointData({
           pageSize: currentPageSize,
           date: date,
-          selectedPointId: 110
+          selectedPointId: visitPointId
         })
         const dayVisitData = visitResponse.data?.dataList || []
         allVisitData.push(...dayVisitData)
@@ -127,7 +224,7 @@ export function useDataFetch() {
         const clickResponse = await yeepayAPI.searchBuryPointData({
           pageSize: currentPageSize,
           date: date,
-          selectedPointId: 109
+          selectedPointId: clickPointId
         })
         const dayClickData = clickResponse.data?.dataList || []
         allClickData.push(...dayClickData)
@@ -229,31 +326,146 @@ export function useDataFetch() {
     return correlatedData
   }
 
-  // 批量获取多天数据
+  // 数据缓存
+  const dataCache = ref(new Map())
+  
+  // 生成缓存键
+  const generateCacheKey = (analysisMode, dateRange) => {
+    const [start, end] = dateRange
+    // 确保日期格式一致，统一转换为 YYYY-MM-DD 格式
+    const startStr = dayjs(start).format('YYYY-MM-DD')
+    const endStr = dayjs(end).format('YYYY-MM-DD')
+    return `${analysisMode}-${startStr}-${endStr}`
+  }
+  
+  // 批量获取多天数据（优先使用预加载缓存）
   const fetchMultiDayData = async (analysisMode, dateRange) => {
-    if (analysisMode === 'dual') {
-      return await fetchDualBuryPointData(dateRange)
-    } else {
-      return await fetchSingleBuryPointData(dateRange)
+    const cacheKey = generateCacheKey(analysisMode, dateRange)
+    
+    console.log(`[数据获取] 请求缓存键: ${cacheKey}`)
+    console.log(`[数据获取] 分析模式: ${analysisMode}`)
+    console.log(`[数据获取] 日期范围: ${dateRange[0]} 至 ${dateRange[1]}`)
+    
+    // 检查内存缓存
+    if (dataCache.value.has(cacheKey)) {
+      console.log(`✅ 使用内存缓存数据: ${cacheKey}`)
+      return dataCache.value.get(cacheKey)
     }
+    
+    // 尝试使用预加载的缓存数据
+    console.log(`🔍 检查预加载缓存数据...`)
+    console.log(`📅 请求日期范围: ${dateRange[0]} 至 ${dateRange[1]}`)
+    
+    // 获取当前埋点ID
+    const currentPointId = store.state.apiConfig?.selectedPointId || 
+                          store.state.projectConfig?.selectedBuryPointIds?.[0]
+    
+    console.log('====================================')
+    console.log('🔍 数据获取请求详情:')
+    console.log(`📅 日期范围: ${dateRange[0]} 至 ${dateRange[1]}`)
+    console.log(`🎯 当前埋点ID: ${currentPointId}`)
+    console.log(`📊 分析模式: ${analysisMode}`)
+    console.log('====================================')
+    
+    try {
+      const cachedData = await dataPreloadService.getMultiDayCachedData(dateRange, currentPointId)
+      
+      console.log(`📊 预加载缓存检查结果: ${cachedData ? cachedData.length : 0}条数据`)
+      
+      if (cachedData && cachedData.length > 0) {
+        console.log(`✅✅✅ 缓存命中！使用预加载缓存数据: ${cachedData.length}条 [埋点:${currentPointId}]`)
+        console.log(`💡 跳过API调用，直接使用缓存数据`)
+        console.log('====================================')
+        
+        // 根据分析模式处理数据
+        let result
+        if (analysisMode === 'dual') {
+          // 对于双埋点分析，需要进一步处理
+          result = {
+            data: cachedData,
+            totalRequests: 0,
+            totalRecords: cachedData.length,
+            analysisMode: 'dual'
+          }
+        } else {
+          result = {
+            data: cachedData,
+            totalRequests: 0,
+            totalRecords: cachedData.length,
+            analysisMode: 'single'
+          }
+        }
+        
+        // 缓存到内存
+        dataCache.value.set(cacheKey, result)
+        return result
+      }
+    } catch (error) {
+      console.warn('❌ 获取预加载缓存失败，回退到API调用:', error)
+    }
+    
+    // 缓存未命中，从API获取数据
+    console.log('====================================')
+    console.log(`❌ 缓存未命中！需要从API获取数据`)
+    console.log(`🔑 缓存键: ${cacheKey}`)
+    console.log(`📡 即将调用API获取数据...`)
+    console.log('====================================')
+    
+    let result
+    if (analysisMode === 'dual') {
+      result = await fetchDualBuryPointData(dateRange)
+    } else {
+      result = await fetchSingleBuryPointData(dateRange)
+    }
+    
+    // 缓存结果
+    dataCache.value.set(cacheKey, result)
+    console.log(`💾 数据已缓存: ${cacheKey}`)
+    
+    // 清理旧缓存（保留最近5个）
+    if (dataCache.value.size > 5) {
+      const keys = Array.from(dataCache.value.keys())
+      const oldKey = keys[0]
+      dataCache.value.delete(oldKey)
+      console.log(`🗑️ 清理旧缓存: ${oldKey}`)
+    }
+    
+    return result
   }
 
   // 加载可用的页面列表
-  const loadAvailablePages = async () => {
+  const loadAvailablePages = async (userDateRange = null) => {
     try {
-      const queryDate = dayjs().format('YYYY-MM-DD')
-      const response = await yeepayAPI.searchBuryPointData({
-        pageSize: 1000,
-        date: queryDate
+      console.log('开始加载页面列表...')
+      
+      // 使用用户选择的日期范围，如果没有则使用默认的7天范围
+      let dateRange
+      if (userDateRange && userDateRange.length === 2) {
+        dateRange = userDateRange
+        console.log('使用用户选择的日期范围:', dateRange)
+      } else {
+        const endDate = dayjs().format('YYYY-MM-DD')
+        const startDate = dayjs().subtract(6, 'day').format('YYYY-MM-DD')
+        dateRange = [startDate, endDate]
+        console.log('使用默认日期范围:', dateRange)
+      }
+      
+      // 使用缓存的数据获取逻辑
+      const result = await fetchMultiDayData('single', dateRange)
+      const data = result.data // 提取实际的数据数组
+      
+      // 从实际数据中提取页面名称，过滤掉模板字符串
+      const allPages = new Set()
+      data.forEach(item => {
+        if (item.pageName && !item.pageName.includes('{{') && !item.pageName.includes('}}')) {
+          allPages.add(item.pageName)
+        }
       })
       
-      const data = response.data?.dataList || []
+      availablePages.value = Array.from(allPages).sort()
       
-      // 提取所有唯一的页面名称并排序
-      const pageSet = new Set(data.map(item => item.pageName).filter(name => name))
-      availablePages.value = Array.from(pageSet).sort()
-      
-      console.log('加载到', availablePages.value.length, '个可用页面')
+      console.log('加载到', availablePages.value.length, '个可用页面（基于实际数据）')
+      console.log('页面列表:', availablePages.value.slice(0, 10)) // 显示前10个页面
     } catch (error) {
       console.warn('加载页面列表失败:', error)
     }
@@ -290,11 +502,18 @@ export function useDataFetch() {
     }
   }
 
+  // 清理缓存
+  const clearCache = () => {
+    dataCache.value.clear()
+    console.log('数据缓存已清理')
+  }
+  
   return {
     fetchProgress,
     availablePages,
     fetchMultiDayData,
     loadAvailablePages,
-    validateConnection
+    validateConnection,
+    clearCache
   }
 }

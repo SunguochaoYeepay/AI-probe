@@ -1,18 +1,39 @@
 // API配置管理
 export const API_CONFIG = {
+  // 动态配置支持
+  dynamic: {
+    enabled: true,
+    probeApiUrl: 'https://probe.yeepay.com',
+    defaultProjectId: 'event1021'
+  },
+  
+  // 默认埋点配置（作为备用）
+  defaultBuryPoints: {
+    visit: {
+      id: 110,
+      name: '页面访问埋点',
+      description: '记录页面访问行为',
+      type: 'single'
+    },
+    click: {
+      id: 109,
+      name: '按钮点击埋点', 
+      description: '记录按钮点击行为',
+      type: 'single'
+    }
+  },
+  
   // 环境配置
   environments: {
     development: {
       projectId: "event1021",
-      selectedPointId: 110,
       baseUrl: "https://probe.yeepay.com",
       accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI1MzVjYzQ1MC04MjVkLTExZWItYjhjZC0zOWUwNTJhNjY2ZGMiLCJjb21wYW55SWQiOiIxIiwidXNlclR5cGUiOiJzdXBlckFkbWluIiwiZW1haWxOYW1lIjoiZ3VvY2hhby5zdW5AeWVlcGF5LmNvbSIsIm5pY2tuYW1lIjoi566h55CG5ZGYIiwiaWF0IjoxNzU5OTk1NjMxLCJleHAiOjQ2MTExOTU2MzF9.L-h9sF_6Cm6J6akCmy2pzHHK-UgkHnzu5LsAvgT99ZA",
       defaultDate: "2025-01-10",
-      pageSize: 30
+      pageSize: 1000
     },
     production: {
       projectId: "event1021",
-      selectedPointId: 110,
       baseUrl: "https://probe.yeepay.com",
       accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI1MzVjYzQ1MC04MjVkLTExZWItYjhjZC0zOWUwNTJhNjY2ZGMiLCJjb21wYW55SWQiOiIxIiwidXNlclR5cGUiOiJzdXBlckFkbWluIiwiZW1haWxOYW1lIjoiZ3VvY2hhby5zdW5AeWVlcGF5LmNvbSIsIm5pY2tuYW1lIjoi566h55CG5ZGYIiwiaWF0IjoxNzU5OTk1NjMxLCJleHAiOjQ2MTExOTU2MzF9.L-h9sF_6Cm6J6akCmy2pzHHK-UgkHnzu5LsAvgT99ZA",
       defaultDate: "today",
@@ -38,6 +59,28 @@ export const API_CONFIG = {
         "Content-Type": "application/json",
         "Accept": "*/*"
       }
+    }
+  },
+  
+  // API端点配置
+  endpoints: {
+    // 获取团队列表
+    getTeamList: {
+      path: "/wfManage/getSimpleTeamList",
+      method: "POST",
+      description: "获取简单的团队列表"
+    },
+    // 获取项目和点位列表
+    getProjectAndPoints: {
+      path: "/tracker/buryPointWarehouse/getProjectAndWeList",
+      method: "POST",
+      description: "获取项目下的所有点位列表"
+    },
+    // 搜索埋点数据
+    searchBuryPoint: {
+      path: "/tracker/buryPointTest/search",
+      method: "POST",
+      description: "搜索埋点测试数据"
     }
   }
 }

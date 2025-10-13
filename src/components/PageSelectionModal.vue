@@ -12,6 +12,22 @@
       </p>
       
       <div class="page-list-modal">
+        <!-- 全部页面选项 -->
+        <div 
+          class="page-item page-item-all"
+          @click="selectPage('__ALL__')"
+        >
+          <div class="page-name">
+            <a-tag color="blue" style="margin-right: 8px;">推荐</a-tag>
+            <strong>全部页面</strong>
+            <span style="color: #999; margin-left: 8px; font-size: 12px;">查看整站UV/PV</span>
+          </div>
+          <div class="page-action">
+            <a-button type="primary" size="small">选择分析</a-button>
+          </div>
+        </div>
+        
+        <!-- 具体页面列表 -->
         <div 
           v-for="page in availablePages" 
           :key="page"
@@ -97,6 +113,15 @@ const handleCancel = () => {
 
 .page-item:hover {
   background-color: #f5f5f5;
+}
+
+.page-item-all {
+  background: linear-gradient(to right, #e6f7ff, #f0f5ff);
+  border-bottom: 2px solid #1890ff !important;
+}
+
+.page-item-all:hover {
+  background: linear-gradient(to right, #bae7ff, #d6e4ff);
 }
 
 .page-name {

@@ -28,16 +28,17 @@ export class RequirementParser {
   /**
    * 解析用户需求（主方法）
    * @param {string} requirement 用户需求描述
+   * @param {Object} context 上下文信息（如页面名称等）
    * @returns {Promise<Object>} 解析结果
    */
-  async parse(requirement) {
+  async parse(requirement, context = {}) {
     // 如果启用 AI 且 Ollama 可用，优先使用 AI 理解
     if (this.useAI && this.ollamaService) {
       try {
         const aiAvailable = await this.ollamaService.checkAvailability()
         if (aiAvailable) {
           console.log('使用 Ollama AI 理解需求...')
-          return await this.parseWithAI(requirement)
+          return await this.parseWithAI(requirement, context)
         } else {
           console.warn('Ollama 服务不可用，降级到关键词匹配')
         }
@@ -54,12 +55,14 @@ export class RequirementParser {
   /**
    * 使用 AI 解析需求
    * @param {string} requirement 用户需求
+   * @param {Object} context 上下文信息
    * @returns {Promise<Object>}
    */
-  async parseWithAI(requirement) {
+  async parseWithAI(requirement, context = {}) {
     const result = await this.ollamaService.parseRequirement(
       requirement, 
-      this.availableFields
+      this.availableFields,
+      context
     )
     
     if (result.success) {
