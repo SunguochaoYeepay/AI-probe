@@ -5,6 +5,33 @@
     @menu-click="handleMenuClick"
   >
     <template #header-actions>
+      <!-- 缓存状态指示器 -->
+      <div class="cache-status-indicator">
+        <a-badge :color="cacheHealthColor" :text="cacheHealthText" />
+        <a-dropdown :trigger="['click']">
+          <template #overlay>
+            <a-menu @click="handleCacheAction">
+              <a-menu-item key="quick-check">
+                <ScanOutlined />
+                快速检查
+              </a-menu-item>
+              <a-menu-item key="force-refresh">
+                <ReloadOutlined />
+                强制刷新
+              </a-menu-item>
+              <a-menu-item key="open-manager">
+                <DatabaseOutlined />
+                缓存管理
+              </a-menu-item>
+            </a-menu>
+          </template>
+          <a-button size="small" style="margin-right: 8px;">
+            <DatabaseOutlined />
+            缓存
+          </a-button>
+        </a-dropdown>
+      </div>
+
       <a-button @click="triggerManualPreload" :loading="isPreloading">
         <DownloadOutlined />
         数据预加载
@@ -33,7 +60,6 @@
         <!-- 右侧：分析结果 -->
         <a-col :span="12">
           <div class="right-panel">
-            <h3 class="panel-title">分析结果</h3>
             <ChartSection
               :has-chart="hasChart"
               @regenerate-chart="regenerateChart"
@@ -68,12 +94,19 @@
 import { ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { message } from 'ant-design-vue'
-import { SettingOutlined, DownloadOutlined } from '@ant-design/icons-vue'
+import { 
+  SettingOutlined, 
+  DownloadOutlined, 
+  DatabaseOutlined, 
+  ScanOutlined, 
+  ReloadOutlined 
+} from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import { RequirementParser } from '@/utils/requirementParser'
 import { useDataFetch } from '@/composables/useDataFetch'
 import { useChart } from '@/composables/useChart'
 import { useChartManager } from '@/composables/useChartManager'
+import { useDataConsistency } from '@/composables/useDataConsistency'
 import { aggregationService } from '@/utils/aggregationService'
 import { dataPreloadService } from '@/services/dataPreloadService'
 import AIChatInterface from '@/components/AIChatInterface.vue'
@@ -88,6 +121,13 @@ const store = useStore()
 const { availablePages, fetchMultiDayData, loadAvailablePages, validateConnection, clearCache } = useDataFetch()
 const { chartGenerator, initChartGenerator, generateChart, regenerateChart, exportChart, extractPageNames } = useChart()
 const { saveChart: saveChartToManager } = useChartManager()
+const { 
+  healthStatus, 
+  healthStatusColor, 
+  quickHealthCheck, 
+  forceRefreshData, 
+  startAutoCheck 
+} = useDataConsistency()
 
 // 响应式数据
 const currentRequirement = ref('')
@@ -130,6 +170,20 @@ const analysisResult = computed(() => store.state.analysisResult)
 const apiConfig = computed(() => store.state.apiConfig)
 const currentDate = computed(() => new Date().toLocaleDateString())
 const hasChart = computed(() => store.state.chartConfig !== null)
+
+// 缓存状态相关计算属性
+const cacheHealthColor = computed(() => {
+  return healthStatusColor.value
+})
+
+const cacheHealthText = computed(() => {
+  switch (healthStatus.value) {
+    case 'healthy': return '缓存正常'
+    case 'warning': return '缓存警告'
+    case 'critical': return '缓存异常'
+    default: return '未知状态'
+  }
+})
 
 // API 配置表单（移除了 defaultDate 和 baseUrl，日期在主界面上选择，baseUrl 写死在代码中）
 const apiConfigForm = computed({
@@ -178,6 +232,10 @@ let requirementParser = null
 // 生命周期
 onMounted(() => {
   initializeSystem()
+  // 启动自动缓存健康检查
+  setTimeout(() => {
+    startAutoCheck()
+  }, 2000)
 })
 
 // 方法
@@ -228,11 +286,7 @@ const handleChatAnalysis = async (params) => {
   // 处理来自聊天界面的分析请求
   console.log('聊天分析请求:', params)
   
-  if (params.requirement || params.userInput) {
-    // 如果直接传递了需求文本或用户输入，设置为当前需求并分析
-    currentRequirement.value = params.requirement || params.userInput
-    await analyzeRequirement()
-  } else if (params.type) {
+  if (params.type && (params.scope === 'specific' || params.scope === 'all')) {
     // 如果传递了分析类型参数，构建对应的需求并分析
     let requirementText = ''
     
@@ -240,82 +294,55 @@ const handleChatAnalysis = async (params) => {
       case 'page_visits':
         if (params.scope === 'all') {
           requirementText = '页面访问量'
-        } else if (params.scope === 'specific') {
-          requirementText = '特定页面访问量'
-        } else if (params.scope === 'by_type') {
-          requirementText = '按页面类型分析访问量'
-        } else if (params.scope === 'comparison') {
-          requirementText = '多页面访问量对比'
-        } else if (params.scope === 'custom') {
-          requirementText = params.userInput || '页面访问分析'
         } else if (params.scope === 'specific' && params.pageName) {
           if (params.pageName === '__ALL__') {
             requirementText = '页面访问量'
           } else {
-            requirementText = `${params.pageName}页面访问量`
+            // 构建更清晰的需求描述，明确指定页面分析
+            requirementText = `分析页面"${params.pageName}"的访问量数据`
           }
-        } else {
+        } else if (params.scope === 'specific') {
+          // 如果没有指定具体页面，应该触发页面选择流程
           requirementText = '页面访问量'
+        } else if (params.scope === 'by_type') {
+          requirementText = '按页面类型分析访问量'
         }
         break
-      case 'trend':
-        if (params.scope === 'overall') {
-          requirementText = '显示访问趋势'
+      case 'user_click':
+        if (params.scope === 'all') {
+          requirementText = '用户点击行为分析'
+        } else if (params.scope === 'specific' && params.pageName) {
+          if (params.pageName === '__ALL__') {
+            requirementText = '用户点击行为分析'
+          } else {
+            requirementText = `分析页面"${params.pageName}"的点击行为`
+          }
         } else {
-          requirementText = '页面对比趋势'
+          requirementText = '用户点击行为分析'
         }
         break
       case 'conversion':
         if (params.scope === 'funnel') {
-          requirementText = '用户转化流程'
-        } else if (params.scope === 'registration') {
-          requirementText = '用户注册转化流程'
-        } else if (params.scope === 'purchase') {
-          requirementText = '购买转化漏斗'
-        } else if (params.scope === 'custom') {
-          requirementText = params.userInput || '转化流程分析'
-        } else {
+          requirementText = '用户转化漏斗分析'
+        } else if (params.scope === 'page') {
           requirementText = '页面转化分析'
-        }
-        break
-      case 'user_click':
-        if (params.scope === 'page') {
-          requirementText = '页面点击分析'
-        } else if (params.scope === 'all_buttons') {
-          requirementText = '页面所有按钮点击分析'
         } else if (params.scope === 'custom') {
-          requirementText = params.userInput || '用户点击分析'
-        } else if (params.scope === 'specific' && params.pageName) {
-          if (params.pageName === '__ALL__') {
-            requirementText = '用户点击分析'
-          } else {
-            requirementText = `${params.pageName}页面点击分析`
-          }
+          requirementText = params.requirement || params.userInput || '自定义转化路径分析'
         } else {
-          requirementText = '用户点击分析'
-        }
-        break
-      case 'button_heatmap':
-        requirementText = '按钮点击热度分析'
-        break
-      case 'click_conversion':
-        requirementText = '点击转化率分析'
-        break
-      case 'device':
-        if (params.scope === 'type') {
-          requirementText = '设备类型分布'
-        } else {
-          requirementText = '浏览器使用情况'
+          requirementText = '用户行为转化分析'
         }
         break
       default:
-        requirementText = params.type
+        requirementText = params.requirement || params.userInput || '数据分析'
     }
     
-    if (requirementText) {
-      currentRequirement.value = requirementText
-      await analyzeRequirement()
-    }
+    currentRequirement.value = requirementText
+    console.log('构建的需求文本:', requirementText)
+    await analyzeRequirement()
+  } else if (params.requirement || params.userInput) {
+    // 如果直接传递了需求文本或用户输入，设置为当前需求并分析
+    currentRequirement.value = params.requirement || params.userInput
+    await analyzeRequirement()
   }
 }
 
@@ -331,6 +358,13 @@ const analyzeRequirement = async () => {
   }
   
   analyzing.value = true
+  
+  // 开始图表生成loading状态
+  store.dispatch('updateChartGenerationStatus', {
+    isGenerating: true,
+    currentStep: '正在分析需求...',
+    progress: 10
+  })
   
   try {
     // 构建上下文信息
@@ -356,19 +390,32 @@ const analyzeRequirement = async () => {
       }
     }
     
-    // 检测单页面查询并强制转换为UV/PV组合图
-    const specifiedPages = extractPageNames(currentRequirement.value)
-    if (specifiedPages.length > 0 && analysis.chartType === 'uv_pv_chart') {
+    // 检测单页面查询并强制转换为正确的图表类型
+    const specifiedPages = await extractPageNames(currentRequirement.value)
+    if (specifiedPages.length > 0) {
       console.log('检测到单页面查询，强制转换为UV/PV时间组合图')
       analysis = {
         ...analysis,
         intent: 'single_page_uv_pv_analysis',
         chartType: 'single_page_uv_pv_chart',
-        description: `${specifiedPages[0]}页面UV/PV时间趋势分析`
+        description: `${specifiedPages[0]}页面UV/PV时间趋势分析`,
+        parameters: {
+          ...analysis.parameters,
+          pageName: specifiedPages[0]
+        }
       }
+    } else {
+      console.log('✅ 使用AI分析结果:', analysis)
     }
     
     console.log('需求分析结果:', analysis)
+    
+    // 更新生成状态 - 需求分析完成
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: true,
+      currentStep: '正在获取数据...',
+      progress: 30
+    })
     
     // 根据分析结果自动设置埋点类型
     if (analysis.buryPointType) {
@@ -415,6 +462,14 @@ const analyzeRequirement = async () => {
     
     // 获取数据并生成图表（使用缓存机制）
     console.log('🔍 开始获取数据，优先使用预加载缓存...')
+    
+    // 更新生成状态 - 开始获取数据
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: true,
+      currentStep: '正在获取数据...',
+      progress: 50
+    })
+    
     const result = await fetchMultiDayData(analysisMode.value, dateRange.value)
     
     // 检查是否使用了缓存数据
@@ -426,10 +481,32 @@ const analyzeRequirement = async () => {
       message.warning(`调用了 ${result.totalRequests} 个API请求，建议先完成数据预加载`)
     }
     
+    // 更新生成状态 - 开始生成图表
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: true,
+      currentStep: '正在生成图表...',
+      progress: 80
+    })
+    
     await generateChart(analysis, result.data, dateRange.value)
+    
+    // 完成生成
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: false,
+      currentStep: '图表生成完成',
+      progress: 100
+    })
+    
   } catch (error) {
     console.error('分析失败:', error)
     message.error('分析失败，请重试')
+    
+    // 错误时也要清除loading状态
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: false,
+      currentStep: '生成失败',
+      progress: 0
+    })
   } finally {
     analyzing.value = false
   }
@@ -451,6 +528,15 @@ const onProjectConfigUpdated = (configInfo) => {
     selectedBuryPointIds: configInfo.selectedBuryPointIds || []
   })
   
+  // 同时更新 apiConfig 中的 selectedPointId（取第一个选中的埋点）
+  if (configInfo.selectedBuryPointIds && configInfo.selectedBuryPointIds.length > 0) {
+    const firstSelectedPointId = configInfo.selectedBuryPointIds[0]
+    store.dispatch('updateApiConfig', {
+      selectedPointId: firstSelectedPointId
+    })
+    console.log(`同步更新 apiConfig.selectedPointId: ${firstSelectedPointId}`)
+  }
+  
   const buryPointsCount = configInfo.selectedBuryPointIds?.length || 0
   message.success(`项目 ${configInfo.projectId} 配置已更新，已选择 ${buryPointsCount} 个埋点`)
   
@@ -461,24 +547,35 @@ const onProjectConfigUpdated = (configInfo) => {
 }
 
 const onDateRangeChange = async (dates, dateStrings) => {
-  console.log('Home: onDateRangeChange 被调用', { dates, dateStrings })
+  console.log('====================================')
+  console.log('Home: onDateRangeChange 被调用')
+  console.log('传入的 dates:', dates)
+  console.log('传入的 dateStrings:', dateStrings)
+  console.log('当前 dateRange.value:', dateRange.value)
+  console.log('====================================')
   
   if (!dates || dates.length !== 2) {
     console.log('日期范围无效，退出')
     return
   }
   
+  // 更新本地 dateRange 变量
+  dateRange.value = dates
+  console.log('更新后的 dateRange.value:', dateRange.value)
+  
   // 使用 dateStrings 如果存在，否则从 dates 中提取日期字符串
   let start, end
   if (dateStrings && dateStrings.length === 2) {
     [start, end] = dateStrings
+    console.log('使用 dateStrings:', start, '至', end)
   } else {
     // 从 dayjs 对象中提取日期字符串
     start = dates[0].format('YYYY-MM-DD')
     end = dates[1].format('YYYY-MM-DD')
+    console.log('从 dates 提取:', start, '至', end)
   }
   
-  console.log('范围模式 - 日期范围:', start, '至', end)
+  console.log('最终日期范围:', start, '至', end)
   
   // 清空缓存，确保使用新的日期范围重新获取数据
   clearCache()
@@ -530,10 +627,10 @@ const triggerManualPreload = async () => {
     isPreloading.value = true
     console.log('🔄 手动触发数据预加载...')
     
-    message.loading('正在启动数据预加载...', 2)
+    // 不显示loading消息，让右侧状态组件处理
     await dataPreloadService.triggerPreload()
     
-    message.success('数据预加载已完成！现在创建图表将使用缓存数据')
+    // 不显示success消息，让右侧状态组件处理
     console.log('✅ 手动数据预加载完成')
   } catch (error) {
     console.error('手动数据预加载失败:', error)
@@ -550,6 +647,16 @@ const saveConfig = async (configData) => {
       store.dispatch('updateProjectConfig', {
         selectedBuryPointIds: configData.selectedBuryPointIds
       })
+      
+      // 同时更新 apiConfig 中的 selectedPointId（取第一个选中的埋点）
+      if (configData.selectedBuryPointIds.length > 0) {
+        const firstSelectedPointId = configData.selectedBuryPointIds[0]
+        store.dispatch('updateApiConfig', {
+          selectedPointId: firstSelectedPointId
+        })
+        console.log(`保存配置时同步更新 apiConfig.selectedPointId: ${firstSelectedPointId}`)
+      }
+      
       console.log('保存埋点选择:', configData.selectedBuryPointIds)
     }
     
@@ -708,6 +815,23 @@ const clearRequirement = () => {
   store.dispatch('updateRequirement', '')
   store.dispatch('updateAnalysisResult', null)
   store.dispatch('updateChartConfig', null)
+}
+
+// 处理缓存操作
+const handleCacheAction = async ({ key }) => {
+  switch (key) {
+    case 'quick-check':
+      await quickHealthCheck()
+      break
+    case 'force-refresh':
+      await forceRefreshData()
+      break
+    case 'open-manager':
+      // 打开配置管理并切换到缓存管理标签
+      configModalVisible.value = true
+      // 需要等待modal打开后再切换标签，这可能需要在ConfigModal组件中处理
+      break
+  }
 }
 
 // 保存图表到图表库
@@ -949,6 +1073,17 @@ const getCategoryByChartType = (chartType) => {
 
 .page-action {
   margin-left: 12px;
+}
+
+/* 缓存状态指示器样式 */
+.cache-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cache-status-indicator :deep(.ant-badge-status-text) {
+  font-size: 12px;
 }
 
 .no-pages {

@@ -6,7 +6,7 @@ export default createStore({
     // API配置
     apiConfig: {
       ...API_CONFIG.environments.development,
-      selectedPointId: 175, // 设置默认埋点ID
+      selectedPointId: JSON.parse(localStorage.getItem('selectedBuryPointIds') || '[]')[0] || null, // 从localStorage读取第一个选中的埋点ID
       defaults: API_CONFIG.defaults
     },
     
@@ -44,6 +44,13 @@ export default createStore({
       dataConnected: false,
       configLoaded: false,
       lastUpdate: null
+    },
+    
+    // 图表生成状态
+    chartGeneration: {
+      isGenerating: false,
+      currentStep: '',
+      progress: 0
     }
   },
   
@@ -78,6 +85,10 @@ export default createStore({
     
     SET_SYSTEM_STATUS(state, status) {
       state.systemStatus = { ...state.systemStatus, ...status }
+    },
+    
+    SET_CHART_GENERATION_STATUS(state, status) {
+      state.chartGeneration = { ...state.chartGeneration, ...status }
     }
   },
   
@@ -108,6 +119,10 @@ export default createStore({
     
     updateSystemStatus({ commit }, status) {
       commit('SET_SYSTEM_STATUS', status)
+    },
+    
+    updateChartGenerationStatus({ commit }, status) {
+      commit('SET_CHART_GENERATION_STATUS', status)
     }
   },
   

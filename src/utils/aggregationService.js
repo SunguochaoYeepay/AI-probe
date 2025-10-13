@@ -259,9 +259,8 @@ class AggregationService {
           metrics.uv = new Set(data.map(d => d.weCustomerKey).filter(k => k)).size
           break
         case 'pv':
-          // 只统计"打开"行为作为PV
-          const openData = data.filter(d => d.pageBehavior === '打开' || !d.pageBehavior)
-          metrics.pv = openData.length
+          // PV：统计所有页面访问记录（不去重）
+          metrics.pv = data.length
           break
         case 'total':
           metrics.total = data.length
@@ -275,7 +274,7 @@ class AggregationService {
           break
         case 'bounce_rate':
           // 跳出率（简化计算）
-          const totalVisits = data.filter(d => d.pageBehavior === '打开').length
+          const totalVisits = data.length // 使用总访问量作为分母
           const bounces = data.filter(d => d.pageBehavior === '关闭' && !d.hasClick).length
           metrics.bounceRate = totalVisits > 0 ? bounces / totalVisits : 0
           break

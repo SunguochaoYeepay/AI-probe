@@ -105,6 +105,9 @@ const stopStatusCheck = () => {
   }
 }
 
+// 成功消息隐藏定时器
+let successMessageTimer = null
+
 const checkStatus = () => {
   const status = dataPreloadService.getStatus()
   
@@ -116,16 +119,22 @@ const checkStatus = () => {
     showStatus.value = true
     showSuccessMessage.value = false
     showCacheInfo.value = false
+    // 清除成功消息定时器
+    if (successMessageTimer) {
+      clearTimeout(successMessageTimer)
+      successMessageTimer = null
+    }
   } else if (status.lastPreloadDate) {
     // 预加载完成，显示成功消息（只显示一次）
-    if (!showSuccessMessage.value && !showCacheInfo.value) {
+    if (!showSuccessMessage.value && !showCacheInfo.value && !successMessageTimer) {
       showStatus.value = true
       showSuccessMessage.value = true
       lastSyncTime.value = formatTime(status.lastPreloadDate)
       
-      // 5秒后自动隐藏成功消息
-      setTimeout(() => {
+      // 5秒后自动隐藏成功消息（只设置一次）
+      successMessageTimer = setTimeout(() => {
         hideSuccessMessage()
+        successMessageTimer = null
       }, 5000)
     }
   }
@@ -137,6 +146,11 @@ const hidePreloadStatus = () => {
 
 const hideSuccessMessage = () => {
   showSuccessMessage.value = false
+  // 清除定时器
+  if (successMessageTimer) {
+    clearTimeout(successMessageTimer)
+    successMessageTimer = null
+  }
   if (!preloadStatus.value.isPreloading) {
     showStatus.value = false
   }

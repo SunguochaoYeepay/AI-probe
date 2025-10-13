@@ -344,7 +344,7 @@ ${JSON.stringify(dataSample, null, 2)}
 4. 生成可操作的分析方案
 
 可用数据字段：${context.availableFields?.join(', ') || '页面访问量、UV、PV、点击量等'}
-分析时间范围：${context.dateRange ? `${context.dateRange[0]} 至 ${context.dateRange[1]}` : '未设置'}
+分析时间：${context.dateRange ? `${context.dateRange[0]} 至 ${context.dateRange[1]}` : '未设置'}
 
 请用友好、专业的语调回复，并适时提供快捷操作按钮。`
 

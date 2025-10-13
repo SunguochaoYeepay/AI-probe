@@ -88,11 +88,13 @@ export class RequirementParser {
   }
   
   /**
-   * 使用关键词匹配解析需求（原有逻辑）
+   * 使用关键词匹配解析需求（改进版）
    * @param {string} requirement 用户需求
    * @returns {Object}
    */
   parseWithKeywords(requirement) {
+    console.log('🔍 使用关键词匹配解析需求:', requirement)
+    
     const analysis = {
       intent: null,
       chartType: null,
@@ -100,6 +102,35 @@ export class RequirementParser {
       confidence: 0,
       originalText: requirement,
       source: 'keywords'
+    }
+    
+    // 智能解析页面名称和日期
+    const pageNameMatch = requirement.match(/(.+?)页面访问量/)
+    const dateMatch = requirement.match(/(\d+月\d+日)/)
+    
+    if (pageNameMatch && pageNameMatch[1]) {
+      let pageName = pageNameMatch[1].trim()
+      
+      // 清理页面名称
+      pageName = pageName.replace(/的页面访问量$/, '')
+      pageName = pageName.replace(/的访问量$/, '')
+      pageName = pageName.replace(/访问量$/, '')
+      pageName = pageName.replace(/\d+月\d+日访问量.*$/, '')
+      pageName = pageName.replace(/\s*[,，]\s*$/, '').trim()
+      
+      analysis.parameters.pageName = pageName
+      analysis.intent = 'single_page_uv_pv_analysis'
+      analysis.chartType = 'single_page_uv_pv_chart'
+      analysis.description = `${pageName}页面UV/PV时间趋势分析`
+      analysis.confidence = 0.9
+      
+      console.log('✅ 智能解析结果:', {
+        pageName: pageName,
+        intent: analysis.intent,
+        chartType: analysis.chartType
+      })
+      
+      return analysis
     }
     
     // 1. 关键词匹配

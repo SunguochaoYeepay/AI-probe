@@ -326,74 +326,220 @@ export function useDataFetch() {
     return correlatedData
   }
 
+  // N埋点数据获取（新方法）
+  const fetchMultiBuryPointData = async (pointIds, dateRange) => {
+    const [start, end] = dateRange
+    const dates = []
+    let current = dayjs(start)
+    
+    while (current.isSameOrBefore(dayjs(end))) {
+      dates.push(current.format('YYYY-MM-DD'))
+      current = current.add(1, 'day')
+    }
+    
+    console.log('====================================')
+    console.log(`🚀 N埋点模式 - API获取数据`)
+    console.log(`📅 日期范围: ${dates[0]} 至 ${dates[dates.length - 1]} (${dates.length}天)`)
+    console.log(`🎯 埋点数量: ${pointIds.length}个`)
+    console.log(`📍 埋点列表: [${pointIds.join(', ')}]`)
+    console.log('====================================')
+    
+    // 显示全局Loading
+    const hideLoading = message.loading(`正在获取${pointIds.length}个埋点的数据... (0/${dates.length}天)`, 0)
+    
+    const allData = []
+    const currentPageSize = store.state.apiConfig.pageSize || 1000
+    let totalRequests = 0
+    
+    // 遍历每一天
+    for (let i = 0; i < dates.length; i++) {
+      const date = dates[i]
+      
+      // 更新Loading消息
+      hideLoading()
+      const newHideLoading = message.loading(`正在获取数据... (${i + 1}/${dates.length}天)`, 0)
+      
+      // 遍历每个埋点
+      for (const pointId of pointIds) {
+        try {
+          console.log(`📊 获取 ${date} - 埋点 ${pointId} 的数据...`)
+          
+          // 获取该埋点该日期的数据（支持分页）
+          let page = 1
+          let hasMoreData = true
+          
+          while (hasMoreData) {
+            const response = await yeepayAPI.searchBuryPointData({
+              pageSize: currentPageSize,
+              page,
+              date,
+              selectedPointId: pointId
+            })
+            
+            totalRequests++
+            const dayData = response.data?.dataList || []
+            
+            if (dayData.length > 0) {
+              // 为每条数据标记埋点ID
+              const dataWithPointId = dayData.map(item => ({
+                ...item,
+                _buryPointId: pointId
+              }))
+              allData.push(...dataWithPointId)
+              console.log(`  ✅ 埋点 ${pointId} - ${date}: 第${page}页 ${dayData.length}条`)
+            }
+            
+            // 判断是否还有更多数据
+            if (dayData.length < currentPageSize) {
+              hasMoreData = false
+            } else {
+              page++
+            }
+          }
+          
+          // 短暂延迟，避免请求过快
+          await new Promise(resolve => setTimeout(resolve, 100))
+          
+        } catch (error) {
+          console.error(`❌ 获取 ${date} - 埋点 ${pointId} 数据失败:`, error)
+        }
+      }
+      
+      newHideLoading()
+    }
+    
+    hideLoading()
+    
+    console.log('====================================')
+    console.log(`✅ N埋点批量获取完成:`)
+    console.log(`📊 总数据量: ${allData.length}条`)
+    console.log(`📡 总请求数: ${totalRequests}个`)
+    console.log(`🎯 埋点数量: ${pointIds.length}个`)
+    console.log('====================================')
+    
+    return {
+      data: allData,
+      totalRequests,
+      totalRecords: allData.length,
+      buryPoints: pointIds,
+      analysisMode: pointIds.length === 1 ? 'single' : 'multi',
+      dateRange: `${dates[0]} 至 ${dates[dates.length - 1]}`
+    }
+  }
+
   // 数据缓存
   const dataCache = ref(new Map())
   
-  // 生成缓存键
-  const generateCacheKey = (analysisMode, dateRange) => {
+  // 生成缓存键 - 支持N埋点模式
+  const generateCacheKey = (pointIds, dateRange) => {
     const [start, end] = dateRange
     // 确保日期格式一致，统一转换为 YYYY-MM-DD 格式
     const startStr = dayjs(start).format('YYYY-MM-DD')
     const endStr = dayjs(end).format('YYYY-MM-DD')
-    return `${analysisMode}-${startStr}-${endStr}`
+    
+    // 如果pointIds是数组，生成多埋点缓存键
+    if (Array.isArray(pointIds)) {
+      const sortedIds = [...pointIds].sort((a, b) => a - b) // 排序确保相同埋点组合得到相同键
+      return `multi-[${sortedIds.join(',')}]-${startStr}-${endStr}`
+    }
+    
+    // 兼容旧的字符串模式（'single'/'dual'）
+    return `${pointIds}-${startStr}-${endStr}`
   }
   
-  // 批量获取多天数据（优先使用预加载缓存）
+  // 批量获取多天数据（优先使用预加载缓存）- 支持N埋点模式
   const fetchMultiDayData = async (analysisMode, dateRange) => {
-    const cacheKey = generateCacheKey(analysisMode, dateRange)
+    // 获取选中的所有埋点ID
+    const selectedPointIds = store.state.projectConfig?.selectedBuryPointIds || []
     
-    console.log(`[数据获取] 请求缓存键: ${cacheKey}`)
-    console.log(`[数据获取] 分析模式: ${analysisMode}`)
-    console.log(`[数据获取] 日期范围: ${dateRange[0]} 至 ${dateRange[1]}`)
+    if (selectedPointIds.length === 0) {
+      console.warn('⚠️ 未选择任何埋点，无法获取数据')
+      return {
+        data: [],
+        totalRequests: 0,
+        totalRecords: 0,
+        buryPoints: [],
+        analysisMode: 'none'
+      }
+    }
+    
+    const cacheKey = generateCacheKey(selectedPointIds, dateRange)
+    
+    console.log('====================================')
+    console.log('🔍 N埋点模式 - 数据获取请求详情:')
+    console.log(`📅 日期范围: ${dateRange[0]} 至 ${dateRange[1]}`)
+    console.log(`🎯 选中埋点数量: ${selectedPointIds.length}`)
+    console.log(`📍 埋点ID列表: [${selectedPointIds.join(', ')}]`)
+    console.log(`🔑 缓存键: ${cacheKey}`)
+    console.log('====================================')
     
     // 检查内存缓存
     if (dataCache.value.has(cacheKey)) {
-      console.log(`✅ 使用内存缓存数据: ${cacheKey}`)
-      return dataCache.value.get(cacheKey)
+      const cachedResult = dataCache.value.get(cacheKey)
+      
+      // 🔧 验证内存缓存的完整性
+      if (cachedResult && cachedResult.data && cachedResult.data.length > 0) {
+        console.log(`✅ 使用内存缓存数据: ${cacheKey}`)
+        console.log(`📊 内存缓存数据量: ${cachedResult.data.length} 条`)
+        
+        // 检查是否是不完整的数据（例如只有1000条）
+        if (cachedResult.data.length === 1000) {
+          console.warn(`⚠️ 内存缓存可能不完整（正好1000条），清除并重新获取`)
+          dataCache.value.delete(cacheKey)
+        } else {
+          return cachedResult
+        }
+      } else {
+        console.warn(`⚠️ 内存缓存数据异常，清除并重新获取`)
+        dataCache.value.delete(cacheKey)
+      }
     }
     
-    // 尝试使用预加载的缓存数据
+    // 尝试从预加载缓存中获取所有埋点的数据
     console.log(`🔍 检查预加载缓存数据...`)
-    console.log(`📅 请求日期范围: ${dateRange[0]} 至 ${dateRange[1]}`)
-    
-    // 获取当前埋点ID
-    const currentPointId = store.state.apiConfig?.selectedPointId || 
-                          store.state.projectConfig?.selectedBuryPointIds?.[0]
-    
-    console.log('====================================')
-    console.log('🔍 数据获取请求详情:')
-    console.log(`📅 日期范围: ${dateRange[0]} 至 ${dateRange[1]}`)
-    console.log(`🎯 当前埋点ID: ${currentPointId}`)
-    console.log(`📊 分析模式: ${analysisMode}`)
-    console.log('====================================')
     
     try {
-      const cachedData = await dataPreloadService.getMultiDayCachedData(dateRange, currentPointId)
+      const allCachedData = []
+      let allFromCache = true
+      let totalCachedRecords = 0
       
-      console.log(`📊 预加载缓存检查结果: ${cachedData ? cachedData.length : 0}条数据`)
+      // 遍历每个埋点，尝试从缓存获取
+      let cachedPointsCount = 0
+      for (const pointId of selectedPointIds) {
+        console.log(`📊 检查埋点 ${pointId} 的缓存...`)
+        const cachedData = await dataPreloadService.getMultiDayCachedData(dateRange, pointId)
+        
+        if (cachedData && cachedData.length > 0) {
+          console.log(`  ✅ 埋点 ${pointId}: 找到缓存 ${cachedData.length}条`)
+          // 为每条数据标记埋点ID（如果还没有）
+          const dataWithPointId = cachedData.map(item => ({
+            ...item,
+            _buryPointId: pointId
+          }))
+          allCachedData.push(...dataWithPointId)
+          totalCachedRecords += cachedData.length
+          cachedPointsCount++
+        } else {
+          console.log(`  ❌ 埋点 ${pointId}: 缓存未命中`)
+          // 不要break，继续检查其他埋点
+        }
+      }
       
-      if (cachedData && cachedData.length > 0) {
-        console.log(`✅✅✅ 缓存命中！使用预加载缓存数据: ${cachedData.length}条 [埋点:${currentPointId}]`)
+      // 如果至少有一个埋点有缓存数据，就使用缓存
+      if (cachedPointsCount > 0 && allCachedData.length > 0) {
+        console.log('====================================')
+        console.log(`✅✅✅ 部分/全部埋点缓存命中！`)
+        console.log(`📊 缓存埋点数: ${cachedPointsCount}/${selectedPointIds.length}`)
+        console.log(`📊 总计: ${totalCachedRecords}条数据`)
         console.log(`💡 跳过API调用，直接使用缓存数据`)
         console.log('====================================')
         
-        // 根据分析模式处理数据
-        let result
-        if (analysisMode === 'dual') {
-          // 对于双埋点分析，需要进一步处理
-          result = {
-            data: cachedData,
-            totalRequests: 0,
-            totalRecords: cachedData.length,
-            analysisMode: 'dual'
-          }
-        } else {
-          result = {
-            data: cachedData,
-            totalRequests: 0,
-            totalRecords: cachedData.length,
-            analysisMode: 'single'
-          }
+        const result = {
+          data: allCachedData,
+          totalRequests: 0,
+          totalRecords: totalCachedRecords,
+          buryPoints: selectedPointIds,
+          analysisMode: selectedPointIds.length === 1 ? 'single' : 'multi'
         }
         
         // 缓存到内存
@@ -404,19 +550,15 @@ export function useDataFetch() {
       console.warn('❌ 获取预加载缓存失败，回退到API调用:', error)
     }
     
-    // 缓存未命中，从API获取数据
+    // 缓存未完全命中，从API获取数据
     console.log('====================================')
-    console.log(`❌ 缓存未命中！需要从API获取数据`)
+    console.log(`❌ 缓存未完全命中！需要从API获取数据`)
     console.log(`🔑 缓存键: ${cacheKey}`)
-    console.log(`📡 即将调用API获取数据...`)
+    console.log(`📡 即将调用API获取 ${selectedPointIds.length} 个埋点的数据...`)
     console.log('====================================')
     
-    let result
-    if (analysisMode === 'dual') {
-      result = await fetchDualBuryPointData(dateRange)
-    } else {
-      result = await fetchSingleBuryPointData(dateRange)
-    }
+    // 使用新的多埋点获取方法
+    const result = await fetchMultiBuryPointData(selectedPointIds, dateRange)
     
     // 缓存结果
     dataCache.value.set(cacheKey, result)

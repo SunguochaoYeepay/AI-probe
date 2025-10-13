@@ -12,29 +12,28 @@ export function useChart() {
     chartGenerator.value = new ChartGenerator()
   }
 
-  // 从需求中提取页面名称
-  const extractPageNames = (requirement) => {
-    const pageNames = []
+  // 使用统一的AI智能提取页面名称函数
+  const extractPageNames = async (requirement) => {
+    console.log(`🔍 开始AI智能提取页面名称，原始需求: "${requirement}"`)
     
-    // 匹配 #页面名 或 @页面名
-    const matches = requirement.match(/(#|@)([^\s#@]+)/g)
-    if (matches) {
-      matches.forEach(match => {
-        const pageName = match.substring(1) // 移除 # 或 @
-        pageNames.push(pageName)
-      })
-    }
-    
-    // 匹配 "页面名页面访问量" 格式
-    const pageNameMatch = requirement.match(/(.+?)页面访问量/)
-    if (pageNameMatch && pageNameMatch[1]) {
-      const pageName = pageNameMatch[1].trim()
-      if (pageName && !pageNames.includes(pageName)) {
-        pageNames.push(pageName)
+    try {
+      // 使用统一的AI提取工具函数
+      const { extractPageNameWithAI } = await import('@/utils/aiExtractor')
+      
+      const extractedName = await extractPageNameWithAI(requirement)
+      
+      if (!extractedName) {
+        console.log('AI未提取到页面名称')
+        return []
       }
+      
+      console.log(`📋 AI提取的页面名称:`, extractedName)
+      return [extractedName]
+      
+    } catch (error) {
+      console.error('AI提取页面名称失败:', error)
+      return []
     }
-    
-    return pageNames
   }
 
   // 生成图表
@@ -67,7 +66,14 @@ export function useChart() {
       console.log('====================================')
       
       // 如果需求中指定了页面，过滤数据
-      const specifiedPages = extractPageNames(analysis.originalText || analysis.description)
+      let specifiedPages = await extractPageNames(analysis.originalText || analysis.description)
+      
+      // 如果analysis中有pageName参数，优先使用
+      if (analysis.parameters?.pageName) {
+        console.log('使用AI分析的页面名称:', analysis.parameters.pageName)
+        specifiedPages = [analysis.parameters.pageName, ...specifiedPages]
+      }
+      
       if (specifiedPages.length > 0 && data.length > 0) {
         console.log('检测到指定页面:', specifiedPages)
         
@@ -78,15 +84,73 @@ export function useChart() {
         const filteredData = data.filter(item => 
           specifiedPages.some(page => {
             if (!item.pageName) return false
-            // 精确匹配
-            if (item.pageName.includes(page)) return true
-            // 处理不同的横线字符：长横线(—)、短横线(-)、下划线(_)
-            const normalizedPageName = item.pageName.replace(/[—_\-]/g, '')
-            const normalizedTarget = page.replace(/[—_\-]/g, '')
-            return normalizedPageName.includes(normalizedTarget)
+            
+            // 智能匹配函数 - 更严格的匹配逻辑
+            const smartMatch = (target, source) => {
+              // 1. 精确匹配
+              if (target === source) return true
+              
+              // 2. 去除常见后缀后的精确匹配
+              const cleanTarget = target.replace(/(的访问|访问|页面|page)$/gi, '').trim()
+              const cleanSource = source.replace(/(的访问|访问|页面|page)$/gi, '').trim()
+              if (cleanTarget === cleanSource) return true
+              
+              // 3. 去除横线字符后的精确匹配
+              const normalizedTarget = target.replace(/[—_\-]/g, '')
+              const normalizedSource = source.replace(/[—_\-]/g, '')
+              if (normalizedTarget === normalizedSource) return true
+              
+              // 4. 更严格的包含匹配 - 要求主要关键词都包含
+              const targetKeywords = target.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
+              const sourceKeywords = source.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
+              
+              // 检查关键关键词是否都包含（至少3个关键词中有2个匹配）
+              if (targetKeywords.length >= 3 && sourceKeywords.length >= 3) {
+                let matchCount = 0
+                for (const targetKeyword of targetKeywords) {
+                  if (sourceKeywords.some(sourceKeyword => 
+                    sourceKeyword.includes(targetKeyword) || targetKeyword.includes(sourceKeyword)
+                  )) {
+                    matchCount++
+                  }
+                }
+                // 至少80%的关键词要匹配
+                const matchRatio = matchCount / Math.min(targetKeywords.length, sourceKeywords.length)
+                return matchRatio >= 0.8
+              }
+              
+              // 5. 对于短页面名称，使用严格的包含匹配
+              if (targetKeywords.length <= 2 && sourceKeywords.length <= 2) {
+                return target.includes(source) || source.includes(target)
+              }
+              
+              return false
+            }
+            
+            if (smartMatch(item.pageName, page)) {
+              console.log(`✅ 智能匹配: "${item.pageName}" <-> "${page}"`)
+              return true
+            }
+            
+            return false
           })
         )
+        
+        // 详细调试信息
         console.log(`过滤前: ${data.length} 条，过滤后: ${filteredData.length} 条`)
+        console.log(`指定页面: [${specifiedPages.join(', ')}]`)
+        
+        // 检查精确匹配的结果
+        const exactMatches = data.filter(item => 
+          specifiedPages.some(page => item.pageName === page)
+        )
+        console.log(`精确匹配结果: ${exactMatches.length} 条`)
+        
+        // 检查模糊匹配的结果
+        const fuzzyMatches = data.filter(item => 
+          specifiedPages.some(page => item.pageName && item.pageName.includes(page))
+        )
+        console.log(`模糊匹配结果: ${fuzzyMatches.length} 条`)
         
         // 调试：显示匹配的页面名称
         if (filteredData.length === 0) {
@@ -117,11 +181,21 @@ export function useChart() {
           // 对于单页面分析，如果找不到匹配的页面，应该报错而不是显示所有数据
           if (analysis.chartType === 'single_page_uv_pv_chart') {
             const availablePages = actualPageNames.slice(0, 5).join('、')
-            const errorMsg = `未找到页面"${specifiedPages.join(', ')}"的数据。
-
-当前可用的页面包括：${availablePages}${actualPageNames.length > 5 ? '...' : ''}
-
-请从上述页面中选择一个正确的页面名称。`
+            // 提供更友好的错误提示
+            const suggestedPages = actualPageNames.filter(page => 
+              specifiedPages.some(specified => 
+                page.includes(specified) || specified.includes(page)
+              )
+            ).slice(0, 5)
+            
+            let errorMsg = `未找到页面"${specifiedPages.join(', ')}"的数据。\n\n`
+            
+            if (suggestedPages.length > 0) {
+              errorMsg += `建议的页面名称：\n${suggestedPages.map(page => `• ${page}`).join('\n')}\n\n`
+            }
+            
+            errorMsg += `当前可用的页面包括：\n${actualPageNames.slice(0, 10).map(page => `• ${page}`).join('\n')}\n\n`
+            errorMsg += `请从上述页面中选择一个正确的页面名称。`
             throw new Error(errorMsg)
           } else {
             message.warning(`未找到指定页面的数据，将显示所有数据`)
@@ -154,10 +228,19 @@ export function useChart() {
         userDateRange: dateRange // 传递用户选择的日期范围（用于图表生成）
       }
       
+      // 根据图表类型处理数据，为表格显示准备聚合后的数据
+      let processedData = data
+      if (analysisWithDateRange.chartType === 'single_page_uv_pv_chart') {
+        // 对于单页面UV/PV图表，图表生成器会自己处理数据聚合
+        // 这里不需要预处理，保持原始数据格式
+        console.log('📊 单页面UV/PV图表，使用原始数据:', data.length, '条')
+      }
+      
       // 先保存图表配置，触发 hasChart 变为 true
       store.dispatch('updateChartConfig', {
         analysis: analysisWithDateRange,
-        data,
+        data: processedData, // 使用处理后的数据
+        rawData: data, // 保留原始数据
         timestamp: new Date().toISOString()
       })
       

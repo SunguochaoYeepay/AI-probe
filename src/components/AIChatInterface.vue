@@ -1,33 +1,53 @@
 <template>
   <div class="ai-chat-container">
-    <!-- 聊天头部 -->
-    <div class="chat-header">
-      <div class="header-info">
-        <RobotOutlined class="ai-icon" />
-        <div class="header-text">
-          <h3 class="chat-title">AI 需求分析师</h3>
-          <p class="chat-subtitle">告诉我您想要分析什么，我来帮您明确需求</p>
-        </div>
+    <!-- 配置选择区域 -->
+    <div class="config-section">
+      <div class="config-item">
+        <span class="config-label">分析时间：</span>
+        <a-range-picker
+          v-model:value="dateRange"
+          style="width: 250px;"
+          size="small"
+          :disabled-date="disabledDate"
+        />
       </div>
-      <div class="header-actions">
+      
+      <div class="config-item">
+        <span class="config-label">分析埋点：</span>
+        <a-select
+          v-if="allBuryPoints.length > 0"
+          v-model:value="selectedBuryPointId"
+          placeholder="请选择分析埋点"
+          style="width: 200px;"
+          size="small"
+          @change="onBuryPointChange"
+        >
+          <a-select-option
+            v-for="point in allBuryPoints"
+            :key="point.id"
+            :value="point.id"
+          >
+            {{ point.name }} (ID: {{ point.id }})
+          </a-select-option>
+        </a-select>
+        <a-button 
+          v-else
+          type="dashed" 
+          size="small"
+          @click="$emit('show-config-modal')"
+          style="width: 200px;"
+        >
+          请先配置埋点
+        </a-button>
+      </div>
+      
+      <div class="config-actions">
         <a-tooltip title="清空对话">
           <a-button size="small" @click="clearChat">
             <ClearOutlined />
           </a-button>
         </a-tooltip>
       </div>
-    </div>
-
-    <!-- 日期范围选择器 -->
-    <div class="date-range-section">
-      <span class="date-label">分析时间范围：</span>
-      <a-range-picker
-        v-model:value="dateRange"
-        style="width: 250px;"
-        size="small"
-        :disabled-date="disabledDate"
-        @change="onDateRangeChange"
-      />
     </div>
 
     <!-- 聊天消息区域 -->
@@ -85,7 +105,7 @@
           v-for="suggestion in quickSuggestions" 
           :key="suggestion"
           class="suggestion-tag"
-          @click="sendMessage(suggestion)"
+          @click="() => sendMessage(suggestion)"
         >
           {{ suggestion }}
         </a-tag>
@@ -105,7 +125,7 @@
       <div class="input-actions">
         <a-button 
           type="primary" 
-          @click="sendMessage"
+          @click="() => sendMessage()"
           :loading="isAIThinking"
           :disabled="!inputMessage.trim()"
         >
@@ -123,12 +143,15 @@ import {
   RobotOutlined, 
   UserOutlined, 
   ClearOutlined, 
-  SendOutlined 
+  SendOutlined,
+  DatabaseOutlined,
+  WarningOutlined
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import { useStore } from 'vuex'
 import { dataPreloadService } from '@/services/dataPreloadService'
+import { useDataFetch } from '@/composables/useDataFetch'
 
 // Props
 const props = defineProps({
@@ -154,6 +177,9 @@ const isAIThinking = ref(false)
 const messagesContainer = ref(null)
 const store = useStore()
 
+// 埋点选择
+const selectedBuryPointId = ref(null)
+
 // 快捷建议
 const quickSuggestions = ref([
   '分析首页访问量',
@@ -167,31 +193,69 @@ const quickSuggestions = ref([
 // 计算属性
 const dateRange = computed({
   get: () => props.dateRange,
-  set: (value) => emit('date-range-change', value)
+  set: (value) => {
+    console.log('AIChatInterface: dateRange computed set 被调用', { value })
+    // 当通过 v-model 设置时，触发日期范围变更事件
+    // 注意：这里 value 是 dayjs 对象数组，需要转换为字符串数组
+    const dateStrings = value ? value.map(date => date.format('YYYY-MM-DD')) : []
+    console.log('AIChatInterface: 发送 date-range-change 事件', { value, dateStrings })
+    emit('date-range-change', value, dateStrings)
+  }
 })
+
+// 获取已配置的埋点信息（只有这些埋点有预加载数据）
+const allBuryPoints = computed(() => {
+  const selectedIds = store.state.projectConfig?.selectedBuryPointIds || []
+  const allBuryPoints = store.state.projectConfig?.buryPoints || []
+  
+  // 只返回已经配置选中的埋点
+  return selectedIds.map(id => {
+    const point = allBuryPoints.find(p => p.id === id)
+    return point || { id, name: `埋点${id}` }
+  })
+})
+
+// 埋点选择变化处理
+const onBuryPointChange = (value) => {
+  console.log('埋点选择变化:', value)
+  selectedBuryPointId.value = value
+  
+  // 只更新 apiConfig.selectedPointId，不修改 projectConfig
+  // 因为这里只是在已配置的埋点之间切换，不改变配置本身
+  store.dispatch('updateApiConfig', {
+    selectedPointId: value
+  })
+  
+  console.log(`✅ 当前分析埋点已切换到: ${value}`)
+}
 
 // 方法
 const disabledDate = (current) => {
   return current && current > dayjs().endOf('day')
 }
 
-const onDateRangeChange = (dates) => {
-  emit('date-range-change', dates)
-}
 
 const formatTime = (timestamp) => {
   return dayjs(timestamp).format('HH:mm')
 }
 
 const formatMessage = (content) => {
+  // 类型检查，确保content是字符串
+  if (typeof content !== 'string') {
+    console.warn('formatMessage received non-string content:', content)
+    return String(content || '')
+  }
   // 简单的格式化，支持换行
   return content.replace(/\n/g, '<br>')
 }
 
 const addMessage = (content, type = 'user', actions = null) => {
+  // 确保content是字符串类型
+  const messageContent = typeof content === 'string' ? content : String(content || '')
+  
   const messageObj = {
     id: Date.now() + Math.random(),
-    content,
+    content: messageContent,
     type,
     timestamp: new Date(),
     actions
@@ -218,7 +282,14 @@ const handleEnterKey = (event) => {
 }
 
 const sendMessage = async (text = null) => {
-  const messageText = text || inputMessage.value.trim()
+  // 确保text参数是字符串类型
+  let messageText
+  if (text !== null) {
+    messageText = typeof text === 'string' ? text : String(text || '')
+  } else {
+    messageText = inputMessage.value.trim()
+  }
+  
   if (!messageText) return
 
   // 添加用户消息
@@ -233,75 +304,190 @@ const sendMessage = async (text = null) => {
   isAIThinking.value = true
 
   try {
-    // 检查是否是在输入页面信息
-    const isInputtingPageInfo = checkIfInputtingPageInfo(messageText)
+    // 优先使用AI识别用户意图
+    console.log('🤖 尝试AI识别用户意图...')
+    const aiResponse = await analyzeWithAI(messageText)
     
-    if (isInputtingPageInfo.detected) {
-      // 处理页面信息输入
-      await handlePageInfoInput(messageText, isInputtingPageInfo.type)
-    } else {
-      // 调用AI分析服务
-      const aiResponse = await analyzeWithAI(messageText)
-      
-      // 添加AI回复
+    // 检测AI是否真正理解了用户意图
+    const isAISuccessful = aiResponse && aiResponse.content && 
+      !aiResponse.content.includes('抱歉') && 
+      !aiResponse.content.includes('无法理解') &&
+      !aiResponse.content.includes('需要更多的上下文') &&
+      !aiResponse.content.includes('可能需要更多') &&
+      !aiResponse.content.includes('更多信息') &&
+      (aiResponse.actions && aiResponse.actions.length > 0)
+    
+    // 额外检查：如果用户输入包含特定页面名称，但AI返回的是通用按钮，则使用降级逻辑
+    const extractedPageName = await extractPageNameWithAI(messageText)
+    const hasSpecificPage = extractedPageName !== null
+    const hasGenericButtons = aiResponse?.actions?.some(action => {
+      // 使用AI智能判断是否是通用按钮
+      const genericKeywords = ['分析页面访问量', '显示访问趋势', '分析页面访问', '查看访问趋势', '页面访问量', '访问趋势']
+      return genericKeywords.some(keyword => action.text.includes(keyword))
+    })
+    
+    const shouldUseFallback = hasSpecificPage && hasGenericButtons
+    
+    if (isAISuccessful && !shouldUseFallback) {
+      // AI成功识别，使用AI回复
+      console.log('✅ AI识别成功，有具体操作建议')
       addMessage(aiResponse.content, 'ai', aiResponse.actions)
+    } else {
+      // AI需要澄清、没有提供具体操作，或返回了通用按钮，使用编码识别快速响应
+      if (shouldUseFallback) {
+        console.log('🎯 检测到特定页面但AI返回通用按钮，使用编码识别生成具体按钮...')
+      } else {
+        console.log('💬 AI需要澄清需求，使用编码识别快速响应...')
+      }
+      console.log('AI回复内容:', aiResponse?.content)
+      const fallbackResponse = await handleFallbackRecognition(messageText)
+      addMessage(fallbackResponse.content, 'ai', fallbackResponse.actions)
     }
     
   } catch (error) {
-    console.error('AI分析失败:', error)
-    addMessage('抱歉，我遇到了一些问题。请稍后再试或重新描述您的需求。', 'ai')
+    console.error('AI服务调用失败:', error)
+    // AI服务完全失败，使用编码识别兜底
+    console.log('🚨 AI服务不可用，使用编码识别兜底...')
+    try {
+      const fallbackResponse = await handleFallbackRecognition(messageText)
+      addMessage(fallbackResponse.content, 'ai', fallbackResponse.actions)
+    } catch (fallbackError) {
+      console.error('编码识别也失败:', fallbackError)
+      addMessage('抱歉，我遇到了一些问题。请稍后再试或重新描述您的需求。', 'ai')
+    }
   } finally {
     isAIThinking.value = false
   }
 }
 
-const checkIfInputtingPageInfo = (messageText) => {
+const handleFallbackRecognition = async (messageText) => {
+  console.log('🔧 执行编码识别降级逻辑...')
+  
+  // 检查是否是在输入页面信息
+  const isInputtingPageInfo = await checkIfInputtingPageInfo(messageText)
+  
+  if (isInputtingPageInfo.detected) {
+    // 处理页面信息输入
+    console.log(`📄 检测到页面信息输入，类型: ${isInputtingPageInfo.type}`)
+    
+    // 使用AI智能检测是否包含特定页面名称
+    const extractedPageName = await extractPageNameWithAI(messageText)
+    const hasSpecificPage = extractedPageName !== null
+    
+    if (hasSpecificPage && isInputtingPageInfo.type === 'page_visits') {
+      // 包含特定页面名称的访问分析，先检查页面是否存在
+      console.log('🎯 检测到特定页面访问分析需求，检查页面是否存在...')
+      
+      // 使用AI智能提取页面名称
+      const pageName = await extractPageNameWithAI(messageText) || messageText.replace(/分析|页面访问|访问量|的访问/g, '').trim()
+      const pageExists = await checkPageExists(pageName)
+      
+      if (!pageExists) {
+        // 页面不存在，直接告诉用户
+        // 动态获取可用页面列表
+        const samplePages = await getSamplePages()
+        
+        return {
+          content: `❌ 抱歉，系统中没有找到"${pageName}"这个页面。\n\n请检查页面名称是否正确${samplePages.length > 0 ? `，或者从以下可用页面中选择：\n\n${samplePages.map(page => `• ${page}`).join('\n')}` : '。'}\n\n您也可以直接输入正确的页面名称进行分析。`,
+          actions: []
+        }
+      } else {
+        // 页面存在，直接触发分析
+        console.log('✅ 页面存在，开始分析')
+        
+        emit('analyze-requirement', {
+          type: 'page_visits',
+          scope: 'specific',
+          pageName: messageText,
+          requirement: messageText,
+          userInput: messageText
+        })
+
+        return {
+          content: `✅ 已识别到页面访问分析需求\n\n您要分析的页面：${messageText}\n\n我现在开始为您分析该页面的访问数据。`,
+          actions: []
+        }
+      }
+    } else {
+      // 通用处理
+      return {
+        content: `✅ 已收到您的输入\n\n您提供的信息：${messageText}\n\n我现在开始为您分析${isInputtingPageInfo.type === 'page_visits' ? '页面访问' : isInputtingPageInfo.type === 'user_click' ? '用户点击' : '转化流程'}数据。`,
+        actions: [
+          { 
+            text: '开始分析', 
+            type: 'analyze', 
+            params: { 
+              type: isInputtingPageInfo.type, 
+              scope: 'custom', 
+              requirement: messageText,
+              userInput: messageText
+            } 
+          }
+        ]
+      }
+    }
+    } else {
+      // 使用本地逻辑生成回复
+      console.log('🤔 使用本地逻辑生成回复...')
+      return await generateAIResponse(messageText)
+    }
+}
+
+const checkIfInputtingPageInfo = async (messageText) => {
+  // 确保messageText是字符串类型
+  if (typeof messageText !== 'string') {
+    console.warn('checkIfInputtingPageInfo received non-string messageText:', messageText)
+    return { detected: false, type: null }
+  }
+  
   const text = messageText.toLowerCase()
   
-  // 检查是否包含页面相关信息
-  if (text.includes('首页') || text.includes('商品') || text.includes('详情页') || 
-      text.includes('用户') || text.includes('登录') || text.includes('注册') ||
-      text.includes('/') || text.includes('页面') || text.includes('按钮')) {
-    
-    // 判断分析类型
-    if (text.includes('按钮') || text.includes('点击')) {
-      return { detected: true, type: 'user_click' }
-    } else if (text.includes('起始：') || text.includes('步骤') || text.includes('目标：')) {
-      return { detected: true, type: 'conversion' }
-    } else {
-      return { detected: true, type: 'page_visits' }
-    }
+  // 使用AI智能检测分析类型
+  const analysisType = await detectAnalysisTypeWithAI(messageText)
+  
+  if (analysisType) {
+    return { detected: true, type: analysisType }
   }
   
   return { detected: false }
 }
 
 const handlePageInfoInput = async (messageText, type) => {
-  // 确认收到用户输入
-  const confirmContent = `✅ 已收到您的输入
-
-您提供的信息：${messageText}
-
-我现在开始为您分析${type === 'page_visits' ? '页面访问' : type === 'user_click' ? '用户点击' : '转化流程'}数据。`
-
-  const actions = [
-    { 
-      text: '开始分析', 
-      type: 'analyze', 
-      params: { 
-        type: type, 
-        scope: 'custom', 
-        requirement: messageText,
-        userInput: messageText
-      } 
-    }
-  ]
-
-  addMessage(confirmContent, 'ai', actions)
+  // 这个函数现在主要用于向后兼容，实际逻辑已移到 handleFallbackRecognition 中
+  console.log('📝 handlePageInfoInput 被调用，但逻辑已移到 handleFallbackRecognition')
+  
+  // 直接调用降级识别逻辑
+  const response = await handleFallbackRecognition(messageText)
+  addMessage(response.content, 'ai', response.actions)
 }
 
 const analyzeWithAI = async (userMessage) => {
   try {
+    // 先检查是否是页面访问量相关的请求 - 使用AI智能检测
+    const analysisType = await detectAnalysisTypeWithAI(userMessage)
+    if (analysisType === 'page_visits') {
+      // 使用AI智能提取页面名称
+      const extractedPageName = await extractPageNameWithAI(userMessage)
+      
+      if (extractedPageName) {
+        console.log('AI提取的页面名称:', extractedPageName)
+        
+        // 检查页面是否真实存在
+        const pageExists = await checkPageExists(extractedPageName)
+        
+        if (!pageExists) {
+          // 页面不存在，直接告诉用户
+          // 动态获取可用页面列表
+          const samplePages = await getSamplePages()
+          
+          return {
+            content: `❌ 抱歉，系统中没有找到"${extractedPageName}"这个页面。\n\n请检查页面名称是否正确${samplePages.length > 0 ? `，或者从以下可用页面中选择：\n\n${samplePages.map(page => `• ${page}`).join('\n')}` : '。'}\n\n您也可以直接输入正确的页面名称进行分析。`,
+            actions: []
+          }
+        }
+      }
+    }
+    
     // 调用真实的AI服务进行需求分析
     const { OllamaService } = await import('@/utils/ollamaService')
     const ollamaService = new OllamaService()
@@ -320,7 +506,7 @@ const analyzeWithAI = async (userMessage) => {
       message: userMessage,
       conversationHistory,
       context: {
-        availableFields: ['page_views', 'uv', 'pv', 'click_count', 'device_type', 'browser', 'conversion_rate'],
+        availableFields: await getAvailableFields(),
         dateRange: dateRange.value
       }
     })
@@ -332,40 +518,245 @@ const analyzeWithAI = async (userMessage) => {
       }
     } else {
       // AI服务失败时使用本地逻辑
-      return generateAIResponse(userMessage)
+      return await generateAIResponse(userMessage)
     }
   } catch (error) {
     console.error('AI服务调用失败:', error)
     // 降级到本地逻辑
-    return generateAIResponse(userMessage)
+    return await generateAIResponse(userMessage)
   }
 }
 
-const generateAIResponse = (userMessage) => {
+// 使用AI智能提取页面名称
+const extractPageNameWithAI = async (userMessage) => {
+  try {
+    // 使用统一的AI提取工具函数
+    const { extractPageNameWithAI: aiExtract } = await import('@/utils/aiExtractor')
+    
+    const extractedName = await aiExtract(userMessage)
+    
+    console.log('AI提取页面名称结果:', { original: userMessage, extracted: extractedName })
+    
+    return extractedName
+  } catch (error) {
+    console.error('AI提取页面名称失败:', error)
+    return null
+  }
+}
+
+// 使用AI智能检测分析类型
+const detectAnalysisTypeWithAI = async (messageText) => {
+  try {
+    // 使用统一的AI提取工具函数
+    const { detectAnalysisTypeWithAI: aiDetect } = await import('@/utils/aiExtractor')
+    
+    const result = await aiDetect(messageText)
+    
+    return result
+  } catch (error) {
+    console.error('AI检测分析类型失败:', error)
+    return null
+  }
+}
+
+// 获取可用字段列表
+const getAvailableFields = async () => {
+  // 直接返回默认字段，避免Vue组合式API的上下文问题
+  return [
+    { fieldName: 'pageName', fieldAlias: '页面名称' },
+    { fieldName: 'type', fieldAlias: '类型' },
+    { fieldName: 'pageBehavior', fieldAlias: '页面行为' },
+    { fieldName: 'stayTime', fieldAlias: '停留时长' },
+    { fieldName: 'weUserId', fieldAlias: '用户ID' },
+    { fieldName: 'wePath', fieldAlias: '页面路径' },
+    { fieldName: 'createdAt', fieldAlias: '创建时间' },
+    { fieldName: 'weDeviceName', fieldAlias: '设备名称' },
+    { fieldName: 'weBrowserName', fieldAlias: '浏览器名称' },
+    { fieldName: 'weIp', fieldAlias: 'IP地址' },
+    { fieldName: 'weCity', fieldAlias: '城市' }
+  ]
+}
+
+// 获取字段别名
+const getFieldAlias = (fieldName) => {
+  const aliasMap = {
+    'pageName': '页面名称',
+    'type': '类型',
+    'pageBehavior': '页面行为',
+    'stayTime': '停留时长',
+    'weUserId': '用户ID',
+    'wePath': '页面路径',
+    'createdAt': '创建时间',
+    'weDeviceName': '设备名称',
+    'weBrowserName': '浏览器名称',
+    'weIp': 'IP地址',
+    'weCity': '城市'
+  }
+  return aliasMap[fieldName] || fieldName
+}
+
+// 获取示例页面列表
+const getSamplePages = async () => {
+  try {
+    // 从缓存数据中获取实际存在的页面列表
+    const { dataPreloadService } = await import('@/services/dataPreloadService')
+    
+    // 获取最近7天的数据来提取页面列表
+    const endDate = new Date()
+    const startDate = new Date()
+    startDate.setDate(endDate.getDate() - 7)
+    
+    const dateRange = [startDate, endDate]
+    const selectedPointId = store.state.projectConfig?.selectedBuryPointIds?.[0]
+    
+    if (selectedPointId) {
+      const cachedData = await dataPreloadService.getMultiDayCachedData(dateRange, selectedPointId)
+      
+      if (cachedData && cachedData.length > 0) {
+        // 从实际数据中提取页面名称
+        const pageNames = [...new Set(cachedData.map(item => item.pageName).filter(name => name))]
+        
+        // 返回前5个页面作为示例
+        const samplePages = pageNames.slice(0, 5)
+        console.log('从缓存数据获取的示例页面:', samplePages)
+        
+        return samplePages
+      }
+    }
+    
+    // 如果没有缓存数据，降级使用AI生成
+    console.log('无缓存数据，使用AI生成示例页面')
+    const { OllamaService } = await import('@/utils/ollamaService')
+    const { AI_PROMPTS, AI_RESPONSE_PARSERS, AI_CONFIG } = await import('@/utils/aiPrompts')
+    const ollamaService = new OllamaService()
+    
+    const prompt = AI_PROMPTS.GENERATE_SAMPLE_PAGES()
+    const response = await ollamaService.generate(prompt, AI_CONFIG.SAMPLE_PAGES_OPTIONS)
+    
+    const pages = AI_RESPONSE_PARSERS.parseSamplePages(response)
+    
+    console.log('AI生成的示例页面:', pages)
+    
+    return pages
+  } catch (error) {
+    console.error('获取示例页面失败:', error)
+    // 失败时返回空数组，不显示示例页面
+    return []
+  }
+}
+
+// 使用AI智能判断页面是否存在
+const checkPageExistsWithAI = async (pageName) => {
+  try {
+    // 使用统一的AI提取工具函数
+    const { checkPageExistsWithAI: aiCheck } = await import('@/utils/aiExtractor')
+    
+    const finalResult = await aiCheck(pageName)
+    
+    return finalResult
+  } catch (error) {
+    console.error('AI判断页面存在性失败:', error)
+    return false
+  }
+}
+
+// 检查页面是否存在的函数
+const checkPageExists = async (pageName) => {
+  try {
+    console.log('检查页面存在性:', pageName)
+    
+    // 从缓存数据中查询页面是否存在
+    const { dataPreloadService } = await import('@/services/dataPreloadService')
+    
+    // 获取最近7天的数据来检查页面是否存在
+    const endDate = new Date()
+    const startDate = new Date()
+    startDate.setDate(endDate.getDate() - 7)
+    
+    const dateRange = [startDate, endDate]
+    const selectedPointId = store.state.projectConfig?.selectedBuryPointIds?.[0]
+    
+    if (selectedPointId) {
+      const cachedData = await dataPreloadService.getMultiDayCachedData(dateRange, selectedPointId)
+      
+      if (cachedData && cachedData.length > 0) {
+        // 先打印所有页面名称用于调试
+        const allPageNames = [...new Set(cachedData.map(item => item.pageName).filter(name => name))]
+        console.log('🔍 实际数据中的所有页面名称:', allPageNames)
+        console.log('🔍 当前检查的页面名称:', pageName)
+        
+        // 检查页面名称是否存在于实际数据中（严格匹配）
+        const pageExists = cachedData.some(item => {
+          if (!item.pageName) return false
+          
+          // 精确匹配
+          if (item.pageName === pageName) return true
+          
+          // 智能匹配：去除常见后缀后严格比较
+          const cleanPageName = pageName.replace(/页面$|访问量$|的访问$/, '').trim()
+          const cleanItemPageName = item.pageName.replace(/页面$|访问量$|的访问$/, '').trim()
+          
+          console.log(`🔍 严格匹配检查: "${cleanPageName}" vs "${cleanItemPageName}" = ${cleanPageName === cleanItemPageName}`)
+          
+          // 严格匹配：去除后缀后必须完全相同
+          return cleanPageName === cleanItemPageName
+        })
+        
+        console.log(`页面"${pageName}"存在性检查结果:`, pageExists)
+        return pageExists
+      }
+    }
+    
+    // 如果没有缓存数据，降级使用AI判断
+    console.log('无缓存数据，使用AI判断页面存在性')
+    return await checkPageExistsWithAI(pageName)
+  } catch (error) {
+    console.error('检查页面存在性时出错:', error)
+    return false
+  }
+}
+
+const generateAIResponse = async (userMessage) => {
   const message = userMessage.toLowerCase()
   
-  // 需求澄清逻辑
-  if (message.includes('页面访问量') || message.includes('访问量')) {
-    return {
-      content: '好的，您想分析页面访问量。为了给您更准确的分析，我想确认几个问题：\n\n1. 您是想看整体页面的访问量，还是特定页面的访问量？\n2. 您希望看到UV（独立访客）还是PV（页面浏览量）？\n3. 是否需要按时间维度展示趋势？',
-      actions: [
-        { text: '整体页面访问量', type: 'analyze', params: { type: 'page_visits', scope: 'all' } },
-        { text: '特定页面访问量', type: 'clarify', params: { type: 'page_visits', scope: 'specific' } }
-      ]
-    }
+  // 需求澄清逻辑 - 使用AI智能检测
+  const analysisType = await detectAnalysisTypeWithAI(userMessage)
+  if (analysisType === 'page_visits') {
+    // 使用AI智能检测是否包含特定页面名称
+    const extractedPageName = await extractPageNameWithAI(userMessage)
+    const hasSpecificPage = extractedPageName !== null
+    
+    if (hasSpecificPage) {
+      // 使用AI智能提取页面名称
+      const pageName = await extractPageNameWithAI(userMessage) || userMessage.replace(/分析|页面访问|访问量|的访问/g, '').trim()
+      
+      // 检查页面是否真实存在
+      const pageExists = await checkPageExists(pageName)
+      
+      if (!pageExists) {
+        // 页面不存在，直接告诉用户
+        // 动态获取可用页面列表
+        const samplePages = await getSamplePages()
+        
+        return {
+          content: `❌ 抱歉，系统中没有找到"${pageName}"这个页面。\n\n请检查页面名称是否正确${samplePages.length > 0 ? `，或者从以下可用页面中选择：\n\n${samplePages.map(page => `• ${page}`).join('\n')}` : '。'}\n\n您也可以直接输入正确的页面名称进行分析。`,
+          actions: []
+        }
+      } else {
+        // 页面存在，提供分析选项
+        return {
+          content: `✅ 好的，我理解您想分析"${pageName}"的访问情况。\n\n我可以为您提供以下分析：\n\n• UV/PV统计 - 查看页面的访问量数据\n• 时间趋势 - 分析访问量的变化趋势\n• 详细数据 - 获取具体的访问记录\n\n请选择您想要的分析类型：`,
+        actions: [
+          { text: `分析${pageName}页面访问量`, type: 'analyze', params: { type: 'page_visits', scope: 'specific', pageName: userMessage } },
+          { text: `查看${pageName}访问趋势`, type: 'analyze', params: { type: 'trend', scope: 'specific', pageName: userMessage } },
+          { text: `获取${pageName}详细数据`, type: 'analyze', params: { type: 'page_visits', scope: 'detailed', pageName: userMessage } }
+        ]
+      }
+    } }
   }
   
-  if (message.includes('趋势') || message.includes('变化')) {
-    return {
-      content: '您想了解访问趋势，这很棒！我可以帮您分析：\n\n• 按天/周/月的访问趋势\n• 不同页面的访问趋势对比\n• 用户行为的时间分布\n\n您希望看到哪种趋势分析？',
-      actions: [
-        { text: '整体访问趋势', type: 'analyze', params: { type: 'trend', scope: 'overall' } },
-        { text: '页面对比趋势', type: 'analyze', params: { type: 'trend', scope: 'comparison' } }
-      ]
-    }
-  }
-  
-  if (message.includes('转化') || message.includes('漏斗')) {
+  // 使用AI智能检测其他分析类型
+  if (analysisType === 'conversion') {
     return {
       content: '转化分析是很有价值的！我可以帮您分析：\n\n• 用户从访问到转化的完整路径\n• 各环节的转化率\n• 流失点分析\n• 优化建议\n\n您想分析哪个转化流程？',
       actions: [
@@ -373,14 +764,13 @@ const generateAIResponse = (userMessage) => {
         { text: '特定页面转化', type: 'analyze', params: { type: 'conversion', scope: 'page' } }
       ]
     }
-  }
-  
-  if (message.includes('设备') || message.includes('浏览器')) {
+  } else if (analysisType === 'user_click') {
     return {
-      content: '设备分析可以帮助您了解用户的使用习惯！我可以展示：\n\n• 设备类型分布（手机/平板/电脑）\n• 浏览器使用情况\n• 操作系统分布\n• 屏幕分辨率统计\n\n您希望看到哪种设备分析？',
+      content: '您想分析用户点击行为。我可以为您提供以下分析：\n\n• 点击热度分析 - 查看页面各区域的点击情况\n• 按钮点击分析 - 分析不同按钮的点击率\n• 用户行为路径 - 追踪用户的点击路径\n\n请选择您想要的分析类型：',
       actions: [
-        { text: '设备类型分布', type: 'analyze', params: { type: 'device', scope: 'type' } },
-        { text: '浏览器分析', type: 'analyze', params: { type: 'device', scope: 'browser' } }
+        { text: '点击热度分析', type: 'analyze', params: { type: 'click_heatmap', scope: 'heat' } },
+        { text: '按钮点击分析', type: 'analyze', params: { type: 'button_click', scope: 'rate' } },
+        { text: '用户行为路径', type: 'analyze', params: { type: 'user_journey', scope: 'path' } }
       ]
     }
   }
@@ -1004,6 +1394,12 @@ onMounted(() => {
   if (!hasHistory) {
     showWelcomeMessage()
   }
+  
+  // 初始化埋点选择
+  const selectedIds = store.state.projectConfig?.selectedBuryPointIds || []
+  if (selectedIds.length > 0) {
+    selectedBuryPointId.value = selectedIds[0]
+  }
 })
 
 const showWelcomeMessage = () => {
@@ -1045,10 +1441,10 @@ const showWelcomeMessage = () => {
 
 .chat-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
-  padding: 16px 0 8px 0;
-  margin-bottom: 16px;
+  padding: 8px 0 4px 0;
+  margin-bottom: 8px;
 }
 
 .header-info {
@@ -1079,22 +1475,36 @@ const showWelcomeMessage = () => {
   color: var(--text-color-secondary, #8c8c8c);
 }
 
-.date-range-section {
+.config-section {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 24px;
   margin-bottom: 16px;
-  padding: 8px 0;
-  width: 100%;
-  overflow: hidden;
+  padding: 12px 16px;
+  background: #fafafa;
+  border-radius: 8px;
   flex-wrap: wrap;
 }
 
-.date-label {
-  font-size: 13px;
+.config-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.config-actions {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.config-label {
+  font-size: 14px;
   color: var(--text-color, #262626);
   white-space: nowrap;
+  font-weight: 500;
 }
+
 
 .chat-messages {
   flex: 1;
@@ -1341,10 +1751,19 @@ const showWelcomeMessage = () => {
     width: 100%;
   }
   
-  .date-range-section {
+  .config-section {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: 12px;
+  }
+  
+  .config-item {
+    width: 100%;
+  }
+  
+  .config-actions {
+    margin-left: 0;
+    align-self: flex-end;
   }
   
   .suggestions-list {

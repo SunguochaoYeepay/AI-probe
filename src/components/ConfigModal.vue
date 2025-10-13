@@ -170,6 +170,10 @@
          
         </a-form>
       </a-tab-pane>
+
+      <a-tab-pane key="cache" tab="缓存管理">
+        <CacheManagementPanel />
+      </a-tab-pane>
     </a-tabs>
   </a-modal>
 </template>
@@ -177,6 +181,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import CacheManagementPanel from './CacheManagementPanel.vue'
 import { 
   ReloadOutlined,
   DownloadOutlined
@@ -311,6 +316,20 @@ const onProjectSelect = async (projectId) => {
 const onBuryPointsChange = (checkedValues) => {
   console.log('选中的埋点:', checkedValues)
   
+  // 立即更新 store 中的埋点选择和 apiConfig
+  store.dispatch('updateProjectConfig', {
+    selectedBuryPointIds: checkedValues
+  })
+  
+  // 同时更新 apiConfig.selectedPointId（取第一个选中的埋点）
+  if (checkedValues && checkedValues.length > 0) {
+    const firstSelectedPointId = checkedValues[0]
+    store.dispatch('updateApiConfig', {
+      selectedPointId: firstSelectedPointId
+    })
+    console.log(`✅ 埋点选择已更新，同步更新 apiConfig.selectedPointId: ${firstSelectedPointId}`)
+  }
+  
   // 发送配置更新事件
   if (currentProject.value) {
     emit('project-config-updated', {
@@ -355,9 +374,9 @@ const handleSave = () => {
 // 数据预加载
 const triggerDataPreload = async () => {
   try {
-    message.loading('正在启动数据预加载...', 2)
+    // 不显示loading消息，让右侧状态组件处理
     await dataPreloadService.triggerPreload()
-    message.success('数据预加载已启动，请查看右上角状态提示')
+    // 不显示success消息，让右侧状态组件处理
   } catch (error) {
     console.error('启动数据预加载失败:', error)
     message.error('启动数据预加载失败: ' + error.message)

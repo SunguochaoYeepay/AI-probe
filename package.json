@@ -1,6 +1,7 @@
 {
   "name": "intelligent-chart-generator",
   "version": "1.0.0",
+  "type": "module",
   "description": "智能图表生成系统 - 基于自然语言需求自动生成数据可视化图表",
   "main": "index.js",
   "scripts": {

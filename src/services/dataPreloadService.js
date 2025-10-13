@@ -18,23 +18,28 @@ class DataPreloadService {
     this.isPreloading = false
     this.preloadProgress = { current: 0, total: 0 }
     this.lastPreloadDate = null
+    this.cacheValidityPeriod = 4 * 60 * 60 * 1000 // 4小时（毫秒）
+    this.forceRefreshAfter = 24 * 60 * 60 * 1000 // 24小时后强制刷新
+    this.smartInvalidationEnabled = true
   }
 
   /**
-   * 初始化数据预加载
+   * 初始化数据预加载（支持N埋点模式）
    */
   async init() {
     try {
-      console.log('🚀 开始数据预加载检查...')
+      console.log('🚀 开始数据预加载检查（N埋点模式）...')
       
-      // 检查配置是否有效
-      const config = this.getCurrentConfig()
-      if (!config.selectedPointId || config.selectedPointId === 'default_point_id') {
-        console.log('⏸️ 配置未完成，跳过数据预加载')
+      // 获取所有选中的埋点ID
+      const selectedPointIds = store.state.projectConfig?.selectedBuryPointIds || []
+      
+      if (selectedPointIds.length === 0) {
+        console.log('⏸️ 未选择任何埋点，跳过数据预加载')
         return
       }
       
-      console.log(`📋 使用配置: projectId=${config.projectId}, selectedPointId=${config.selectedPointId}`)
+      console.log(`📋 使用配置: 选中 ${selectedPointIds.length} 个埋点`)
+      console.log(`📍 埋点ID列表: [${selectedPointIds.join(', ')}]`)
       
       // 检查是否需要预加载
       const shouldPreload = await this.shouldPreloadData()
@@ -43,36 +48,45 @@ class DataPreloadService {
         return
       }
 
-      console.log('📊 开始预加载最近7天数据...')
+      console.log(`📊 开始预加载最近7天 × ${selectedPointIds.length}个埋点的数据...`)
       this.isPreloading = true
-      this.preloadProgress = { current: 0, total: 7 }
+      const totalTasks = 7 * selectedPointIds.length
+      this.preloadProgress = { current: 0, total: totalTasks }
 
       // 获取最近7天的数据
       const dates = this.getLast7Days()
       let successCount = 0
+      let taskIndex = 0
 
-      for (let i = 0; i < dates.length; i++) {
-        const date = dates[i]
-        try {
-          console.log(`📅 预加载 ${date} 数据...`)
-          
-          // 检查该日期数据是否已存在
-          const hasData = await this.hasCachedData(date, config.selectedPointId)
-          if (hasData) {
-            console.log(`✅ ${date} 数据已存在，跳过 [埋点:${config.selectedPointId}]`)
-            this.preloadProgress.current = i + 1
-            continue
+      // 遍历每一天
+      for (const date of dates) {
+        // 遍历每个埋点
+        for (const pointId of selectedPointIds) {
+          try {
+            console.log(`📅 预加载 ${date} - 埋点 ${pointId}...`)
+            
+            // 检查该日期该埋点的数据是否已存在
+            const hasData = await this.hasCachedData(date, pointId)
+            if (hasData) {
+              console.log(`  ✅ 数据已存在，跳过`)
+              taskIndex++
+              this.preloadProgress.current = taskIndex
+              continue
+            }
+
+            // 获取该日期该埋点的数据
+            await this.preloadDateDataForPoint(date, pointId)
+            successCount++
+            
+            taskIndex++
+            this.preloadProgress.current = taskIndex
+            console.log(`  ✅ 完成 (${taskIndex}/${totalTasks})`)
+            
+          } catch (error) {
+            console.error(`  ❌ 预加载失败:`, error)
+            taskIndex++
+            this.preloadProgress.current = taskIndex
           }
-
-          // 获取该日期的数据
-          await this.preloadDateData(date)
-          successCount++
-          
-          this.preloadProgress.current = i + 1
-          console.log(`✅ ${date} 数据预加载完成 (${i + 1}/7)`)
-          
-        } catch (error) {
-          console.error(`❌ ${date} 数据预加载失败:`, error)
         }
       }
 
@@ -80,7 +94,11 @@ class DataPreloadService {
       this.lastPreloadDate = dayjs().format('YYYY-MM-DD')
       localStorage.setItem('lastPreloadDate', this.lastPreloadDate)
 
-      console.log(`🎉 数据预加载完成！成功加载 ${successCount}/7 天数据`)
+      console.log('====================================')
+      console.log(`🎉 数据预加载完成！`)
+      console.log(`✅ 成功: ${successCount}/${totalTasks} 个任务`)
+      console.log(`📊 覆盖: 7天 × ${selectedPointIds.length}个埋点`)
+      console.log('====================================')
       
     } catch (error) {
       console.error('❌ 数据预加载失败:', error)
@@ -97,21 +115,28 @@ class DataPreloadService {
     const today = dayjs().format('YYYY-MM-DD')
     const lastPreload = localStorage.getItem('lastPreloadDate')
     
-    // 如果今天已经预加载过，跳过
-    if (lastPreload === today) {
+    // 获取当前配置的埋点ID
+    const config = this.getCurrentConfig()
+    if (!config.selectedPointId) {
+      console.log('⚠️ 未配置埋点ID，跳过预加载检查')
       return false
     }
 
-    // 检查最近7天是否有缺失的数据
+    // 检查最近7天是否有缺失的数据（传递埋点ID参数）
     const dates = this.getLast7Days()
     let hasMissingData = false
 
     for (const date of dates) {
-      const hasData = await this.hasCachedData(date)
+      const hasData = await this.hasCachedData(date, config.selectedPointId)
       if (!hasData) {
         hasMissingData = true
         break
       }
+    }
+
+    // 如果今天已经预加载过且没有缺失数据，跳过
+    if (lastPreload === today && !hasMissingData) {
+      return false
     }
 
     return hasMissingData
@@ -130,84 +155,299 @@ class DataPreloadService {
   }
 
   /**
-   * 检查指定日期的数据是否已缓存
+   * 检查指定日期的数据是否已缓存（支持智能失效检查）
    */
-  async hasCachedData(date, selectedPointId) {
+  async hasCachedData(date, selectedPointId, options = {}) {
     try {
       // 检查原始数据缓存（包含埋点ID）
       const cacheId = `raw_${selectedPointId}_${date}`
       const rawData = await chartDB.getRawDataCache(cacheId)
-      return rawData && rawData.data && rawData.data.length > 0
+      
+      if (!rawData || !rawData.data || rawData.data.length === 0) {
+        return false
+      }
+
+      // 如果启用智能失效检查
+      if (this.smartInvalidationEnabled && !options.skipSmartCheck) {
+        const isValid = await this.validateCacheValidity(rawData, date, selectedPointId)
+        if (!isValid) {
+          console.log(`⚠️ 缓存 ${cacheId} 未通过智能验证，标记为无效`)
+          return false
+        }
+      }
+      
+      return true
     } catch (error) {
       return false
     }
   }
 
   /**
-   * 预加载指定日期的数据
+   * 验证缓存有效性（智能失效检查）
+   */
+  async validateCacheValidity(cacheData, date, selectedPointId) {
+    try {
+      const now = new Date()
+      const cachedAt = new Date(cacheData.cachedAt)
+      const cacheAge = now - cachedAt
+      
+      // 1. 基础时间检查
+      if (cacheAge > this.forceRefreshAfter) {
+        console.log(`🕒 缓存超过24小时，强制失效: ${date} - 埋点 ${selectedPointId}`)
+        return false
+      }
+      
+      // 2. 对于今天和昨天的数据，更严格的检查
+      const isRecent = dayjs(date).isAfter(dayjs().subtract(2, 'day'))
+      if (isRecent && cacheAge > this.cacheValidityPeriod) {
+        console.log(`⏰ 最近数据缓存超过4小时，需要刷新: ${date} - 埋点 ${selectedPointId}`)
+        
+        // 快速检查API是否有更新的数据
+        const hasNewerData = await this.checkForNewerData(cacheData, date, selectedPointId)
+        if (hasNewerData) {
+          console.log(`🆕 发现更新的数据: ${date} - 埋点 ${selectedPointId}`)
+          return false
+        }
+      }
+      
+      // 3. 数据完整性检查
+      const isDataComplete = await this.checkDataCompleteness(cacheData, date, selectedPointId)
+      if (!isDataComplete) {
+        console.log(`📊 数据不完整，需要重新获取: ${date} - 埋点 ${selectedPointId}`)
+        return false
+      }
+      
+      return true
+      
+    } catch (error) {
+      console.warn(`缓存验证出错: ${error.message}`)
+      return true // 出错时保守处理，认为缓存有效
+    }
+  }
+
+  /**
+   * 检查是否有更新的数据
+   */
+  async checkForNewerData(cacheData, date, selectedPointId) {
+    try {
+      // 获取缓存中最新的数据时间
+      const cachedLatestTime = Math.max(...cacheData.data.map(d => new Date(d.createdAt).getTime()))
+      
+      // 向API请求第一页数据，检查是否有更新
+      const response = await yeepayAPI.searchBuryPointData({
+        pageSize: 10, // 只取少量数据进行比较
+        page: 1,
+        date,
+        selectedPointId
+      })
+      
+      const apiData = response.data?.dataList || []
+      if (apiData.length === 0) {
+        return false
+      }
+      
+      const apiLatestTime = Math.max(...apiData.map(d => new Date(d.createdAt).getTime()))
+      
+      // 如果API数据比缓存数据新超过2分钟，认为有更新
+      return apiLatestTime > cachedLatestTime + 2 * 60 * 1000
+      
+    } catch (error) {
+      console.warn(`检查新数据失败: ${error.message}`)
+      return false
+    }
+  }
+
+  /**
+   * 检查数据完整性
+   */
+  async checkDataCompleteness(cacheData, date, selectedPointId) {
+    try {
+      // 对于今天的数据，检查是否可能不完整
+      if (dayjs(date).isSame(dayjs(), 'day')) {
+        const now = new Date()
+        const latestCacheTime = Math.max(...cacheData.data.map(d => new Date(d.createdAt).getTime()))
+        
+        // 如果缓存中最新数据超过2小时前，可能不完整
+        if (now - latestCacheTime > 2 * 60 * 60 * 1000) {
+          console.log(`📈 今日数据可能不完整，最新记录时间: ${new Date(latestCacheTime).toLocaleString()}`)
+          return false
+        }
+      }
+      
+      // 检查数据量是否合理（如果数据量异常少，可能不完整）
+      const dataCount = cacheData.data.length
+      if (dataCount < 5 && !dayjs(date).isSame(dayjs(), 'day')) {
+        // 非今天的数据，如果少于5条，可能有问题
+        console.log(`📊 数据量异常少 (${dataCount}条)，可能不完整`)
+        return false
+      }
+      
+      return true
+      
+    } catch (error) {
+      console.warn(`数据完整性检查失败: ${error.message}`)
+      return true
+    }
+  }
+
+  /**
+   * 预加载指定日期的数据（兼容方法，使用第一个选中的埋点）
    */
   async preloadDateData(date) {
-    try {
-      // 获取当前配置
-      const currentConfig = this.getCurrentConfig()
-      if (!currentConfig.selectedPointId) {
-        throw new Error('未配置埋点ID')
-      }
+    const selectedPointIds = store.state.projectConfig?.selectedBuryPointIds || []
+    if (selectedPointIds.length === 0) {
+      throw new Error('未选择任何埋点')
+    }
+    
+    // 使用第一个埋点
+    return await this.preloadDateDataForPoint(date, selectedPointIds[0])
+  }
 
-      console.log(`📡 获取 ${date} 原始数据...`)
+  /**
+   * 预加载指定日期指定埋点的数据（N埋点模式核心方法）
+   */
+  async preloadDateDataForPoint(date, pointId) {
+    try {
+      console.log(`📡 获取 ${date} - 埋点 ${pointId} 原始数据...`)
       
       // 获取原始数据
-      const rawData = await this.fetchDateRawData(date, currentConfig)
+      const rawData = await this.fetchDateRawDataForPoint(date, pointId)
       
       if (!rawData || rawData.length === 0) {
-        console.log(`⚠️ ${date} 无数据`)
+        console.log(`⚠️ ${date} - 埋点 ${pointId} 无数据`)
         return
       }
 
       // 缓存原始数据
-      await this.cacheRawData(date, rawData, currentConfig.selectedPointId)
+      await this.cacheRawData(date, rawData, pointId)
       
-      console.log(`💾 ${date} 数据已缓存 (${rawData.length}条) [埋点:${currentConfig.selectedPointId}]`)
+      console.log(`💾 ${date} - 埋点 ${pointId} 数据已缓存 (${rawData.length}条)`)
       
     } catch (error) {
-      console.error(`预加载 ${date} 数据失败:`, error)
+      console.error(`预加载 ${date} - 埋点 ${pointId} 数据失败:`, error)
       throw error
     }
   }
 
   /**
-   * 获取指定日期的原始数据
+   * 获取指定日期的原始数据（兼容方法）
    */
   async fetchDateRawData(date, config) {
+    return await this.fetchDateRawDataForPoint(date, config.selectedPointId)
+  }
+
+  /**
+   * 获取指定日期指定埋点的原始数据（N埋点模式核心方法）
+   */
+  async fetchDateRawDataForPoint(date, pointId) {
     let allData = []
-    let page = 1
     const pageSize = 1000
     
-    while (true) {
+    // 先获取第一页，确定总数
+    console.log(`  📡 获取第1页...`)
+    const firstResponse = await yeepayAPI.searchBuryPointData({
+      pageSize,
+      page: 1,
+      date,
+      selectedPointId: pointId
+    })
+    
+    const total = firstResponse.data?.total || 0
+    const firstPageData = firstResponse.data?.dataList || []
+    allData.push(...firstPageData)
+    
+    console.log(`  📊 总记录数: ${total}`)
+    console.log(`  📄 第1页: ${firstPageData.length}条`)
+    
+    // 如果总数为0或第一页就是全部数据，直接返回
+    if (total === 0 || total <= pageSize) {
+      console.log(`  ✅ 数据获取完成: ${allData.length}/${total} 条`)
+      return this.filterDataByDate(allData, date)
+    }
+    
+    // 计算总页数
+    const totalPages = Math.ceil(total / pageSize)
+    console.log(`  📄 需要获取 ${totalPages} 页`)
+    
+    // 获取剩余页面
+    for (let page = 2; page <= totalPages; page++) {
+      console.log(`  📡 获取第${page}/${totalPages}页...`)
+      
       const response = await yeepayAPI.searchBuryPointData({
         pageSize,
         page,
         date,
-        selectedPointId: config.selectedPointId
+        selectedPointId: pointId
       })
 
       const dataList = response.data?.dataList || []
       allData.push(...dataList)
 
       console.log(`  📄 第${page}页: ${dataList.length}条`)
-
-      // 如果返回的数据少于页面大小，说明已经到最后一页
-      if (dataList.length < pageSize) {
-        break
-      }
-
-      page++
       
       // 防止请求过快
       await new Promise(resolve => setTimeout(resolve, 100))
     }
+    
+    // 验证数据完整性
+    if (allData.length !== total) {
+      console.warn(`  ⚠️ 数据不完整: 期望${total}条，实际${allData.length}条`)
+    } else {
+      console.log(`  ✅ 数据获取完成: ${allData.length}/${total} 条`)
+    }
 
-    return allData
+    // 🔧 关键修复：严格按日期过滤数据
+    return this.filterDataByDate(allData, date)
+  }
+
+  /**
+   * 按日期严格过滤数据（防止跨天数据）
+   */
+  filterDataByDate(data, targetDate) {
+    if (!data || data.length === 0) {
+      return data
+    }
+
+    const filteredData = data.filter(item => {
+      if (!item.createdAt) {
+        console.warn(`  ⚠️ 记录缺少createdAt字段:`, item.id)
+        return false
+      }
+
+      try {
+        const itemDate = new Date(item.createdAt).toISOString().split('T')[0]
+        return itemDate === targetDate
+      } catch (error) {
+        console.warn(`  ⚠️ 日期解析失败:`, item.createdAt, error.message)
+        return false
+      }
+    })
+
+    const removedCount = data.length - filteredData.length
+    if (removedCount > 0) {
+      console.log(`  🧹 日期过滤: 移除${removedCount}条跨天数据，保留${filteredData.length}条`)
+      
+      // 检查被移除数据的日期分布
+      const removedDates = {}
+      data.forEach(item => {
+        if (item.createdAt) {
+          try {
+            const itemDate = new Date(item.createdAt).toISOString().split('T')[0]
+            if (itemDate !== targetDate) {
+              removedDates[itemDate] = (removedDates[itemDate] || 0) + 1
+            }
+          } catch (e) {
+            // 忽略解析错误的日期
+          }
+        }
+      })
+      
+      if (Object.keys(removedDates).length > 0) {
+        console.log(`  📅 被移除的跨天数据分布:`, removedDates)
+      }
+    }
+
+    return filteredData
   }
 
   /**
@@ -239,20 +479,29 @@ class DataPreloadService {
       }
     }
     
-    // 从localStorage获取配置（备用）
-    const storedConfig = localStorage.getItem('apiConfig')
-    if (storedConfig) {
-      const parsedConfig = JSON.parse(storedConfig)
+    // 从store的projectConfig获取选中的埋点列表
+    const projectConfig = store.state.projectConfig
+    if (projectConfig && projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
       return {
-        selectedPointId: parsedConfig.selectedPointId,
-        projectId: parsedConfig.projectId
+        selectedPointId: projectConfig.selectedBuryPointIds[0],
+        projectId: storeConfig?.projectId || 'event1021'
       }
     }
     
-    // 默认配置（从API_CONFIG获取）
+    // 从localStorage获取配置（备用）
+    const selectedBuryPointIds = JSON.parse(localStorage.getItem('selectedBuryPointIds') || '[]')
+    if (selectedBuryPointIds.length > 0) {
+      return {
+        selectedPointId: selectedBuryPointIds[0],
+        projectId: storeConfig?.projectId || 'event1021'
+      }
+    }
+    
+    // 默认配置（返回null，强制用户配置）
+    console.warn('⚠️ 未找到有效的埋点配置，请在配置管理中选择埋点')
     return {
-      selectedPointId: 175, // 使用实际配置的埋点ID
-      projectId: 'event1021'
+      selectedPointId: null,
+      projectId: storeConfig?.projectId || 'event1021'
     }
   }
 
@@ -306,10 +555,21 @@ class DataPreloadService {
       const dayData = await this.getCachedRawData(date, selectedPointId)
       if (dayData && dayData.length > 0) {
         console.log(`✅ ${date}: 找到缓存 ${dayData.length}条`)
+        allData.push(...dayData)
       } else {
         console.log(`❌ ${date}: 无缓存数据`)
+        // 尝试检查原始缓存数据
+        try {
+          const rawCacheData = await chartDB.getRawDataCache(cacheId)
+          if (rawCacheData) {
+            console.log(`  🔍 原始缓存数据存在但为空:`, rawCacheData)
+          } else {
+            console.log(`  🔍 原始缓存数据不存在`)
+          }
+        } catch (e) {
+          console.log(`  🔍 检查原始缓存数据失败:`, e.message)
+        }
       }
-      allData.push(...dayData)
     }
 
     console.log('====================================')
@@ -400,8 +660,63 @@ class DataPreloadService {
     return {
       isPreloading: this.isPreloading,
       progress: this.preloadProgress,
-      lastPreloadDate: this.lastPreloadDate
+      lastPreloadDate: this.lastPreloadDate,
+      smartInvalidationEnabled: this.smartInvalidationEnabled,
+      cacheValidityPeriod: this.cacheValidityPeriod / (60 * 60 * 1000) // 转换为小时
     }
+  }
+
+  /**
+   * 启用/禁用智能缓存失效
+   */
+  setSmartInvalidation(enabled) {
+    this.smartInvalidationEnabled = enabled
+    console.log(`🧠 智能缓存失效: ${enabled ? '已启用' : '已禁用'}`)
+  }
+
+  /**
+   * 设置缓存有效期
+   */
+  setCacheValidityPeriod(hours) {
+    this.cacheValidityPeriod = hours * 60 * 60 * 1000
+    console.log(`⏰ 缓存有效期设置为: ${hours} 小时`)
+  }
+
+  /**
+   * 强制刷新所有缓存（绕过智能检查）
+   */
+  async forceRefreshAll() {
+    const selectedPointIds = store.state.projectConfig?.selectedBuryPointIds || []
+    
+    if (selectedPointIds.length === 0) {
+      console.warn('⚠️ 未选择任何埋点，无法执行强制刷新')
+      return
+    }
+
+    console.log('🔄 开始强制刷新所有缓存...')
+    
+    // 清理所有相关缓存
+    const dates = this.getLast7Days()
+    for (const pointId of selectedPointIds) {
+      for (const date of dates) {
+        const cacheId = `raw_${pointId}_${date}`
+        try {
+          await chartDB._executeTransaction('raw_data_cache', 'readwrite', (store) => {
+            return store.delete(cacheId)
+          })
+        } catch (error) {
+          // 忽略删除错误
+        }
+      }
+    }
+
+    // 重置预加载标记
+    localStorage.removeItem('lastPreloadDate')
+    
+    // 触发重新预加载
+    await this.init()
+    
+    console.log('✅ 强制刷新完成')
   }
 }
 

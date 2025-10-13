@@ -29,6 +29,20 @@ export class ChartGenerator {
     // 根据图表类型生成配置
     const option = this.generateOption(analysis, data)
     
+    // 验证配置
+    if (!option || !option.series || !Array.isArray(option.series) || option.series.length === 0) {
+      console.error('图表配置无效:', option)
+      throw new Error('图表配置生成失败')
+    }
+    
+    // 验证每个series配置
+    option.series.forEach((series, index) => {
+      if (!series || !series.type) {
+        console.error(`Series ${index} 配置无效:`, series)
+        throw new Error(`Series ${index} 配置无效`)
+      }
+    })
+    
     // 添加数据统计信息到图表（传递日期范围信息）
     this.addDataInfo(option, data, analysis.dateRange)
     
@@ -656,114 +670,46 @@ export class ChartGenerator {
       return { categories, values }
     }
     
-    // 检查数据是否跨越多天
-    const uniqueDates = new Set(data.map(item => 
+    // 🔧 统一按日期聚合，不管单日还是多日
+    console.log('数据包含的不同日期数:', new Set(data.map(item => 
       new Date(item.createdAt).toLocaleDateString()
-    ))
-    
-    console.log('数据包含的不同日期数:', uniqueDates.size)
+    )).size)
     console.log('实际数据量:', data.length)
     
-    // 如果只有一天的数据且数据量较少，按小时聚合
-    // 但如果数据量很少（<10条），即使是单日也按日期聚合，避免图表异常
-    if (uniqueDates.size === 1 && data.length >= 10) {
-      console.log('单日数据且数据量充足，按小时聚合')
-      const timeMap = {}
-      data.forEach(item => {
-        const date = new Date(item.createdAt)
-        const hour = date.getHours()
-        const hourLabel = `${hour}:00`
-        if (!timeMap[hourLabel]) {
-          timeMap[hourLabel] = { pv: 0, uv: new Set() }
-        }
-        timeMap[hourLabel].pv += 1
-        timeMap[hourLabel].uv.add(item.weCustomerKey)
-      })
+    // 按日期聚合数据
+    const timeMap = {}
+    const allDates = new Set()
+    
+    data.forEach(item => {
+      const date = new Date(item.createdAt).toLocaleDateString()
+      allDates.add(date)
       
-      // 按小时排序（0-23）
-      const sortedHours = Object.keys(timeMap).sort((a, b) => {
-        return parseInt(a) - parseInt(b)
-      })
-      
-      return {
-        categories: sortedHours,
-        values: sortedHours.map(hour => timeMap[hour].pv),
-        uvValues: sortedHours.map(hour => timeMap[hour].uv.size)
+      if (!timeMap[date]) {
+        timeMap[date] = { pv: 0, uv: new Set() }
       }
-    } else {
-      // 多天数据或单日数据量不足，按日期聚合
-      console.log('多日数据或单日数据量不足，按日期聚合')
-      const timeMap = {}
-      data.forEach(item => {
-        const date = new Date(item.createdAt).toLocaleDateString()
-        if (!timeMap[date]) {
-          timeMap[date] = { pv: 0, uv: new Set() }
-        }
-        timeMap[date].pv += 1
-        
-        // UV统计：使用 weCustomerKey 去重
-        timeMap[date].uv.add(item.weCustomerKey)
-      })
-      
-      const sortedDates = Object.keys(timeMap).sort()
-      const result = {
-        categories: sortedDates,
-        values: sortedDates.map(date => timeMap[date].pv),
-        uvValues: sortedDates.map(date => timeMap[date].uv.size)
-      }
-      
-      // 调试：检查数据样本的用户标识字段
-      console.log('🔍 数据样本用户标识字段检查:', {
-        sampleData: data.slice(0, 5).map(item => ({
-          pageName: item.pageName,
-          weCustomerKey: item.weCustomerKey,
-          weUserId: item.weUserId,
-          weIp: item.weIp,
-          weDeviceName: item.weDeviceName,
-          weBrowserName: item.weBrowserName,
-          createdAt: item.createdAt
-        })),
-        totalRecords: data.length,
-        uniquePages: [...new Set(data.map(item => item.pageName))].length,
-        uniqueWeCustomerKey: [...new Set(data.map(item => item.weCustomerKey))].length,
-        uniqueWeUserId: [...new Set(data.map(item => item.weUserId))].length,
-        uniqueWeIp: [...new Set(data.map(item => item.weIp))].length,
-        pageDistribution: data.reduce((acc, item) => {
-          acc[item.pageName] = (acc[item.pageName] || 0) + 1
-          return acc
-        }, {})
-      })
-      
-      console.log('📊 UV/PV数据聚合结果:', {
-        categories: result.categories,
-        pvValues: result.values,
-        uvValues: result.uvValues,
-        totalPV: result.values.reduce((a, b) => a + b, 0),
-        totalUV: result.uvValues.reduce((a, b) => a + b, 0),
-        dailyDetails: result.categories.map((date, index) => ({
-          date,
-          pv: result.values[index],
-          uv: result.uvValues[index]
-        }))
-      })
-      
-      // 调试：检查10月10日的数据
-      const oct10Data = data.filter(item => {
-        const itemDate = new Date(item.createdAt).toLocaleDateString()
-        return itemDate === '2025/10/10'
-      })
-      console.log('🔍 10月10日数据检查:', {
-        totalOct10Records: oct10Data.length,
-        expectedRecords: 3366,
-        match: oct10Data.length === 3366 ? '✅ 匹配' : '❌ 不匹配',
-        sampleOct10Data: oct10Data.slice(0, 3).map(item => ({
-          pageName: item.pageName,
-          weCustomerKey: item.weCustomerKey,
-          createdAt: item.createdAt
-        }))
-      })
-      
-      return result
+      timeMap[date].pv += 1
+      timeMap[date].uv.add(item.weCustomerKey)
+    })
+    
+    // 按日期排序
+    const sortedDates = Array.from(allDates).sort()
+    
+    console.log('📊 按日期聚合结果:', {
+      dateRange: sortedDates.length === 1 ? sortedDates[0] : `${sortedDates[0]} - ${sortedDates[sortedDates.length - 1]}`,
+      days: sortedDates.length,
+      totalPV: sortedDates.reduce((sum, date) => sum + timeMap[date].pv, 0),
+      totalUV: new Set(data.map(item => item.weCustomerKey)).size,
+      dailyDetails: sortedDates.map(date => ({
+        date,
+        pv: timeMap[date].pv,
+        uv: timeMap[date].uv.size
+      }))
+    })
+    
+    return {
+      categories: sortedDates,
+      values: sortedDates.map(date => timeMap[date].pv),
+      uvValues: sortedDates.map(date => timeMap[date].uv.size)
     }
   }
   
@@ -1617,6 +1563,12 @@ export class ChartGenerator {
   generateSinglePageUVPVChartOption(analysis, data, userDateRange = null) {
     const chartData = this.processSinglePageUVPVChartData(data, userDateRange)
     
+    console.log('📊 单页面UV/PV图表数据:', {
+      categories: chartData.categories,
+      uvData: chartData.uvData,
+      pvData: chartData.pvData
+    })
+    
     return {
       title: {
         text: analysis.description || '单页面UV/PV时间趋势分析',
@@ -1641,7 +1593,7 @@ export class ChartGenerator {
         }
       },
       legend: {
-        data: ['UV', 'PV'],
+        data: ['PV', 'UV'],
         bottom: 10,
         left: 'center'
       },
@@ -1677,7 +1629,8 @@ export class ChartGenerator {
           itemStyle: { color: '#5470c6' },
           label: {
             show: true,
-            position: 'top'
+            position: 'top',
+            formatter: '{c}'
           }
         },
         {
@@ -1690,7 +1643,8 @@ export class ChartGenerator {
           symbolSize: 8,
           label: {
             show: true,
-            position: 'top'
+            position: 'top',
+            formatter: '{c}'
           }
         }
       ]
@@ -1737,14 +1691,12 @@ export class ChartGenerator {
         }
       }
       
+      // PV：统计所有页面访问记录（不去重）
+      timeMap[date].pvCount++
+      
       // UV：按weCustomerKey去重
       if (item.weCustomerKey) {
         timeMap[date].uvSet.add(item.weCustomerKey)
-      }
-      
-      // PV：只统计pageBehavior为"打开"的记录
-      if (item.pageBehavior === '打开') {
-        timeMap[date].pvCount++
       }
     })
     
