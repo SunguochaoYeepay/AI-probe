@@ -251,7 +251,7 @@ class DataPreloadService {
     
     // 默认配置（从API_CONFIG获取）
     return {
-      selectedPointId: 110, // 默认访问埋点ID
+      selectedPointId: 175, // 使用实际配置的埋点ID
       projectId: 'event1021'
     }
   }

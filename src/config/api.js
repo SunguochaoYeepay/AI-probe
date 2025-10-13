@@ -10,7 +10,7 @@ export const API_CONFIG = {
   // 默认埋点配置（作为备用）
   defaultBuryPoints: {
     visit: {
-      id: 110,
+      id: 175,
       name: '页面访问埋点',
       description: '记录页面访问行为',
       type: 'single'
