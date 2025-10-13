@@ -6,6 +6,7 @@ export default createStore({
     // API配置
     apiConfig: {
       ...API_CONFIG.environments.development,
+      selectedPointId: 175, // 设置默认埋点ID
       defaults: API_CONFIG.defaults
     },
     
