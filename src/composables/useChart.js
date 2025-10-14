@@ -79,7 +79,7 @@ export function useChart() {
         
         // 调试：显示实际数据中的页面名称
         const actualPageNames = [...new Set(data.map(item => item.pageName).filter(name => name))]
-        console.log('实际数据中的页面名称:', actualPageNames.slice(0, 10)) // 显示前10个页面名称
+        console.log('🔍 可用页面数量:', actualPageNames.length, '个')
         
         const filteredData = data.filter(item => 
           specifiedPages.some(page => {
@@ -100,20 +100,27 @@ export function useChart() {
               const normalizedSource = source.replace(/[—_\-]/g, '')
               if (normalizedTarget === normalizedSource) return true
               
-              // 4. 更严格的包含匹配 - 要求主要关键词都包含
+              // 4. 关键词匹配 - 检查目标关键词是否在源页面名称中
               const targetKeywords = target.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
               const sourceKeywords = source.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
               
-              // 检查关键关键词是否都包含（至少3个关键词中有2个匹配）
-              if (targetKeywords.length >= 3 && sourceKeywords.length >= 3) {
-                let matchCount = 0
-                for (const targetKeyword of targetKeywords) {
-                  if (sourceKeywords.some(sourceKeyword => 
-                    sourceKeyword.includes(targetKeyword) || targetKeyword.includes(sourceKeyword)
-                  )) {
-                    matchCount++
-                  }
+              // 检查目标关键词是否都包含在源页面名称中
+              let matchCount = 0
+              for (const targetKeyword of targetKeywords) {
+                if (sourceKeywords.some(sourceKeyword => 
+                  sourceKeyword.includes(targetKeyword) || targetKeyword.includes(sourceKeyword)
+                )) {
+                  matchCount++
                 }
+              }
+              
+              // 如果目标关键词全部匹配，则认为是匹配的
+              if (targetKeywords.length > 0 && matchCount === targetKeywords.length) {
+                return true
+              }
+              
+              // 对于较长的关键词列表，至少80%的关键词要匹配
+              if (targetKeywords.length >= 3 && sourceKeywords.length >= 3) {
                 // 至少80%的关键词要匹配
                 const matchRatio = matchCount / Math.min(targetKeywords.length, sourceKeywords.length)
                 return matchRatio >= 0.8
@@ -128,7 +135,6 @@ export function useChart() {
             }
             
             if (smartMatch(item.pageName, page)) {
-              console.log(`✅ 智能匹配: "${item.pageName}" <-> "${page}"`)
               return true
             }
             
@@ -136,9 +142,8 @@ export function useChart() {
           })
         )
         
-        // 详细调试信息
-        console.log(`过滤前: ${data.length} 条，过滤后: ${filteredData.length} 条`)
-        console.log(`指定页面: [${specifiedPages.join(', ')}]`)
+        // 匹配结果汇总
+        console.log(`🔍 页面匹配结果: 指定${specifiedPages.length}个页面，匹配到${filteredData.length}条数据`)
         
         // 检查精确匹配的结果
         const exactMatches = data.filter(item => 
@@ -188,13 +193,13 @@ export function useChart() {
               )
             ).slice(0, 5)
             
-            let errorMsg = `未找到页面"${specifiedPages.join(', ')}"的数据。\n\n`
+            let errorMsg = `❌ 抱歉，系统中没有找到"${specifiedPages.join(', ')}"这个页面。\n\n`
             
             if (suggestedPages.length > 0) {
-              errorMsg += `建议的页面名称：\n${suggestedPages.map(page => `• ${page}`).join('\n')}\n\n`
+              errorMsg += `💡 建议的页面名称：\n${suggestedPages.map(page => `• ${page}`).join('\n')}\n\n`
             }
             
-            errorMsg += `当前可用的页面包括：\n${actualPageNames.slice(0, 10).map(page => `• ${page}`).join('\n')}\n\n`
+            errorMsg += `📋 当前可用的页面包括：\n${actualPageNames.slice(0, 10).map(page => `• ${page}`).join('\n')}${actualPageNames.length > 10 ? `\n\n...还有${actualPageNames.length - 10}个页面` : ''}\n\n`
             errorMsg += `请从上述页面中选择一个正确的页面名称。`
             throw new Error(errorMsg)
           } else {
@@ -248,6 +253,13 @@ export function useChart() {
       await nextTick()
       await nextTick() // 双重 nextTick 确保 DOM 完全更新
       
+      // 先销毁旧图表，确保重新渲染
+      if (chartGenerator.value.chart) {
+        console.log('销毁旧图表，准备重新生成')
+        chartGenerator.value.chart.dispose()
+        chartGenerator.value.chart = null // 清空引用，避免重复dispose
+      }
+      
       // 确认容器存在
       const container = document.getElementById('chart-container')
       if (!container) {
@@ -256,8 +268,8 @@ export function useChart() {
         setTimeout(() => {
           const retryContainer = document.getElementById('chart-container')
           if (retryContainer) {
-            // 先销毁旧图表
-            if (chartGenerator.value.chart) {
+            // 检查是否已经dispose过，避免重复dispose
+            if (chartGenerator.value.chart && !chartGenerator.value.chart.isDisposed()) {
               chartGenerator.value.chart.dispose()
             }
             chartGenerator.value.generateChart(analysisWithDateRange, data, 'chart-container')
@@ -267,12 +279,6 @@ export function useChart() {
           }
         }, 100)
         return
-      }
-      
-      // 先销毁旧图表，确保重新渲染
-      if (chartGenerator.value.chart) {
-        console.log('销毁旧图表，准备重新生成')
-        chartGenerator.value.chart.dispose()
       }
       
       // 生成新图表

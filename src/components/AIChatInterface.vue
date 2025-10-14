@@ -383,14 +383,14 @@ const handleFallbackRecognition = async (messageText) => {
       const pageExists = await checkPageExists(pageName)
       
       if (!pageExists) {
-        // 页面不存在，直接告诉用户
-        // 动态获取可用页面列表
-        const samplePages = await getSamplePages()
+        // 页面不存在，直接告诉用户并显示实际可用的页面
+        const availablePages = await getAvailablePages()
         
-        return {
-          content: `❌ 抱歉，系统中没有找到"${pageName}"这个页面。\n\n请检查页面名称是否正确${samplePages.length > 0 ? `，或者从以下可用页面中选择：\n\n${samplePages.map(page => `• ${page}`).join('\n')}` : '。'}\n\n您也可以直接输入正确的页面名称进行分析。`,
-          actions: []
-        }
+        // 直接添加消息并停止处理
+        addMessage(`❌ 抱歉，系统中没有找到"${pageName}"这个页面。\n\n请检查页面名称是否正确，或者从以下可用页面中选择：\n\n${availablePages.slice(0, 10).map(page => `• ${page}`).join('\n')}${availablePages.length > 10 ? `\n\n...还有${availablePages.length - 10}个页面` : ''}\n\n💡 提示：请从上述页面中选择一个正确的页面名称。`, 'ai')
+        
+        // 返回null阻止继续处理
+        return null
       } else {
         // 页面存在，直接触发分析
         console.log('✅ 页面存在，开始分析')
@@ -476,14 +476,25 @@ const analyzeWithAI = async (userMessage) => {
         const pageExists = await checkPageExists(extractedPageName)
         
         if (!pageExists) {
-          // 页面不存在，直接告诉用户
-          // 动态获取可用页面列表
-          const samplePages = await getSamplePages()
+          // 页面不存在，直接告诉用户并显示实际可用的页面
+          const availablePages = await getAvailablePages()
           
           return {
-            content: `❌ 抱歉，系统中没有找到"${extractedPageName}"这个页面。\n\n请检查页面名称是否正确${samplePages.length > 0 ? `，或者从以下可用页面中选择：\n\n${samplePages.map(page => `• ${page}`).join('\n')}` : '。'}\n\n您也可以直接输入正确的页面名称进行分析。`,
+            content: `❌ 抱歉，系统中没有找到"${extractedPageName}"这个页面。\n\n请检查页面名称是否正确，或者从以下可用页面中选择：\n\n${availablePages.slice(0, 10).map(page => `• ${page}`).join('\n')}${availablePages.length > 10 ? `\n\n...还有${availablePages.length - 10}个页面` : ''}\n\n💡 提示：请从上述页面中选择一个正确的页面名称。`,
             actions: []
           }
+        }
+      } else {
+        // 没有提取到具体页面名称，可能是通用描述，提供页面选择建议
+        const availablePages = await getAvailablePages()
+        
+        return {
+          content: `❌ 没有你要的页面。\n\n请从以下可用页面中选择您要分析的页面：\n\n${availablePages.slice(0, 10).map(page => `• ${page}`).join('\n')}${availablePages.length > 10 ? `\n\n...还有${availablePages.length - 10}个页面` : ''}\n\n💡 提示：请选择具体的页面名称进行分析。`,
+          actions: availablePages.slice(0, 5).map(page => ({
+            text: `分析${page}`,
+            type: 'analyze',
+            params: { type: 'page_visits', scope: 'specific', pageName: page }
+          }))
         }
       }
     }
@@ -661,6 +672,37 @@ const checkPageExistsWithAI = async (pageName) => {
 }
 
 // 检查页面是否存在的函数
+/**
+ * 动态获取可用页面列表
+ * @returns {Promise<Array>} 可用页面列表
+ */
+const getAvailablePages = async () => {
+  try {
+    const endDate = new Date()
+    const startDate = new Date()
+    startDate.setDate(endDate.getDate() - 7)
+    
+    const dateRange = [startDate, endDate]
+    const selectedPointId = store.state.projectConfig?.selectedBuryPointIds?.[0]
+    
+    if (selectedPointId) {
+      const cachedData = await dataPreloadService.getMultiDayCachedData(dateRange, selectedPointId)
+      
+      if (cachedData && cachedData.length > 0) {
+        // 从实际数据中提取页面名称，过滤掉模板字符串
+        const availablePages = [...new Set(cachedData.map(item => item.pageName).filter(name => name && !name.includes('{{') && !name.includes('}}')))].sort()
+        console.log('🔍 动态获取到可用页面:', availablePages.slice(0, 10))
+        return availablePages
+      }
+    }
+    
+    return []
+  } catch (error) {
+    console.error('获取可用页面列表时出错:', error)
+    return []
+  }
+}
+
 const checkPageExists = async (pageName) => {
   try {
     console.log('检查页面存在性:', pageName)
@@ -686,23 +728,30 @@ const checkPageExists = async (pageName) => {
         console.log('🔍 当前检查的页面名称:', pageName)
         
         // 检查页面名称是否存在于实际数据中（严格匹配）
+        let matchedPage = null
         const pageExists = cachedData.some(item => {
           if (!item.pageName) return false
           
           // 精确匹配
-          if (item.pageName === pageName) return true
+          if (item.pageName === pageName) {
+            matchedPage = item.pageName
+            return true
+          }
           
           // 智能匹配：去除常见后缀后严格比较
           const cleanPageName = pageName.replace(/页面$|访问量$|的访问$/, '').trim()
           const cleanItemPageName = item.pageName.replace(/页面$|访问量$|的访问$/, '').trim()
           
-          console.log(`🔍 严格匹配检查: "${cleanPageName}" vs "${cleanItemPageName}" = ${cleanPageName === cleanItemPageName}`)
-          
           // 严格匹配：去除后缀后必须完全相同
-          return cleanPageName === cleanItemPageName
+          if (cleanPageName === cleanItemPageName) {
+            matchedPage = item.pageName
+            return true
+          }
+          
+          return false
         })
         
-        console.log(`页面"${pageName}"存在性检查结果:`, pageExists)
+        console.log(`🔍 页面匹配结果: "${pageName}" ${pageExists ? `→ 匹配到 "${matchedPage}"` : '→ 未找到匹配'}`)
         return pageExists
       }
     }
@@ -734,14 +783,14 @@ const generateAIResponse = async (userMessage) => {
       const pageExists = await checkPageExists(pageName)
       
       if (!pageExists) {
-        // 页面不存在，直接告诉用户
-        // 动态获取可用页面列表
-        const samplePages = await getSamplePages()
+        // 页面不存在，直接告诉用户并显示实际可用的页面
+        const availablePages = await getAvailablePages()
         
-        return {
-          content: `❌ 抱歉，系统中没有找到"${pageName}"这个页面。\n\n请检查页面名称是否正确${samplePages.length > 0 ? `，或者从以下可用页面中选择：\n\n${samplePages.map(page => `• ${page}`).join('\n')}` : '。'}\n\n您也可以直接输入正确的页面名称进行分析。`,
-          actions: []
-        }
+        // 直接添加消息并停止处理
+        addMessage(`❌ 抱歉，系统中没有找到"${pageName}"这个页面。\n\n请检查页面名称是否正确，或者从以下可用页面中选择：\n\n${availablePages.slice(0, 10).map(page => `• ${page}`).join('\n')}${availablePages.length > 10 ? `\n\n...还有${availablePages.length - 10}个页面` : ''}\n\n💡 提示：请从上述页面中选择一个正确的页面名称。`, 'ai')
+        
+        // 返回null阻止继续处理
+        return null
       } else {
         // 页面存在，提供分析选项
         return {

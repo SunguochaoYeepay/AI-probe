@@ -398,7 +398,7 @@ const analyzeRequirement = async () => {
         ...analysis,
         intent: 'single_page_uv_pv_analysis',
         chartType: 'single_page_uv_pv_chart',
-        description: `${specifiedPages[0]}页面UV/PV时间趋势分析`,
+        description: 'UV/PV时间趋势分析', // 简化图表标题
         parameters: {
           ...analysis.parameters,
           pageName: specifiedPages[0]
@@ -499,7 +499,20 @@ const analyzeRequirement = async () => {
     
   } catch (error) {
     console.error('分析失败:', error)
-    message.error('分析失败，请重试')
+    
+    // 检查是否是页面不存在的错误
+    if (error.message && error.message.includes('未找到页面')) {
+      // 显示详细的页面不存在错误信息
+      message.error({
+        content: error.message,
+        duration: 10, // 显示更长时间让用户看到页面列表
+        style: {
+          whiteSpace: 'pre-line' // 支持换行显示
+        }
+      })
+    } else {
+      message.error('分析失败，请重试')
+    }
     
     // 错误时也要清除loading状态
     store.dispatch('updateChartGenerationStatus', {

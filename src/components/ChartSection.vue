@@ -149,10 +149,10 @@ const chartTitle = computed(() => {
   // 根据图表类型生成标题
   switch (analysis.chartType) {
     case 'single_page_uv_pv_chart':
-      // 如果有页面名称，显示"分析XXX页面"
+      // 如果有页面名称，显示"XXX页面访问量"
       const pageName = analysis.parameters?.pageName
       if (pageName) {
-        return `分析${pageName}页面`
+        return `${pageName}页面访问量`
       }
       return '页面访问量分析'
     case 'uv_pv_chart':

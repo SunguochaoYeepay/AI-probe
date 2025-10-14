@@ -7,6 +7,44 @@ import { OllamaService } from '@/utils/ollamaService'
 import { AI_PROMPTS, AI_RESPONSE_PARSERS, AI_CONFIG } from '@/utils/aiPrompts'
 
 /**
+ * 检查是否是通用描述，没有具体页面名称
+ * @param {string} text - 要检查的文本
+ * @returns {boolean} 是否是通用描述
+ */
+/**
+ * 检查是否是通用描述，没有具体页面名称
+ * @param {string} text - 要检查的文本
+ * @returns {boolean} 是否是通用描述
+ */
+const isGenericDescription = (text) => {
+  if (!text || typeof text !== 'string') return true
+  
+  // 检查是否为通用描述，不硬编码具体页面名称
+  const genericPatterns = [
+    /^页面访问量$/,
+    /^访问量$/,
+    /^页面访问$/,
+    /^页面$/,
+    /^访问$/,
+    /^pv$/i,
+    /^uv$/i,
+    /^无具体页面名称$/,
+    /^null$/i,
+    /^空$/,
+    /^无$/,
+    // 检查是否包含常见通用词汇组合
+    /首页.*访问量$/,
+    /主页.*访问量$/,
+    /首页.*访问$/,
+    /主页.*访问$/,
+    /.*页面.*访问量$/,
+    /.*页面.*访问$/
+  ]
+  
+  return genericPatterns.some(pattern => pattern.test(text.trim()))
+}
+
+/**
  * 使用AI智能提取页面名称
  * @param {string} userMessage - 用户输入的消息
  * @returns {Promise<string|null>} 提取的页面名称
@@ -14,6 +52,12 @@ import { AI_PROMPTS, AI_RESPONSE_PARSERS, AI_CONFIG } from '@/utils/aiPrompts'
 export const extractPageNameWithAI = async (userMessage) => {
   try {
     console.log('🔍 AI提取页面名称 - 原始输入:', userMessage)
+    
+    // 检查是否是通用描述，没有具体页面名称
+    if (isGenericDescription(userMessage)) {
+      console.log('🔍 检测到通用描述，无具体页面名称')
+      return null
+    }
     
     // 先尝试简单的文本提取作为备用方案
     const simpleExtract = extractPageNameSimple(userMessage)
@@ -33,6 +77,12 @@ export const extractPageNameWithAI = async (userMessage) => {
     // 传入原始输入，让解析器优先提取引号内容
     const extractedName = AI_RESPONSE_PARSERS.parsePageName(response, userMessage)
     console.log('🔍 AI提取页面名称 - 解析结果:', extractedName)
+    
+    // 如果AI返回的结果是通用描述，返回null
+    if (isGenericDescription(extractedName)) {
+      console.log('🔍 AI返回的是通用描述，返回null')
+      return null
+    }
     
     return extractedName
   } catch (error) {

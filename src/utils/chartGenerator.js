@@ -21,7 +21,7 @@ export class ChartGenerator {
     }
     
     // 初始化图表
-    if (this.chart) {
+    if (this.chart && !this.chart.isDisposed()) {
       this.chart.dispose()
     }
     this.chart = echarts.init(container)
