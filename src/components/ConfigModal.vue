@@ -67,17 +67,16 @@
             </div>
           </a-form-item>
           
-          <!-- 项目埋点列表 -->
-          <a-form-item v-if="currentBuryPoints?.buryPoints?.length > 0" label="选择埋点">
+          <!-- 访问埋点配置 -->
+          <a-form-item v-if="currentBuryPoints?.buryPoints?.length > 0" label="访问埋点">
             <a-select
-              v-model:value="selectedBuryPointIds"
-              mode="multiple"
-              placeholder="请选择要使用的埋点（可多选）"
+              v-model:value="visitBuryPointId"
+              placeholder="请选择访问埋点"
               style="width: 100%"
-              @change="onBuryPointsChange"
+              @change="onVisitBuryPointChange"
               show-search
               :filter-option="filterBuryPoint"
-              :max-tag-count="3"
+              allow-clear
             >
               <a-select-option
                 v-for="point in currentBuryPoints.buryPoints"
@@ -91,7 +90,34 @@
               </a-select-option>
             </a-select>
             <div style="color: #999; font-size: 12px; margin-top: 4px;">
-              选择要使用的埋点（可多选），系统会自动识别访问埋点和点击埋点
+              选择用于记录页面访问行为的埋点
+            </div>
+          </a-form-item>
+
+          <!-- 点击埋点配置 -->
+          <a-form-item v-if="currentBuryPoints?.buryPoints?.length > 0" label="点击埋点">
+            <a-select
+              v-model:value="clickBuryPointId"
+              placeholder="请选择点击埋点"
+              style="width: 100%"
+              @change="onClickBuryPointChange"
+              show-search
+              :filter-option="filterBuryPoint"
+              allow-clear
+            >
+              <a-select-option
+                v-for="point in currentBuryPoints.buryPoints"
+                :key="point.id"
+                :value="point.id"
+              >
+                <div class="bury-point-option">
+                  <span class="bury-point-name">{{ point.name }}</span>
+                  <span class="bury-point-id">(ID: {{ point.id }})</span>
+                </div>
+              </a-select-option>
+            </a-select>
+            <div style="color: #999; font-size: 12px; margin-top: 4px;">
+              选择用于记录按钮点击行为的埋点
             </div>
           </a-form-item>
           
@@ -230,14 +256,36 @@ const {
   selectProject
 } = useProjectConfig()
 
-// 选中的埋点ID列表
+// 选中的埋点ID列表（保持向后兼容）
 const selectedBuryPointIds = ref([])
+
+// 访问埋点ID
+const visitBuryPointId = ref(null)
+
+// 点击埋点ID
+const clickBuryPointId = ref(null)
 
 // 监听props变化，初始化选中的埋点
 watch(() => props.projectConfigForm.selectedBuryPointIds, (newIds) => {
   if (newIds && Array.isArray(newIds)) {
     selectedBuryPointIds.value = [...newIds]
     console.log('从props初始化选中的埋点:', selectedBuryPointIds.value)
+  }
+}, { immediate: true })
+
+// 监听访问埋点变化
+watch(() => props.projectConfigForm.visitBuryPointId, (newId) => {
+  if (newId) {
+    visitBuryPointId.value = newId
+    console.log('从props初始化访问埋点:', visitBuryPointId.value)
+  }
+}, { immediate: true })
+
+// 监听点击埋点变化
+watch(() => props.projectConfigForm.clickBuryPointId, (newId) => {
+  if (newId) {
+    clickBuryPointId.value = newId
+    console.log('从props初始化点击埋点:', clickBuryPointId.value)
   }
 }, { immediate: true })
 
@@ -249,6 +297,20 @@ watch(() => props.visible, (newVisible) => {
     if (storeSelectedIds && storeSelectedIds.length > 0) {
       selectedBuryPointIds.value = [...storeSelectedIds]
       console.log('从store加载选中的埋点:', selectedBuryPointIds.value)
+    }
+    
+    // 从store加载访问埋点和点击埋点配置
+    const storeVisitBuryPointId = store.state.projectConfig.visitBuryPointId
+    const storeClickBuryPointId = store.state.projectConfig.clickBuryPointId
+    
+    if (storeVisitBuryPointId) {
+      visitBuryPointId.value = storeVisitBuryPointId
+      console.log('从store加载访问埋点:', visitBuryPointId.value)
+    }
+    
+    if (storeClickBuryPointId) {
+      clickBuryPointId.value = storeClickBuryPointId
+      console.log('从store加载点击埋点:', clickBuryPointId.value)
     }
   }
 })
@@ -336,6 +398,62 @@ const onBuryPointsChange = (checkedValues) => {
       projectId: currentProject.value.id,
       config: currentBuryPoints.value,
       selectedBuryPointIds: checkedValues
+    })
+  }
+}
+
+// 访问埋点变化处理
+const onVisitBuryPointChange = (pointId) => {
+  console.log('选中的访问埋点:', pointId)
+  
+  // 更新 store 中的访问埋点配置
+  store.dispatch('updateProjectConfig', {
+    visitBuryPointId: pointId
+  })
+  
+  // 如果当前没有设置点击埋点，同时更新 apiConfig.selectedPointId
+  if (pointId && !clickBuryPointId.value) {
+    store.dispatch('updateApiConfig', {
+      selectedPointId: pointId
+    })
+    console.log(`✅ 访问埋点已更新，同步更新 apiConfig.selectedPointId: ${pointId}`)
+  }
+  
+  // 发送配置更新事件
+  if (currentProject.value) {
+    emit('project-config-updated', {
+      projectId: currentProject.value.id,
+      config: currentBuryPoints.value,
+      visitBuryPointId: pointId,
+      clickBuryPointId: clickBuryPointId.value
+    })
+  }
+}
+
+// 点击埋点变化处理
+const onClickBuryPointChange = (pointId) => {
+  console.log('选中的点击埋点:', pointId)
+  
+  // 更新 store 中的点击埋点配置
+  store.dispatch('updateProjectConfig', {
+    clickBuryPointId: pointId
+  })
+  
+  // 如果当前没有设置访问埋点，同时更新 apiConfig.selectedPointId
+  if (pointId && !visitBuryPointId.value) {
+    store.dispatch('updateApiConfig', {
+      selectedPointId: pointId
+    })
+    console.log(`✅ 点击埋点已更新，同步更新 apiConfig.selectedPointId: ${pointId}`)
+  }
+  
+  // 发送配置更新事件
+  if (currentProject.value) {
+    emit('project-config-updated', {
+      projectId: currentProject.value.id,
+      config: currentBuryPoints.value,
+      visitBuryPointId: visitBuryPointId.value,
+      clickBuryPointId: pointId
     })
   }
 }

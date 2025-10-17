@@ -19,7 +19,9 @@ export default createStore({
       hasVisitPoint: false,
       hasClickPoint: false,
       supportDualBuryPoint: false,
-      selectedBuryPointIds: JSON.parse(localStorage.getItem('selectedBuryPointIds') || '[]') // 用户选中的埋点ID列表，从localStorage加载
+      selectedBuryPointIds: JSON.parse(localStorage.getItem('selectedBuryPointIds') || '[]'), // 用户选中的埋点ID列表，从localStorage加载
+      visitBuryPointId: JSON.parse(localStorage.getItem('visitBuryPointId') || 'null'), // 访问埋点ID
+      clickBuryPointId: JSON.parse(localStorage.getItem('clickBuryPointId') || 'null') // 点击埋点ID
     },
     
     // Ollama AI 配置
@@ -51,6 +53,13 @@ export default createStore({
       isGenerating: false,
       currentStep: '',
       progress: 0
+    },
+    
+    // 按钮分析参数
+    buttonAnalysisParams: {
+      pageName: null,
+      buttonName: null,
+      buttonData: null
     }
   },
   
@@ -64,6 +73,14 @@ export default createStore({
       // 持久化埋点选择到localStorage
       if (config.selectedBuryPointIds !== undefined) {
         localStorage.setItem('selectedBuryPointIds', JSON.stringify(config.selectedBuryPointIds))
+      }
+      // 持久化访问埋点到localStorage
+      if (config.visitBuryPointId !== undefined) {
+        localStorage.setItem('visitBuryPointId', JSON.stringify(config.visitBuryPointId))
+      }
+      // 持久化点击埋点到localStorage
+      if (config.clickBuryPointId !== undefined) {
+        localStorage.setItem('clickBuryPointId', JSON.stringify(config.clickBuryPointId))
       }
     },
     
@@ -89,6 +106,10 @@ export default createStore({
     
     SET_CHART_GENERATION_STATUS(state, status) {
       state.chartGeneration = { ...state.chartGeneration, ...status }
+    },
+    
+    SET_BUTTON_ANALYSIS_PARAMS(state, params) {
+      state.buttonAnalysisParams = { ...state.buttonAnalysisParams, ...params }
     }
   },
   
@@ -123,6 +144,10 @@ export default createStore({
     
     updateChartGenerationStatus({ commit }, status) {
       commit('SET_CHART_GENERATION_STATUS', status)
+    },
+    
+    updateButtonAnalysisParams({ commit }, params) {
+      commit('SET_BUTTON_ANALYSIS_PARAMS', params)
     }
   },
   

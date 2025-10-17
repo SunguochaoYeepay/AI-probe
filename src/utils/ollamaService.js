@@ -228,7 +228,7 @@ export class OllamaService {
 - 分布/占比→pie
 - 转化/流程→funnel
 - 总数/统计→value_card
-- 按钮点击/点击热度→click_heatmap
+- 按钮点击/点击热度→button_click_analysis
 - 访问到点击转化→conversion_funnel
 - 用户行为路径→user_journey
 
@@ -259,7 +259,10 @@ Q:"类型分布"
 A:{"intent":"distribution","chartType":"pie","description":"类型分布","confidence":0.9}
 
 Q:"按钮点击热度分析"
-A:{"intent":"click_analysis","chartType":"click_heatmap","description":"按钮点击热度分析","confidence":0.95}
+A:{"intent":"click_analysis","chartType":"button_click_analysis","description":"按钮点击热度分析","confidence":0.95}
+
+Q:"#下级商户限额 页面的申请提额按钮点击分析"
+A:{"intent":"button_click_analysis","chartType":"button_click_analysis","description":"下级商户限额页面申请提额按钮点击分析","confidence":0.95}
 
 Q:"访问到点击转化率"
 A:{"intent":"conversion","chartType":"conversion_funnel","description":"访问到点击转化分析","confidence":0.95}

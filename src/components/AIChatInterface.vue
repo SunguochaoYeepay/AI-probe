@@ -27,7 +27,7 @@
             :key="point.id"
             :value="point.id"
           >
-            {{ point.name }} (ID: {{ point.id }})
+            {{ point.name }} (ID: {{ point.id }}) - {{ point.type }}埋点
           </a-select-option>
         </a-select>
         <a-button 
@@ -134,6 +134,14 @@
         </a-button>
       </div>
     </div>
+    
+    <!-- 按钮选择弹窗 -->
+    <ButtonSelectionModal
+      v-model:visible="buttonSelectionModalVisible"
+      :page-name="selectedPageName"
+      :buttons="availableButtons"
+      @select-button="handleButtonSelection"
+    />
   </div>
 </template>
 
@@ -152,6 +160,8 @@ import dayjs from 'dayjs'
 import { useStore } from 'vuex'
 import { dataPreloadService } from '@/services/dataPreloadService'
 import { useDataFetch } from '@/composables/useDataFetch'
+import { extractButtonsFromMultiDayData } from '@/utils/buttonExtractor'
+import ButtonSelectionModal from '@/components/ButtonSelectionModal.vue'
 
 // Props
 const props = defineProps({
@@ -180,6 +190,11 @@ const store = useStore()
 // 埋点选择
 const selectedBuryPointId = ref(null)
 
+// 按钮选择相关
+const buttonSelectionModalVisible = ref(false)
+const selectedPageName = ref('')
+const availableButtons = ref([])
+
 // 快捷建议
 const quickSuggestions = ref([
   '分析首页访问量',
@@ -203,21 +218,126 @@ const dateRange = computed({
   }
 })
 
-// 获取已配置的埋点信息（只有这些埋点有预加载数据）
+// 获取已配置的埋点信息（支持新的分离配置）
 const allBuryPoints = computed(() => {
-  const selectedIds = store.state.projectConfig?.selectedBuryPointIds || []
-  const allBuryPoints = store.state.projectConfig?.buryPoints || []
+  const projectConfig = store.state.projectConfig
+  const allBuryPoints = projectConfig?.buryPoints || []
+  const configuredPoints = []
   
-  // 只返回已经配置选中的埋点
-  return selectedIds.map(id => {
-    const point = allBuryPoints.find(p => p.id === id)
-    return point || { id, name: `埋点${id}` }
-  })
+  // 优先使用新的分离配置
+  if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId) {
+    if (projectConfig.visitBuryPointId) {
+      const visitPoint = allBuryPoints.find(p => p.id === projectConfig.visitBuryPointId)
+      if (visitPoint) {
+        configuredPoints.push({ ...visitPoint, type: '访问' })
+      } else {
+        // 如果埋点列表中没有找到，创建一个基本的埋点信息
+        configuredPoints.push({ 
+          id: projectConfig.visitBuryPointId, 
+          name: '访问埋点', 
+          type: '访问' 
+        })
+      }
+    }
+    if (projectConfig.clickBuryPointId && projectConfig.clickBuryPointId !== projectConfig.visitBuryPointId) {
+      const clickPoint = allBuryPoints.find(p => p.id === projectConfig.clickBuryPointId)
+      if (clickPoint) {
+        configuredPoints.push({ ...clickPoint, type: '点击' })
+      } else {
+        // 如果埋点列表中没有找到，创建一个基本的埋点信息
+        configuredPoints.push({ 
+          id: projectConfig.clickBuryPointId, 
+          name: '点击埋点', 
+          type: '点击' 
+        })
+      }
+    }
+    console.log('使用分离配置的埋点:', configuredPoints)
+  } else {
+    // 回退到旧的配置方式
+    const selectedIds = projectConfig?.selectedBuryPointIds || []
+    selectedIds.forEach(id => {
+      const point = allBuryPoints.find(p => p.id === id)
+      if (point) {
+        configuredPoints.push({ ...point, type: '通用' })
+      } else {
+        // 如果埋点列表中没有找到，创建一个基本的埋点信息
+        configuredPoints.push({ 
+          id: id, 
+          name: '通用埋点', 
+          type: '通用' 
+        })
+      }
+    })
+    console.log('使用旧配置的埋点:', configuredPoints)
+  }
+  
+  return configuredPoints
 })
+
+// 获取当前选择的埋点类型
+const getCurrentBuryPointType = () => {
+  const projectConfig = store.state.projectConfig
+  const currentPointId = selectedBuryPointId.value
+  
+  console.log('getCurrentBuryPointType - 当前埋点ID:', currentPointId)
+  console.log('getCurrentBuryPointType - 项目配置:', {
+    visitBuryPointId: projectConfig.visitBuryPointId,
+    clickBuryPointId: projectConfig.clickBuryPointId,
+    buryPoints: projectConfig?.buryPoints?.length || 0
+  })
+  
+  if (!currentPointId) {
+    console.log('getCurrentBuryPointType - 没有当前埋点ID，返回null')
+    return null
+  }
+  
+  // 优先使用新的分离配置
+  if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId) {
+    if (currentPointId === projectConfig.visitBuryPointId) {
+      console.log('getCurrentBuryPointType - 匹配访问埋点，返回"访问"')
+      return '访问'
+    } else if (currentPointId === projectConfig.clickBuryPointId) {
+      console.log('getCurrentBuryPointType - 匹配点击埋点，返回"点击"')
+      return '点击'
+    }
+    console.log('getCurrentBuryPointId - 当前埋点ID不匹配任何分离配置')
+  }
+  
+  // 回退到旧的配置方式 - 通过埋点名称判断
+  const allBuryPoints = projectConfig?.buryPoints || []
+  const currentPoint = allBuryPoints.find(p => p.id === currentPointId)
+  
+  if (currentPoint) {
+    console.log('getCurrentBuryPointType - 找到埋点信息:', currentPoint)
+    // 通过埋点名称判断类型
+    const name = currentPoint.name || ''
+    if (name.includes('访问') || name.includes('浏览') || name.includes('页面')) {
+      console.log('getCurrentBuryPointType - 通过名称判断为访问类型')
+      return '访问'
+    } else if (name.includes('点击') || name.includes('按钮') || name.includes('事件')) {
+      console.log('getCurrentBuryPointType - 通过名称判断为点击类型')
+      return '点击'
+    }
+    console.log('getCurrentBuryPointType - 埋点名称无法判断类型:', name)
+  } else {
+    console.log('getCurrentBuryPointType - 未找到对应的埋点信息')
+  }
+  
+  console.log('getCurrentBuryPointType - 返回null')
+  return null
+}
 
 // 埋点选择变化处理
 const onBuryPointChange = (value) => {
   console.log('埋点选择变化:', value)
+  
+  // 先获取旧的埋点类型（基于当前的selectedBuryPointId.value）
+  const oldBuryPointType = getBuryPointTypeById(selectedBuryPointId.value)
+  console.log('旧的埋点ID:', selectedBuryPointId.value)
+  console.log('旧的埋点类型:', oldBuryPointType)
+  
+  // 更新埋点选择
   selectedBuryPointId.value = value
   
   // 只更新 apiConfig.selectedPointId，不修改 projectConfig
@@ -227,6 +347,172 @@ const onBuryPointChange = (value) => {
   })
   
   console.log(`✅ 当前分析埋点已切换到: ${value}`)
+  console.log('🔍 更新后的store.state.apiConfig.selectedPointId:', store.state.apiConfig.selectedPointId)
+  
+  // 获取新的埋点类型（基于新的埋点ID）
+  const newBuryPointType = getBuryPointTypeById(value)
+  console.log('新的埋点类型:', newBuryPointType)
+  console.log(`埋点类型变化: ${oldBuryPointType} -> ${newBuryPointType}`)
+  
+  // 如果埋点类型发生变化，自动更新提示词
+  if (oldBuryPointType !== newBuryPointType) {
+    console.log('埋点类型发生变化，自动更新提示词')
+    updateWelcomeMessageForBuryPointType()
+    
+    // 保存用户的埋点类型偏好到localStorage
+    if (newBuryPointType === '访问') {
+      localStorage.setItem('defaultBuryPointType', 'visit')
+      console.log('已保存用户偏好：访问埋点')
+    } else if (newBuryPointType === '点击') {
+      localStorage.setItem('defaultBuryPointType', 'click')
+      console.log('已保存用户偏好：点击埋点')
+    }
+  } else {
+    console.log('埋点类型未发生变化，无需更新提示词')
+    console.log('🔍 当前聊天记录数量:', messages.value.length)
+    console.log('🔍 聊天记录内容:', messages.value)
+    // 每次埋点切换都显示对应的提示词
+    console.log('埋点切换完成，显示当前埋点的提示词')
+    showWelcomeMessage()
+  }
+}
+
+// 根据埋点ID获取埋点类型（不依赖selectedBuryPointId.value）
+const getBuryPointTypeById = (pointId) => {
+  const projectConfig = store.state.projectConfig
+  
+  console.log('getBuryPointTypeById - 埋点ID:', pointId)
+  console.log('getBuryPointTypeById - 项目配置:', {
+    visitBuryPointId: projectConfig.visitBuryPointId,
+    clickBuryPointId: projectConfig.clickBuryPointId,
+    buryPoints: projectConfig?.buryPoints?.length || 0
+  })
+  
+  if (!pointId) {
+    console.log('getBuryPointTypeById - 没有埋点ID，返回null')
+    return null
+  }
+  
+  // 优先使用新的分离配置
+  if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId) {
+    if (pointId === projectConfig.visitBuryPointId) {
+      console.log('getBuryPointTypeById - 匹配访问埋点，返回"访问"')
+      return '访问'
+    } else if (pointId === projectConfig.clickBuryPointId) {
+      console.log('getBuryPointTypeById - 匹配点击埋点，返回"点击"')
+      return '点击'
+    }
+    console.log('getBuryPointTypeById - 埋点ID不匹配任何分离配置')
+  }
+  
+  // 回退到旧的配置方式 - 通过埋点名称判断
+  const allBuryPoints = projectConfig?.buryPoints || []
+  const currentPoint = allBuryPoints.find(p => p.id === pointId)
+  
+  if (currentPoint) {
+    console.log('getBuryPointTypeById - 找到埋点信息:', currentPoint)
+    // 通过埋点名称判断类型
+    const name = currentPoint.name || ''
+    if (name.includes('访问') || name.includes('浏览') || name.includes('页面')) {
+      console.log('getBuryPointTypeById - 通过名称判断为访问类型')
+      return '访问'
+    } else if (name.includes('点击') || name.includes('按钮') || name.includes('事件')) {
+      console.log('getBuryPointTypeById - 通过名称判断为点击类型')
+      return '点击'
+    }
+    console.log('getBuryPointTypeById - 埋点名称无法判断类型:', name)
+  } else {
+    console.log('getBuryPointTypeById - 未找到对应的埋点信息')
+  }
+  
+  console.log('getBuryPointTypeById - 返回null')
+  return null
+}
+
+// 根据埋点类型更新欢迎消息
+const updateWelcomeMessageForBuryPointType = () => {
+  // 如果聊天记录为空，直接显示欢迎消息
+  if (messages.value.length === 0) {
+    showWelcomeMessage()
+    return
+  }
+  
+  // 如果已有聊天记录，添加一个提示消息告知用户埋点类型已切换
+  const currentBuryPointType = getCurrentBuryPointType()
+  let typeChangeMessage = ''
+  let newActions = []
+  
+  if (currentBuryPointType === '访问') {
+    typeChangeMessage = `🔄 检测到您已切换到访问埋点分析模式
+
+现在为您提供页面访问分析相关的选项：`
+    
+    newActions = [
+      { 
+        text: '📊 页面访问量分析', 
+        type: 'select_analysis', 
+        params: { type: 'page_visit', description: '分析页面的访问量、UV/PV趋势等' } 
+      },
+      { 
+        text: '📈 访问趋势分析', 
+        type: 'select_analysis', 
+        params: { type: 'page_visit', description: '分析页面访问的时间趋势和变化' } 
+      },
+      { 
+        text: '📋 页面类型分布', 
+        type: 'select_analysis', 
+        params: { type: 'page_visit', description: '按页面类型分析访问分布情况' } 
+      }
+    ]
+  } else if (currentBuryPointType === '点击') {
+    typeChangeMessage = `🔄 检测到您已切换到点击埋点分析模式
+
+现在为您提供按钮点击分析相关的选项：`
+    
+    newActions = [
+      { 
+        text: '🖱️ 按钮点击分析', 
+        type: 'select_analysis', 
+        params: { type: 'user_click', description: '分析按钮点击行为、点击次数等' } 
+      },
+      { 
+        text: '🔥 按钮点击热度', 
+        type: 'select_analysis', 
+        params: { type: 'user_click', description: '分析按钮点击热度和用户偏好' } 
+      },
+      { 
+        text: '📊 点击转化分析', 
+        type: 'select_analysis', 
+        params: { type: 'user_click', description: '分析点击到转化的路径和效果' } 
+      }
+    ]
+  } else {
+    // 默认情况
+    typeChangeMessage = `🔄 埋点配置已更新
+
+请选择您想要进行的分析类型：`
+    
+    newActions = [
+      { 
+        text: '📊 页面访问分析', 
+        type: 'select_analysis', 
+        params: { type: 'page_visit', description: '分析页面的访问量、UV/PV趋势等' } 
+      },
+      { 
+        text: '🖱️ 用户点击分析', 
+        type: 'select_analysis', 
+        params: { type: 'user_click', description: '分析用户点击行为、按钮热度等' } 
+      },
+      { 
+        text: '🔄 行为转化分析', 
+        type: 'select_analysis', 
+        params: { type: 'conversion', description: '分析用户行为路径和转化漏斗' } 
+      }
+    ]
+  }
+  
+  // 添加新的提示消息
+  addMessage(typeChangeMessage, 'ai', newActions)
 }
 
 // 方法
@@ -850,6 +1136,9 @@ const handleAction = async (action) => {
   } else if (action.type === 'show_page_list') {
     // 显示页面列表供用户选择
     await handleShowPageList(action.params)
+  } else if (action.type === 'select_page_for_buttons') {
+    // 选择页面进行按钮分析
+    await handleSelectPageForButtons(action.params)
   } else if (action.type === 'show_all_pages') {
     // 显示所有页面列表
     await handleShowAllPages(action.params)
@@ -1108,10 +1397,22 @@ const handleShowPageList = async (params) => {
     addMessage('正在加载可用页面列表...', 'ai')
     
     // 获取当前埋点配置（与数据预加载服务保持一致）
-    const currentPointId = store.state.apiConfig?.selectedPointId
+    let currentPointId = store.state.apiConfig?.selectedPointId
+    
+    // 如果apiConfig中的selectedPointId为null，使用组件内的selectedBuryPointId
+    if (!currentPointId && selectedBuryPointId.value) {
+      currentPointId = selectedBuryPointId.value
+      console.log('🔍 apiConfig.selectedPointId为null，使用selectedBuryPointId:', currentPointId)
+    }
     
     console.log('🔍 从缓存数据提取页面列表...')
+    console.log('🔍 当前埋点ID:', currentPointId)
+    console.log('🔍 store.state.apiConfig:', store.state.apiConfig)
+    console.log('🔍 store.state.projectConfig:', store.state.projectConfig)
+    console.log('🔍 selectedBuryPointId.value:', selectedBuryPointId.value)
+    console.log('🔍 日期范围:', dateRange.value)
     const cachedData = await dataPreloadService.getMultiDayCachedData(dateRange.value, currentPointId)
+    console.log('🔍 获取到的缓存数据长度:', cachedData ? cachedData.length : 0)
     
     let availablePages = []
     
@@ -1137,19 +1438,13 @@ const handleShowPageList = async (params) => {
         // 用户点击分析
         content = `📄 可用页面列表 - 点击分析
 
-我找到了 ${availablePages.length} 个可用页面，请选择您要分析点击行为的页面：
-
-**推荐选项**：
-• 全部页面 - 分析所有页面的点击行为
-
-**具体页面**：`
+我找到了 ${availablePages.length} 个可用页面，请选择您要分析点击行为的页面：`
 
         const quickPages = availablePages.slice(0, 10)
         actions = [
-          { text: '全部页面点击分析', type: 'analyze', params: { type: 'user_click', scope: 'all', pageName: '__ALL__' } },
           ...quickPages.map(page => ({
             text: page.length > 20 ? page.substring(0, 17) + '...' : page,
-            type: 'analyze',
+            type: 'select_page_for_buttons',
             params: { type: 'user_click', scope: 'specific', pageName: page }
           }))
         ]
@@ -1217,6 +1512,83 @@ const handleShowPageList = async (params) => {
   } catch (error) {
     console.error('加载页面列表失败:', error)
     addMessage('加载页面列表时出现错误，请稍后重试或手动输入页面名称。', 'ai')
+  }
+}
+
+const handleSelectPageForButtons = async (params) => {
+  const { pageName } = params
+  
+  try {
+    // 显示加载状态
+    addMessage(`正在加载页面 "${pageName}" 的按钮数据...`, 'ai')
+    
+    // 获取当前埋点配置
+    const currentPointId = store.state.apiConfig?.selectedPointId
+    
+    // 获取缓存数据
+    const cachedData = await dataPreloadService.getMultiDayCachedData(dateRange.value, currentPointId)
+    
+    if (!cachedData || cachedData.length === 0) {
+      addMessage(`❌ 未找到页面 "${pageName}" 的数据，请检查数据预加载状态。`, 'ai')
+      return
+    }
+    
+    // 提取按钮信息
+    const buttons = extractButtonsFromMultiDayData(cachedData, pageName)
+    
+    if (buttons.length === 0) {
+      addMessage(`❌ 页面 "${pageName}" 没有找到按钮点击数据。`, 'ai')
+      return
+    }
+    
+    // 设置按钮选择弹窗数据
+    selectedPageName.value = pageName
+    availableButtons.value = buttons
+    buttonSelectionModalVisible.value = true
+    
+    // 添加确认消息
+    addMessage(`✅ 找到页面 "${pageName}" 的 ${buttons.length} 个按钮，请选择要分析的按钮。`, 'ai')
+    
+  } catch (error) {
+    console.error('加载按钮数据失败:', error)
+    addMessage(`❌ 加载按钮数据失败: ${error.message}`, 'ai')
+  }
+}
+
+const handleButtonSelection = (button) => {
+  // 关闭按钮选择弹窗
+  buttonSelectionModalVisible.value = false
+  
+  // 检查是否是"全部按钮点击量"选项
+  if (button.type === 'all_buttons') {
+    // 设置需求文本
+    const requirement = `#${selectedPageName.value} 页面的全部按钮点击量分析（按天展示）`
+    
+    // 触发分析
+    emit('analyze-requirement', {
+      requirement,
+      type: 'button_click_daily',
+      scope: 'all_buttons',
+      pageName: selectedPageName.value
+    })
+    
+    // 添加确认消息
+    addMessage(`✅ 开始分析页面 "${selectedPageName.value}" 的全部按钮点击量（按天展示）。`, 'ai')
+  } else {
+    // 设置需求文本
+    const requirement = `#${selectedPageName.value} 页面的"${button.content}"按钮点击分析`
+    
+    // 触发分析
+    emit('analyze-requirement', {
+      requirement,
+      type: 'button_click_analysis',
+      pageName: selectedPageName.value,
+      buttonName: button.content,
+      buttonData: button
+    })
+    
+    // 添加确认消息
+    addMessage(`✅ 开始分析页面 "${selectedPageName.value}" 的"${button.content}"按钮点击情况。`, 'ai')
   }
 }
 
@@ -1403,7 +1775,7 @@ const clearChat = () => {
   emit('clear-requirement')
   message.success('对话已清空')
   
-  // 重新添加欢迎消息
+  // 清空后根据当前埋点类型显示提示词
   setTimeout(() => {
     showWelcomeMessage()
   }, 100)
@@ -1421,14 +1793,17 @@ const saveChatHistory = () => {
 const loadChatHistory = () => {
   try {
     const saved = localStorage.getItem('ai_chat_history')
+    console.log('loadChatHistory - 检查localStorage中的聊天历史:', saved ? '有历史记录' : '无历史记录')
     if (saved) {
       const history = JSON.parse(saved)
+      console.log('loadChatHistory - 加载到历史记录数量:', history.length)
       messages.value = history
       return history.length > 0
     }
   } catch (error) {
     console.error('加载聊天历史失败:', error)
   }
+  console.log('loadChatHistory - 返回false，无历史记录')
   return false
 }
 
@@ -1439,40 +1814,136 @@ watch(messages, () => {
 
 // 初始化欢迎消息
 onMounted(() => {
-  const hasHistory = loadChatHistory()
-  if (!hasHistory) {
-    showWelcomeMessage()
+  // 初始化埋点选择（支持新的分离配置）
+  const projectConfig = store.state.projectConfig
+  let initialBuryPointId = null
+  
+  if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId) {
+    // 优先使用当前已选择的埋点
+    const currentSelectedId = store.state.apiConfig.selectedPointId
+    if (currentSelectedId && (currentSelectedId === projectConfig.visitBuryPointId || currentSelectedId === projectConfig.clickBuryPointId)) {
+      initialBuryPointId = currentSelectedId
+      console.log('使用当前已选择的埋点:', initialBuryPointId)
+    } else {
+      // 如果没有当前选择，检查localStorage中的默认埋点类型偏好
+      const defaultBuryPointType = localStorage.getItem('defaultBuryPointType')
+      console.log('检查localStorage中的偏好设置:', defaultBuryPointType)
+      console.log('可用的埋点配置:', {
+        visitBuryPointId: projectConfig.visitBuryPointId,
+        clickBuryPointId: projectConfig.clickBuryPointId
+      })
+      
+      if (defaultBuryPointType === 'click' && projectConfig.clickBuryPointId) {
+        // 用户偏好点击埋点
+        initialBuryPointId = projectConfig.clickBuryPointId
+        console.log('使用用户偏好的点击埋点:', initialBuryPointId)
+      } else if (defaultBuryPointType === 'visit' && projectConfig.visitBuryPointId) {
+        // 用户偏好访问埋点
+        initialBuryPointId = projectConfig.visitBuryPointId
+        console.log('使用用户偏好的访问埋点:', initialBuryPointId)
+      } else {
+        // 默认优先使用访问埋点，如果没有则使用点击埋点
+        initialBuryPointId = projectConfig.visitBuryPointId || projectConfig.clickBuryPointId
+        console.log('使用默认埋点选择:', initialBuryPointId)
+        console.log('偏好设置无效的原因:', {
+          defaultBuryPointType,
+          hasClickPoint: !!projectConfig.clickBuryPointId,
+          hasVisitPoint: !!projectConfig.visitBuryPointId
+        })
+      }
+    }
+  } else {
+    // 回退到旧的配置方式
+    const selectedIds = projectConfig?.selectedBuryPointIds || []
+    if (selectedIds.length > 0) {
+      initialBuryPointId = selectedIds[0]
+      console.log('使用旧配置的埋点选择:', initialBuryPointId)
+    }
   }
   
-  // 初始化埋点选择
-  const selectedIds = store.state.projectConfig?.selectedBuryPointIds || []
-  if (selectedIds.length > 0) {
-    selectedBuryPointId.value = selectedIds[0]
+  // 设置初始埋点选择
+  if (initialBuryPointId) {
+    selectedBuryPointId.value = initialBuryPointId
+    console.log('初始化埋点选择完成:', initialBuryPointId)
+  }
+  
+  // 加载聊天历史，如果没有历史记录则根据默认埋点类型显示提示词
+  const hasHistory = loadChatHistory()
+  console.log('onMounted - 是否有聊天历史:', hasHistory)
+  if (!hasHistory) {
+    console.log('onMounted - 没有聊天历史，根据默认埋点类型显示提示词')
+    showWelcomeMessage()
+  } else {
+    console.log('onMounted - 有聊天历史，跳过显示欢迎消息')
   }
 })
 
 const showWelcomeMessage = () => {
-  const welcomeContent = `您好！我是您的AI需求分析师。我将帮助您明确数据分析需求。
+  console.log('showWelcomeMessage - 开始显示欢迎消息')
+  console.log('showWelcomeMessage - selectedBuryPointId.value:', selectedBuryPointId.value)
+  console.log('showWelcomeMessage - store.state.projectConfig:', store.state.projectConfig)
+  // 获取当前选择的埋点类型
+  const currentBuryPointType = getCurrentBuryPointType()
+  console.log('showWelcomeMessage - 当前埋点类型:', currentBuryPointType)
+  
+  let welcomeContent = ''
+  let welcomeActions = []
+
+  if (currentBuryPointType === '访问') {
+    // 访问埋点类型 - 直接显示页面访问分析选项
+    welcomeContent = `📊 页面访问分析
+
+请选择您要分析的页面范围：`
+
+    welcomeActions = [
+      { 
+        text: '整体页面访问量', 
+        type: 'analyze', 
+        params: { type: 'page_visits', scope: 'all' } 
+      },
+      { 
+        text: '选择页面分析', 
+        type: 'show_page_list', 
+        params: { type: 'page_visits', scope: 'specific' } 
+      }
+    ]
+  } else if (currentBuryPointType === '点击') {
+    // 点击埋点类型 - 直接显示按钮点击分析选项
+    welcomeContent = `🖱️ 用户点击分析
+
+请选择您要分析的页面范围：`
+
+    welcomeActions = [
+      { 
+        text: '选择分析页面', 
+        type: 'show_page_list', 
+        params: { type: 'user_click', scope: 'page' } 
+      }
+    ]
+  } else {
+    // 默认情况 - 显示所有分析类型
+    welcomeContent = `您好！我是您的AI需求分析师。我将帮助您明确数据分析需求。
 
 请选择您想要进行的分析类型：`
 
-  const welcomeActions = [
-    { 
-      text: '📊 页面访问分析', 
-      type: 'select_analysis', 
-      params: { type: 'page_visit', description: '分析页面的访问量、UV/PV趋势等' } 
-    },
-    { 
-      text: '🖱️ 用户点击分析', 
-      type: 'select_analysis', 
-      params: { type: 'user_click', description: '分析用户点击行为、按钮热度等' } 
-    },
-    { 
-      text: '🔄 行为转化分析', 
-      type: 'select_analysis', 
-      params: { type: 'conversion', description: '分析用户行为路径和转化漏斗' } 
-    }
-  ]
+    welcomeActions = [
+      { 
+        text: '📊 页面访问分析', 
+        type: 'select_analysis', 
+        params: { type: 'page_visit', description: '分析页面的访问量、UV/PV趋势等' } 
+      },
+      { 
+        text: '🖱️ 用户点击分析', 
+        type: 'select_analysis', 
+        params: { type: 'user_click', description: '分析用户点击行为、按钮热度等' } 
+      },
+      { 
+        text: '🔄 行为转化分析', 
+        type: 'select_analysis', 
+        params: { type: 'conversion', description: '分析用户行为路径和转化漏斗' } 
+      }
+    ]
+  }
 
   addMessage(welcomeContent, 'ai', welcomeActions)
 }

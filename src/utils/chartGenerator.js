@@ -138,6 +138,10 @@ export class ChartGenerator {
         return this.generateClickUVPVComparisonOption(analysis, data)
       case 'single_page_uv_pv_chart':
         return this.generateSinglePageUVPVChartOption(analysis, data, analysis.userDateRange)
+      case 'button_click_analysis':
+        return this.generateButtonClickAnalysisOption(analysis, data)
+      case 'button_click_daily':
+        return this.generateButtonClickDailyOption(analysis, data)
       default:
         return isDualMode ? this.generateDualBarOption(analysis, data) : this.generateBarOption(analysis, data)
     }
@@ -1730,6 +1734,340 @@ export class ChartGenerator {
     }
     
     return dates
+  }
+
+  /**
+   * 生成按钮点击分析图表配置
+   */
+  generateButtonClickAnalysisOption(analysis, data) {
+    const chartData = this.processButtonClickAnalysisData(analysis, data)
+    
+    return {
+      title: {
+        text: `按钮点击分析 - ${analysis.buttonName || '未知按钮'}`,
+        left: 'center',
+        textStyle: {
+          fontSize: 18,
+          fontWeight: 'bold'
+        }
+      },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow'
+        },
+        formatter: function(params) {
+          let result = `<strong>${params[0].axisValue}</strong><br/>`
+          params.forEach(param => {
+            result += `${param.seriesName}: ${param.value}<br/>`
+          })
+          return result
+        }
+      },
+      legend: {
+        data: ['UV (独立用户)', 'PV (点击次数)'],
+        top: 30
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        top: '15%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: chartData.categories,
+        axisLabel: {
+          rotate: 45,
+          interval: 0
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: '点击次数'
+      },
+      series: [
+        {
+          name: 'UV (独立用户)',
+          type: 'bar',
+          data: chartData.uvData,
+          itemStyle: {
+            color: '#5470c6'
+          },
+          emphasis: {
+            itemStyle: {
+              color: '#73d13d'
+            }
+          },
+          label: {
+            show: true,
+            position: 'top',
+            formatter: '{c}'
+          }
+        },
+        {
+          name: 'PV (点击次数)',
+          type: 'line',
+          data: chartData.pvData,
+          itemStyle: {
+            color: '#91cc75'
+          },
+          lineStyle: { width: 3 },
+          symbol: 'circle',
+          symbolSize: 8,
+          label: {
+            show: true,
+            position: 'top',
+            formatter: '{c}'
+          }
+        }
+      ]
+    }
+  }
+  
+  /**
+   * 处理按钮点击分析数据
+   */
+  processButtonClickAnalysisData(analysis, data) {
+    const buttonName = analysis.buttonName
+    const pageName = analysis.pageName
+    
+    console.log(`🔍 处理按钮点击分析数据: 页面="${pageName}", 按钮="${buttonName}"`)
+    
+    // 过滤出指定页面和按钮的点击数据
+    const buttonClickData = data.filter(item => 
+      item.type === 'click' && 
+      item.pageName === pageName && 
+      item.content === buttonName
+    )
+    
+    console.log(`📊 找到 ${buttonClickData.length} 条按钮点击数据`)
+    
+    if (buttonClickData.length === 0) {
+      return {
+        categories: ['无数据'],
+        pvData: [0],
+        uvData: [0]
+      }
+    }
+    
+    // 按日期分组统计
+    const dateMap = new Map()
+    
+    buttonClickData.forEach(item => {
+      const date = new Date(item.createdAt).toISOString().split('T')[0]
+      
+      if (!dateMap.has(date)) {
+        dateMap.set(date, {
+          pv: 0,
+          uvSet: new Set()
+        })
+      }
+      
+      const dayData = dateMap.get(date)
+      dayData.pv++
+      
+      if (item.weCustomerKey) {
+        dayData.uvSet.add(item.weCustomerKey)
+      }
+    })
+    
+    // 转换为数组并排序
+    const sortedDates = Array.from(dateMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, data]) => ({
+        date,
+        pv: data.pv,
+        uv: data.uvSet.size
+      }))
+    
+    return {
+      categories: sortedDates.map(item => item.date),
+      pvData: sortedDates.map(item => item.pv),
+      uvData: sortedDates.map(item => item.uv)
+    }
+  }
+
+  /**
+   * 生成按钮点击按天分析图表配置
+   */
+  generateButtonClickDailyOption(analysis, data) {
+    const chartData = this.processButtonClickDailyData(analysis, data)
+    
+    // 生成颜色数组，为每个按钮分配不同颜色
+    const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16']
+    
+    return {
+      title: {
+        text: `${analysis.pageName || '未知页面'} - 全部按钮点击量分析`,
+        left: 'center',
+        textStyle: {
+          fontSize: 18,
+          fontWeight: 'bold'
+        }
+      },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow'
+        },
+        formatter: function(params) {
+          let result = `<strong>${params[0].axisValue}</strong><br/>`
+          params.forEach(param => {
+            if (param.value > 0) {
+              result += `${param.seriesName}: ${param.value}<br/>`
+            }
+          })
+          return result
+        }
+      },
+      legend: {
+        data: chartData.series.map(s => s.name),
+        top: 30,
+        type: 'scroll'
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        top: '15%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: chartData.categories,
+        axisLabel: {
+          rotate: 45,
+          fontSize: 12
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: '点击次数',
+        nameLocation: 'middle',
+        nameGap: 50
+      },
+      series: chartData.series.map((series, index) => ({
+        ...series,
+        itemStyle: {
+          color: colors[index % colors.length]
+        }
+      }))
+    }
+  }
+
+  /**
+   * 处理按钮点击按天数据
+   */
+  processButtonClickDailyData(analysis, data) {
+    const pageName = analysis.pageName
+    
+    console.log(`🔍 处理按钮点击按天数据: 页面="${pageName}"`)
+    
+    // 过滤出指定页面的所有按钮点击数据
+    const pageClickData = data.filter(item => 
+      item.type === 'click' && 
+      item.pageName === pageName
+    )
+    
+    console.log(`📊 找到 ${pageClickData.length} 条页面按钮点击数据`)
+    
+    // 获取日期范围（从analysis中获取，或者使用默认的7天范围）
+    const startDate = analysis.startDate || '2025-10-11'
+    const endDate = analysis.endDate || '2025-10-17'
+    console.log(`📅 日期范围过滤: ${startDate} 至 ${endDate}`)
+    
+    if (pageClickData.length === 0) {
+      return {
+        categories: ['无数据'],
+        series: []
+      }
+    }
+    
+    // 按日期和按钮分组统计
+    const dailyButtonStats = {}
+    const allButtons = new Set()
+    
+    pageClickData.forEach(item => {
+      // 调试：查看数据项的结构
+      if (pageClickData.indexOf(item) < 3) {
+        console.log('🔍 数据项结构:', item)
+        console.log('🔍 可用时间字段:', {
+          createTime: item.createTime,
+          createdAt: item.createdAt,
+          timestamp: item.timestamp,
+          time: item.time
+        })
+      }
+      
+      // 尝试多个可能的时间字段
+      let date = '未知日期'
+      if (item.createTime) {
+        date = item.createTime.split(' ')[0]
+      } else if (item.createdAt) {
+        // 处理ISO格式的时间：2025-10-11T11:20:19.000Z
+        const isoDate = new Date(item.createdAt)
+        date = isoDate.toISOString().split('T')[0] // 提取日期部分：2025-10-11
+      } else if (item.timestamp) {
+        date = item.timestamp.split(' ')[0]
+      } else if (item.time) {
+        date = item.time.split(' ')[0]
+      }
+      
+      const buttonName = item.content || '未知按钮'
+      
+      // 检查日期是否在指定范围内
+      if (date >= startDate && date <= endDate) {
+        allButtons.add(buttonName)
+        
+        if (!dailyButtonStats[date]) {
+          dailyButtonStats[date] = {}
+        }
+      } else {
+        // 跳过超出日期范围的数据
+        return
+      }
+      
+      if (!dailyButtonStats[date][buttonName]) {
+        dailyButtonStats[date][buttonName] = {
+          pv: 0,
+          uv: new Set()
+        }
+      }
+      
+      dailyButtonStats[date][buttonName].pv += 1
+      if (item.userId) {
+        dailyButtonStats[date][buttonName].uv.add(item.userId)
+      }
+    })
+    
+    // 转换为图表数据格式
+    const categories = Object.keys(dailyButtonStats).sort()
+    const buttonList = Array.from(allButtons).sort()
+    
+    console.log(`📊 按天按按钮统计结果: ${categories.length} 天，${buttonList.length} 个按钮`)
+    console.log(`📊 按钮列表:`, buttonList)
+    
+    // 为每个按钮创建数据系列
+    const series = buttonList.map(buttonName => {
+      const data = categories.map(date => {
+        const buttonData = dailyButtonStats[date][buttonName]
+        return buttonData ? buttonData.pv : 0
+      })
+      
+      return {
+        name: buttonName,
+        type: 'bar',
+        data: data
+        // 不使用stack，让每个按钮独立显示
+      }
+    })
+    
+    return {
+      categories,
+      series
+    }
   }
 
   /**

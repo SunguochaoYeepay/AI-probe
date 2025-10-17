@@ -312,7 +312,8 @@ export class RequirementParser {
       bar: '柱状图',
       pie: '饼图',
       value_card: '数值卡片',
-      stacked_bar: '堆叠柱状图'
+      stacked_bar: '堆叠柱状图',
+      button_click_analysis: '按钮点击分析图'
     }
     return typeNames[chartType] || chartType
   }

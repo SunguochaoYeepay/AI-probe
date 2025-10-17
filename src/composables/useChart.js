@@ -239,6 +239,63 @@ export function useChart() {
         // 对于单页面UV/PV图表，图表生成器会自己处理数据聚合
         // 这里不需要预处理，保持原始数据格式
         console.log('📊 单页面UV/PV图表，使用原始数据:', data.length, '条')
+      } else if (analysisWithDateRange.chartType?.includes('button_click_analysis') || analysisWithDateRange.chartType === 'button_click_daily' || analysis.type === 'button_click_daily') {
+        // 对于按钮点击分析，设置正确的图表类型和参数
+        // 优先使用原始analysis.type，因为Ollama AI可能理解错误
+        if (analysis.type === 'button_click_daily') {
+          analysisWithDateRange.chartType = 'button_click_daily'
+          console.log('📊 按钮点击按天分析图表，使用原始数据:', data.length, '条')
+        } else if (analysisWithDateRange.chartType === 'button_click_daily') {
+          analysisWithDateRange.chartType = 'button_click_daily'
+          console.log('📊 按钮点击按天分析图表，使用原始数据:', data.length, '条')
+        } else {
+          analysisWithDateRange.chartType = 'button_click_analysis'
+          console.log('📊 按钮点击分析图表，使用原始数据:', data.length, '条')
+        }
+        
+        // 从store中获取按钮分析参数
+        const buttonParams = store.state.buttonAnalysisParams
+        
+        // 优先使用store中保存的原始type
+        if (buttonParams.type) {
+          analysisWithDateRange.chartType = buttonParams.type
+          console.log('🔍 使用store中保存的原始type:', buttonParams.type)
+        }
+        
+        // 确保按钮名称正确传递
+        if (!analysisWithDateRange.buttonName) {
+          if (analysis.buttonName) {
+            analysisWithDateRange.buttonName = analysis.buttonName
+          } else if (buttonParams.buttonName) {
+            analysisWithDateRange.buttonName = buttonParams.buttonName
+          }
+        }
+        
+        if (!analysisWithDateRange.pageName) {
+          if (analysis.pageName) {
+            analysisWithDateRange.pageName = analysis.pageName
+          } else if (buttonParams.pageName) {
+            analysisWithDateRange.pageName = buttonParams.pageName
+          }
+        }
+        
+        console.log('🎯 按钮信息:', {
+          pageName: analysisWithDateRange.pageName,
+          buttonName: analysisWithDateRange.buttonName
+        })
+        console.log('🔍 原始analysis对象:', {
+          type: analysis.type,
+          pageName: analysis.pageName,
+          buttonName: analysis.buttonName
+        })
+        console.log('🔍 完整分析对象:', analysisWithDateRange)
+        
+        // 清除store中的按钮分析参数，避免影响后续分析
+        store.dispatch('updateButtonAnalysisParams', {
+          pageName: null,
+          buttonName: null,
+          buttonData: null
+        })
       }
       
       // 先保存图表配置，触发 hasChart 变为 true

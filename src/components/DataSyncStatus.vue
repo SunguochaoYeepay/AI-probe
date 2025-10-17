@@ -75,11 +75,36 @@ const preloadStatus = ref({
 })
 const lastSyncTime = ref('')
 
+// 用户手动关闭状态跟踪（持久化存储）
+const userDismissedSuccess = ref(false)
+const userDismissedCache = ref(false)
+
+// 从localStorage恢复用户关闭状态
+const loadDismissedStates = () => {
+  try {
+    userDismissedSuccess.value = localStorage.getItem('dataSyncSuccessDismissed') === 'true'
+    userDismissedCache.value = localStorage.getItem('dataSyncCacheDismissed') === 'true'
+  } catch (error) {
+    console.warn('无法从localStorage恢复关闭状态:', error)
+  }
+}
+
+// 保存用户关闭状态到localStorage
+const saveDismissedStates = () => {
+  try {
+    localStorage.setItem('dataSyncSuccessDismissed', userDismissedSuccess.value.toString())
+    localStorage.setItem('dataSyncCacheDismissed', userDismissedCache.value.toString())
+  } catch (error) {
+    console.warn('无法保存关闭状态到localStorage:', error)
+  }
+}
+
 // 定时器
 let statusCheckTimer = null
 
 // 生命周期
 onMounted(() => {
+  loadDismissedStates()
   startStatusCheck()
 })
 
@@ -119,14 +144,24 @@ const checkStatus = () => {
     showStatus.value = true
     showSuccessMessage.value = false
     showCacheInfo.value = false
+    // 重置用户关闭状态（预加载时重新显示）
+    userDismissedSuccess.value = false
+    userDismissedCache.value = false
+    // 清除localStorage中的关闭状态
+    try {
+      localStorage.removeItem('dataSyncSuccessDismissed')
+      localStorage.removeItem('dataSyncCacheDismissed')
+    } catch (error) {
+      console.warn('无法清除localStorage中的关闭状态:', error)
+    }
     // 清除成功消息定时器
     if (successMessageTimer) {
       clearTimeout(successMessageTimer)
       successMessageTimer = null
     }
   } else if (status.lastPreloadDate) {
-    // 预加载完成，显示成功消息（只显示一次）
-    if (!showSuccessMessage.value && !showCacheInfo.value && !successMessageTimer) {
+    // 预加载完成，显示成功消息（只显示一次，且用户未手动关闭）
+    if (!showSuccessMessage.value && !showCacheInfo.value && !successMessageTimer && !userDismissedSuccess.value) {
       showStatus.value = true
       showSuccessMessage.value = true
       lastSyncTime.value = formatTime(status.lastPreloadDate)
@@ -146,6 +181,10 @@ const hidePreloadStatus = () => {
 
 const hideSuccessMessage = () => {
   showSuccessMessage.value = false
+  // 标记用户手动关闭了成功消息
+  userDismissedSuccess.value = true
+  // 保存到localStorage
+  saveDismissedStates()
   // 清除定时器
   if (successMessageTimer) {
     clearTimeout(successMessageTimer)
@@ -158,6 +197,10 @@ const hideSuccessMessage = () => {
 
 const hideCacheInfo = () => {
   showCacheInfo.value = false
+  // 标记用户手动关闭了缓存信息
+  userDismissedCache.value = true
+  // 保存到localStorage
+  saveDismissedStates()
   if (!preloadStatus.value.isPreloading) {
     showStatus.value = false
   }
@@ -184,6 +227,10 @@ const formatTime = (dateStr) => {
 
 // 暴露方法给父组件
 const showCacheStatus = (message) => {
+  // 如果用户已经手动关闭了缓存信息，则不显示
+  if (userDismissedCache.value) {
+    return
+  }
   showStatus.value = true
   showCacheInfo.value = true
   lastSyncTime.value = message

@@ -200,7 +200,10 @@ const projectConfigForm = computed({
   get: () => ({
     accessToken: store.state.apiConfig.accessToken,
     selectedProjectId: store.state.projectConfig.currentProject?.id || store.state.apiConfig.projectId || 'event1021',
-    selectedBuryPointIds: store.state.projectConfig.selectedBuryPointIds || []
+    selectedBuryPointIds: store.state.projectConfig.selectedBuryPointIds || [],
+    // 添加新的埋点配置字段
+    visitBuryPointId: store.state.projectConfig.visitBuryPointId,
+    clickBuryPointId: store.state.projectConfig.clickBuryPointId
   }),
   set: (value) => {
     store.dispatch('updateApiConfig', {
@@ -211,6 +214,17 @@ const projectConfigForm = computed({
     if (value.selectedBuryPointIds) {
       store.dispatch('updateProjectConfig', {
         selectedBuryPointIds: value.selectedBuryPointIds
+      })
+    }
+    // 更新新的埋点配置
+    if (value.visitBuryPointId !== undefined) {
+      store.dispatch('updateProjectConfig', {
+        visitBuryPointId: value.visitBuryPointId
+      })
+    }
+    if (value.clickBuryPointId !== undefined) {
+      store.dispatch('updateProjectConfig', {
+        clickBuryPointId: value.clickBuryPointId
       })
     }
   }
@@ -286,6 +300,24 @@ const handleChatAnalysis = async (params) => {
   // 处理来自聊天界面的分析请求
   console.log('聊天分析请求:', params)
   
+  // 处理按钮点击分析的特殊情况
+  if (params.type === 'button_click_analysis' || params.type === 'button_click_daily') {
+    // 直接设置需求文本，包含页面和按钮信息
+    currentRequirement.value = params.requirement
+    // 保存按钮分析的特殊参数到全局状态，供后续使用
+    if (params.pageName) {
+      store.dispatch('updateButtonAnalysisParams', {
+        pageName: params.pageName,
+        buttonName: params.buttonName,
+        buttonData: params.buttonData,
+        type: params.type // 保存原始类型
+      })
+    }
+    // 直接调用分析，跳过常规的需求解析流程
+    await analyzeButtonClickRequirement()
+    return
+  }
+  
   if (params.type && (params.scope === 'specific' || params.scope === 'all')) {
     // 如果传递了分析类型参数，构建对应的需求并分析
     let requirementText = ''
@@ -346,6 +378,106 @@ const handleChatAnalysis = async (params) => {
   }
 }
 
+// 专门处理按钮点击分析需求
+const analyzeButtonClickRequirement = async () => {
+  if (!currentRequirement.value.trim()) {
+    message.warning('请输入分析需求')
+    return
+  }
+  
+  analyzing.value = true
+  
+  // 开始图表生成loading状态
+  store.dispatch('updateChartGenerationStatus', {
+    isGenerating: true,
+    currentStep: '正在分析按钮点击需求...',
+    progress: 10
+  })
+  
+  try {
+    // 构建按钮点击分析的固定配置
+    const analysis = {
+      intent: 'button_click_analysis',
+      chartType: 'button_click_analysis',
+      description: '按钮点击分析',
+      confidence: 0.95,
+      dataFields: [],
+      dimensions: [],
+      metrics: [],
+      buryPointType: 'click',
+      originalText: currentRequirement.value,
+      source: 'button_selection',
+      parameters: {
+        pageName: store.state.buttonAnalysisParams.pageName,
+        buttonName: store.state.buttonAnalysisParams.buttonName
+      }
+    }
+    
+    console.log('按钮点击分析配置:', analysis)
+    
+    // 更新生成状态 - 需求分析完成
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: true,
+      currentStep: '需求分析完成，开始获取数据...',
+      progress: 30
+    })
+    
+    // 获取数据
+    const result = await fetchMultiDayData(analysisMode.value, dateRange.value, analysis)
+    
+    // 检查是否使用了缓存数据
+    if (result.totalRequests === 0) {
+      console.log('✅ 成功使用预加载缓存数据，无API调用')
+      message.success('使用缓存数据，分析完成')
+    } else {
+      console.log(`⚠️ 调用了 ${result.totalRequests} 个API请求`)
+      message.warning(`调用了 ${result.totalRequests} 个API请求，建议先完成数据预加载`)
+    }
+    
+    // 更新生成状态 - 开始生成图表
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: true,
+      currentStep: '正在生成图表...',
+      progress: 80
+    })
+    
+    await generateChart(analysis, result.data, dateRange.value)
+    
+    // 完成生成
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: false,
+      currentStep: '图表生成完成',
+      progress: 100
+    })
+    
+  } catch (error) {
+    console.error('按钮点击分析失败:', error)
+    
+    // 检查是否是页面不存在的错误
+    if (error.message && error.message.includes('未找到页面')) {
+      // 显示详细的页面不存在错误信息
+      message.error({
+        content: error.message,
+        duration: 10, // 显示更长时间让用户看到页面列表
+        style: {
+          whiteSpace: 'pre-line' // 支持换行显示
+        }
+      })
+    } else {
+      message.error('按钮点击分析失败，请重试')
+    }
+    
+    // 错误时也要清除loading状态
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: false,
+      currentStep: '生成失败',
+      progress: 0
+    })
+    
+    analyzing.value = false
+  }
+}
+
 const analyzeRequirement = async () => {
   if (!currentRequirement.value.trim()) {
     message.warning('请输入分析需求')
@@ -390,9 +522,9 @@ const analyzeRequirement = async () => {
       }
     }
     
-    // 检测单页面查询并强制转换为正确的图表类型
+    // 检测单页面查询并强制转换为正确的图表类型（排除按钮点击分析）
     const specifiedPages = await extractPageNames(currentRequirement.value)
-    if (specifiedPages.length > 0) {
+    if (specifiedPages.length > 0 && !analysis.chartType?.includes('button_click_analysis')) {
       console.log('检测到单页面查询，强制转换为UV/PV时间组合图')
       analysis = {
         ...analysis,
@@ -470,7 +602,14 @@ const analyzeRequirement = async () => {
       progress: 50
     })
     
-    const result = await fetchMultiDayData(analysisMode.value, dateRange.value)
+    // 添加调试信息
+    console.log('🔍 数据获取前的配置状态:')
+    console.log('  分析模式:', analysisMode.value)
+    console.log('  项目配置:', store.state.projectConfig)
+    console.log('  API配置:', store.state.apiConfig)
+    console.log('  分析结果:', analysis)
+    
+    const result = await fetchMultiDayData(analysisMode.value, dateRange.value, analysis)
     
     // 检查是否使用了缓存数据
     if (result.totalRequests === 0) {

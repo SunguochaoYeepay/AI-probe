@@ -30,15 +30,30 @@ class DataPreloadService {
     try {
       console.log('🚀 开始数据预加载检查（N埋点模式）...')
       
-      // 获取所有选中的埋点ID
-      const selectedPointIds = store.state.projectConfig?.selectedBuryPointIds || []
+      // 获取埋点ID（优先使用新的分离配置）
+      const projectConfig = store.state.projectConfig
+      let selectedPointIds = []
+      
+      // 优先使用新的分离配置
+      if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId) {
+        if (projectConfig.visitBuryPointId) {
+          selectedPointIds.push(projectConfig.visitBuryPointId)
+        }
+        if (projectConfig.clickBuryPointId && projectConfig.clickBuryPointId !== projectConfig.visitBuryPointId) {
+          selectedPointIds.push(projectConfig.clickBuryPointId)
+        }
+        console.log(`📋 使用分离配置: 访问埋点=${projectConfig.visitBuryPointId}, 点击埋点=${projectConfig.clickBuryPointId}`)
+      } else {
+        // 回退到旧的配置方式
+        selectedPointIds = projectConfig?.selectedBuryPointIds || []
+        console.log(`📋 使用旧配置: 选中 ${selectedPointIds.length} 个埋点`)
+      }
       
       if (selectedPointIds.length === 0) {
         console.log('⏸️ 未选择任何埋点，跳过数据预加载')
         return
       }
       
-      console.log(`📋 使用配置: 选中 ${selectedPointIds.length} 个埋点`)
       console.log(`📍 埋点ID列表: [${selectedPointIds.join(', ')}]`)
       
       // 检查是否需要预加载
@@ -479,8 +494,18 @@ class DataPreloadService {
       }
     }
     
-    // 从store的projectConfig获取选中的埋点列表
+    // 从store的projectConfig获取新的分离配置
     const projectConfig = store.state.projectConfig
+    if (projectConfig && (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId)) {
+      // 优先使用访问埋点，如果没有则使用点击埋点
+      const selectedPointId = projectConfig.visitBuryPointId || projectConfig.clickBuryPointId
+      return {
+        selectedPointId: selectedPointId,
+        projectId: storeConfig?.projectId || 'event1021'
+      }
+    }
+    
+    // 从store的projectConfig获取选中的埋点列表（旧配置方式）
     if (projectConfig && projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
       return {
         selectedPointId: projectConfig.selectedBuryPointIds[0],

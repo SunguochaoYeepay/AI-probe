@@ -99,7 +99,15 @@ export const extractPageNameWithAI = async (userMessage) => {
  */
 const extractPageNameSimple = (userMessage) => {
   try {
-    // 1. 提取引号内的内容
+    // 0. 优先处理按钮点击分析：提取页面名称而不是按钮名称
+    const buttonClickMatch = userMessage.match(/#([^页面的]+)页面的[""''`][^""''`]+[""''`]按钮/)
+    if (buttonClickMatch) {
+      const extracted = buttonClickMatch[1].trim()
+      console.log('🔍 按钮点击分析页面提取:', extracted)
+      return extracted
+    }
+    
+    // 1. 提取引号内的内容（如果不是按钮点击分析）
     const quotedMatch = userMessage.match(/[""''`]([^""''`]+)[""''`]/)
     if (quotedMatch) {
       const extracted = quotedMatch[1].trim()

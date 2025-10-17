@@ -41,26 +41,86 @@ export function useDataFetch() {
     const projectConfig = store.state.projectConfig
     let selectedPointId = null
     
-    // 优先使用apiConfig中的埋点ID（与缓存逻辑保持一致）
-    if (apiConfig && apiConfig.selectedPointId) {
-      selectedPointId = apiConfig.selectedPointId
-      console.log(`使用API配置的埋点: ${selectedPointId}`)
-    } else if (projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
-      // 回退到用户选择的埋点
-      selectedPointId = projectConfig.selectedBuryPointIds[0]
-      console.log(`使用用户选择的埋点: ${selectedPointId}`)
-    } else if (projectConfig.hasVisitPoint || projectConfig.hasClickPoint) {
-      // 使用动态配置，优先使用访问埋点
-      selectedPointId = projectConfig.visitPoint?.id || projectConfig.clickPoint?.id
-      console.log(`使用动态埋点配置: ${selectedPointId}`)
+    // 根据分析类型选择对应的埋点
+    const analysisType = analysis?.type || analysis?.intent
+    
+    if (analysisType === 'button_click_analysis' || analysisType === 'user_click') {
+      // 按钮点击分析，优先使用点击埋点
+      if (projectConfig.clickBuryPointId) {
+        selectedPointId = projectConfig.clickBuryPointId
+        console.log(`使用点击埋点配置: ${selectedPointId}`)
+      } else if (projectConfig.clickPoint?.id) {
+        selectedPointId = projectConfig.clickPoint.id
+        console.log(`使用动态点击埋点配置: ${selectedPointId}`)
+      } else {
+        selectedPointId = API_CONFIG.defaultBuryPoints.click.id
+        console.log(`使用默认点击埋点配置: ${selectedPointId}`)
+      }
+    } else if (analysisType === 'page_visits' || analysisType === 'single_page_uv_pv_analysis' || analysisType === 'uv_pv_analysis' || analysisType === 'single') {
+      // 页面访问分析，优先使用访问埋点
+      if (projectConfig.visitBuryPointId) {
+        selectedPointId = projectConfig.visitBuryPointId
+        console.log(`使用访问埋点配置: ${selectedPointId}`)
+      } else if (projectConfig.visitPoint?.id) {
+        selectedPointId = projectConfig.visitPoint.id
+        console.log(`使用动态访问埋点配置: ${selectedPointId}`)
+      } else if (projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
+        // 回退到用户选择的埋点
+        selectedPointId = projectConfig.selectedBuryPointIds[0]
+        console.log(`使用用户选择的埋点: ${selectedPointId}`)
+      } else if (apiConfig && apiConfig.selectedPointId) {
+        selectedPointId = apiConfig.selectedPointId
+        console.log(`使用API配置的埋点: ${selectedPointId}`)
+      } else {
+        // 使用默认配置
+        selectedPointId = API_CONFIG.defaultBuryPoints.visit.id
+        console.log(`使用默认访问埋点配置: ${selectedPointId}`)
+      }
     } else {
-      // 使用默认配置
-      selectedPointId = API_CONFIG.defaultBuryPoints.visit.id
-      console.log(`使用默认埋点配置: ${selectedPointId}`)
+      // 其他分析类型，使用通用逻辑
+      console.log(`未识别的分析类型: ${analysisType}，使用通用埋点选择逻辑`)
+      if (projectConfig.visitBuryPointId) {
+        selectedPointId = projectConfig.visitBuryPointId
+        console.log(`使用访问埋点配置: ${selectedPointId}`)
+      } else if (projectConfig.clickBuryPointId) {
+        selectedPointId = projectConfig.clickBuryPointId
+        console.log(`使用点击埋点配置: ${selectedPointId}`)
+      } else if (apiConfig && apiConfig.selectedPointId) {
+        selectedPointId = apiConfig.selectedPointId
+        console.log(`使用API配置的埋点: ${selectedPointId}`)
+      } else if (projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
+        // 回退到用户选择的埋点
+        selectedPointId = projectConfig.selectedBuryPointIds[0]
+        console.log(`使用用户选择的埋点: ${selectedPointId}`)
+      } else {
+        // 使用默认配置
+        selectedPointId = API_CONFIG.defaultBuryPoints.visit.id
+        console.log(`使用默认访问埋点配置: ${selectedPointId}`)
+      }
     }
     
-    // 显示全局Loading
-    const hideLoading = message.loading(`正在获取数据... (0/${dates.length}天)`, 0)
+    // 添加调试信息
+    console.log(`🔍 埋点选择调试信息:`)
+    console.log(`  分析类型: ${analysisType}`)
+    console.log(`  访问埋点ID: ${projectConfig.visitBuryPointId}`)
+    console.log(`  点击埋点ID: ${projectConfig.clickBuryPointId}`)
+    console.log(`  API配置埋点: ${apiConfig?.selectedPointId}`)
+    console.log(`  用户选择埋点: ${projectConfig.selectedBuryPointIds}`)
+    console.log(`  最终选择埋点: ${selectedPointId}`)
+    
+    if (!selectedPointId) {
+      console.error('❌ 未能选择到任何埋点ID')
+      throw new Error('未选择任何埋点，无法获取数据')
+    }
+    
+    // 检查是否正在预加载，如果是则不显示重复的加载提示
+    const preloadStatus = dataPreloadService.getStatus()
+    let hideLoading = null
+    
+    if (!preloadStatus.isPreloading) {
+      // 只有在没有预加载时才显示获取数据的提示
+      hideLoading = message.loading(`正在获取数据... (0/${dates.length}天)`, 0)
+    }
     
     const allData = []
     const currentPageSize = store.state.apiConfig.pageSize || 1000
@@ -72,9 +132,11 @@ export function useDataFetch() {
       try {
         console.log(`正在获取第 ${i + 1}/${dates.length} 天数据: ${dates[i]}`)
         
-        // 更新Loading消息
-        hideLoading()
-        const newHideLoading = message.loading(`正在获取数据... (${i + 1}/${dates.length}天)`, 0)
+        // 更新Loading消息（只有在没有预加载时才显示）
+        if (hideLoading) {
+          if (hideLoading) { hideLoading() }
+          hideLoading = message.loading(`正在获取数据... (${i + 1}/${dates.length}天)`, 0)
+        }
         
         // 获取第一页数据，检查总数
         const firstResponse = await yeepayAPI.searchBuryPointData({
@@ -144,13 +206,13 @@ export function useDataFetch() {
         newHideLoading()
       } catch (error) {
         console.error(`获取 ${dates[i]} 数据失败:`, error)
-        hideLoading()
+        if (hideLoading) { hideLoading() }
         // 继续获取其他天的数据
       }
     }
     
     // 隐藏Loading
-    hideLoading()
+    if (hideLoading) { hideLoading() }
     
     console.log(`批量获取完成，共 ${allData.length} 条数据`)
     console.log(`📊 请求统计: 总请求数 ${totalRequests}，平均每天 ${(totalRequests/dates.length).toFixed(1)} 个请求`)
@@ -190,7 +252,7 @@ export function useDataFetch() {
         console.log(`正在获取第 ${i + 1}/${dates.length} 天双埋点数据: ${date}`)
         
         // 更新Loading消息
-        hideLoading()
+        if (hideLoading) { hideLoading() }
         const newHideLoading = message.loading(`正在获取双埋点数据... (${i + 1}/${dates.length}天)`, 0)
         
         // 获取动态埋点配置
@@ -238,13 +300,13 @@ export function useDataFetch() {
         newHideLoading()
       } catch (error) {
         console.error(`获取 ${dates[i]} 双埋点数据失败:`, error)
-        hideLoading()
+        if (hideLoading) { hideLoading() }
         // 继续获取其他天的数据
       }
     }
     
     // 隐藏Loading
-    hideLoading()
+    if (hideLoading) { hideLoading() }
     
     // 关联所有数据
     const correlatedData = correlateVisitAndClickData(allVisitData, allClickData)
@@ -356,7 +418,7 @@ export function useDataFetch() {
       const date = dates[i]
       
       // 更新Loading消息
-      hideLoading()
+      if (hideLoading) { hideLoading() }
       const newHideLoading = message.loading(`正在获取数据... (${i + 1}/${dates.length}天)`, 0)
       
       // 遍历每个埋点
@@ -408,7 +470,7 @@ export function useDataFetch() {
       newHideLoading()
     }
     
-    hideLoading()
+    if (hideLoading) { hideLoading() }
     
     console.log('====================================')
     console.log(`✅ N埋点批量获取完成:`)
@@ -448,9 +510,63 @@ export function useDataFetch() {
   }
   
   // 批量获取多天数据（优先使用预加载缓存）- 支持N埋点模式
-  const fetchMultiDayData = async (analysisMode, dateRange) => {
-    // 获取选中的所有埋点ID
-    const selectedPointIds = store.state.projectConfig?.selectedBuryPointIds || []
+  const fetchMultiDayData = async (analysisMode, dateRange, analysisResult = null) => {
+    // 使用智能埋点选择逻辑
+    const projectConfig = store.state.projectConfig
+    const apiConfig = store.state.apiConfig
+    let selectedPointIds = []
+    
+    // 根据分析结果或分析模式选择埋点
+    const isButtonClickAnalysis = analysisResult?.chartType?.includes('button_click_analysis') || 
+                                 analysisResult?.intent === 'button_click_analysis'
+    
+    if (isButtonClickAnalysis) {
+      // 按钮点击分析，优先使用点击埋点
+      if (projectConfig.clickBuryPointId) {
+        selectedPointIds = [projectConfig.clickBuryPointId]
+        console.log(`使用点击埋点配置: ${projectConfig.clickBuryPointId}`)
+      } else if (projectConfig.clickPoint?.id) {
+        selectedPointIds = [projectConfig.clickPoint.id]
+        console.log(`使用动态点击埋点配置: ${projectConfig.clickPoint.id}`)
+      } else if (projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
+        selectedPointIds = [projectConfig.selectedBuryPointIds[0]]
+        console.log(`使用用户选择的埋点: ${selectedPointIds[0]}`)
+      } else {
+        selectedPointIds = [API_CONFIG.defaultBuryPoints.click.id]
+        console.log(`使用默认点击埋点配置: ${API_CONFIG.defaultBuryPoints.click.id}`)
+      }
+    } else if (analysisMode === 'single') {
+      // 单埋点模式，优先使用访问埋点
+      if (projectConfig.visitBuryPointId) {
+        selectedPointIds = [projectConfig.visitBuryPointId]
+        console.log(`使用访问埋点配置: ${projectConfig.visitBuryPointId}`)
+      } else if (projectConfig.visitPoint?.id) {
+        selectedPointIds = [projectConfig.visitPoint.id]
+        console.log(`使用动态访问埋点配置: ${projectConfig.visitPoint.id}`)
+      } else if (projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
+        selectedPointIds = [projectConfig.selectedBuryPointIds[0]]
+        console.log(`使用用户选择的埋点: ${selectedPointIds[0]}`)
+      } else if (apiConfig && apiConfig.selectedPointId) {
+        selectedPointIds = [apiConfig.selectedPointId]
+        console.log(`使用API配置的埋点: ${apiConfig.selectedPointId}`)
+      } else {
+        selectedPointIds = [API_CONFIG.defaultBuryPoints.visit.id]
+        console.log(`使用默认访问埋点配置: ${API_CONFIG.defaultBuryPoints.visit.id}`)
+      }
+    } else if (analysisMode === 'dual') {
+      // 双埋点模式，使用访问和点击埋点
+      const pointIds = []
+      if (projectConfig.visitBuryPointId) {
+        pointIds.push(projectConfig.visitBuryPointId)
+      }
+      if (projectConfig.clickBuryPointId && projectConfig.clickBuryPointId !== projectConfig.visitBuryPointId) {
+        pointIds.push(projectConfig.clickBuryPointId)
+      }
+      selectedPointIds = pointIds.length > 0 ? pointIds : projectConfig.selectedBuryPointIds || []
+    } else {
+      // 其他模式，使用旧的逻辑
+      selectedPointIds = projectConfig.selectedBuryPointIds || []
+    }
     
     if (selectedPointIds.length === 0) {
       console.warn('⚠️ 未选择任何埋点，无法获取数据')
@@ -499,7 +615,7 @@ export function useDataFetch() {
     console.log(`🔍 检查预加载缓存数据...`)
     
     try {
-      const allCachedData = []
+      let allCachedData = []
       let allFromCache = true
       let totalCachedRecords = 0
       
@@ -516,7 +632,8 @@ export function useDataFetch() {
             ...item,
             _buryPointId: pointId
           }))
-          allCachedData.push(...dataWithPointId)
+          // 使用concat而不是展开操作，避免栈溢出
+          allCachedData = allCachedData.concat(dataWithPointId)
           totalCachedRecords += cachedData.length
           cachedPointsCount++
         } else {
