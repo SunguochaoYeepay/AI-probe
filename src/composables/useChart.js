@@ -364,38 +364,11 @@ export function useChart() {
     }
   }
 
-  // 重新生成图表
-  const regenerateChart = async (analysisResult) => {
-    if (analysisResult) {
-      await generateChart(analysisResult, store.state.chartConfig?.data, null)
-      message.success('图表重新生成完成')
-    }
-  }
-
-  // 导出图表
-  const exportChart = () => {
-    if (chartGenerator.value && chartGenerator.value.chart) {
-      const url = chartGenerator.value.chart.getDataURL({
-        type: 'png',
-        pixelRatio: 2,
-        backgroundColor: '#fff'
-      })
-      
-      const link = document.createElement('a')
-      link.download = `chart-${Date.now()}.png`
-      link.href = url
-      link.click()
-      
-      message.success('图表导出成功')
-    }
-  }
 
   return {
     chartGenerator,
     initChartGenerator,
     generateChart,
-    regenerateChart,
-    exportChart,
     extractPageNames
   }
 }

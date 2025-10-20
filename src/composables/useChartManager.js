@@ -144,8 +144,6 @@ export function useChartManager() {
       // 刷新列表
       await loadCharts()
       
-      message.success(`图表"${chart.name}"已保存`)
-      
       return chart
       
     } catch (error) {

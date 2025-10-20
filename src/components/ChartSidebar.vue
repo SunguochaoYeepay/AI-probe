@@ -3,7 +3,7 @@
     v-model:collapsed="collapsed"
     :trigger="null"
     collapsible
-    :width="280"
+    :width="220"
     :collapsed-width="80"
     class="chart-sidebar"
   >
@@ -82,23 +82,17 @@
           <FileTextOutlined />
         </template>
         <template #title>页面分析</template>
-        <a-menu-item key="page-uv-pv">
-          <template #icon>
-            <LineChartOutlined />
-          </template>
-          <span>UV/PV趋势</span>
-        </a-menu-item>
         <a-menu-item key="page-visits">
           <template #icon>
             <BarChartOutlined />
           </template>
           <span>页面访问量</span>
         </a-menu-item>
-        <a-menu-item key="page-distribution">
+        <a-menu-item key="button-clicks">
           <template #icon>
-            <PieChartOutlined />
+            <ThunderboltOutlined />
           </template>
-          <span>页面类型分布</span>
+          <span>按钮点击</span>
         </a-menu-item>
       </a-sub-menu>
 
@@ -187,8 +181,6 @@ import {
   SearchOutlined,
   DashboardOutlined,
   FileTextOutlined,
-  LineChartOutlined,
-  PieChartOutlined,
   UserOutlined,
   NodeIndexOutlined,
   ClockCircleOutlined,
@@ -274,20 +266,21 @@ const onMenuClick = ({ key }) => {
     case 'create':
       router.push('/')
       break
-    case 'page-uv-pv':
     case 'page-visits':
-    case 'page-distribution':
       router.push('/my-charts?category=page-analysis&type=' + key)
+      break
+    case 'button-clicks':
+      router.push('/my-charts?category=click-analysis&type=' + key)
       break
     case 'user-journey':
     case 'user-duration':
     case 'device-analysis':
-      router.push('/my-charts?category=user-behavior&type=' + key)
+      router.push('/my-charts?category=click-analysis&type=' + key)
       break
     case 'conversion-funnel':
     case 'click-conversion':
     case 'flow-analysis':
-      router.push('/my-charts?category=conversion-analysis&type=' + key)
+      router.push('/my-charts?category=conversion&type=' + key)
       break
     case 'chart-management':
       router.push('/my-charts?tab=management')

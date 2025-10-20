@@ -22,17 +22,6 @@
           <h1>{{ pageTitle }}</h1>
         </div>
         <div class="header-right">
-          <!-- 主题切换按钮 -->
-          <a-button 
-            type="text" 
-            @click="toggleTheme"
-            class="theme-toggle"
-            :title="isDark ? '切换到亮色主题' : '切换到暗黑主题'"
-          >
-            <BulbFilled v-if="isDark" />
-            <BulbOutlined v-else />
-          </a-button>
-          
           <slot name="header-actions">
             <!-- 默认操作按钮 -->
             <a-button @click="refreshPage">
@@ -64,18 +53,12 @@ import { useRouter } from 'vue-router'
 import {
   MenuOutlined,
   ReloadOutlined,
-  PlusOutlined,
-  BulbOutlined,
-  BulbFilled
+  PlusOutlined
 } from '@ant-design/icons-vue'
 import ChartSidebar from '@/components/ChartSidebar.vue'
 import DataSyncStatus from '@/components/DataSyncStatus.vue'
-import { useTheme } from '@/composables/useTheme'
 
 const router = useRouter()
-
-// 主题管理
-const { toggleTheme, isDark } = useTheme()
 
 // Props
 const props = defineProps({
@@ -168,14 +151,6 @@ defineExpose({
       display: flex;
       gap: 12px;
       align-items: center;
-      
-      .theme-toggle {
-        color: var(--text-color, #262626);
-        
-        &:hover {
-          color: var(--primary-color, #1890ff);
-        }
-      }
     }
   }
   

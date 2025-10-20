@@ -12,59 +12,6 @@
         <PlusOutlined /> 创建新图表
       </a-button>
     </template>
-        <!-- 统计信息 -->
-    <a-row :gutter="16" class="stats-row" v-if="stats">
-      <a-col :span="6">
-        <a-card>
-          <a-statistic
-            title="图表总数"
-            :value="stats.chartCount"
-            :prefix="null"
-          >
-            <template #suffix>
-              <span class="stats-suffix">个</span>
-            </template>
-          </a-statistic>
-        </a-card>
-      </a-col>
-      <a-col :span="6">
-        <a-card>
-          <a-statistic
-            title="激活图表"
-            :value="stats.activeChartCount"
-            :value-style="{ color: '#3f8600' }"
-          >
-            <template #suffix>
-              <span class="stats-suffix">个</span>
-            </template>
-          </a-statistic>
-        </a-card>
-      </a-col>
-      <a-col :span="6">
-        <a-card>
-          <a-statistic
-            title="数据总量"
-            :value="stats.totalDataCount"
-          >
-            <template #suffix>
-              <span class="stats-suffix">条</span>
-            </template>
-          </a-statistic>
-        </a-card>
-      </a-col>
-      <a-col :span="6">
-        <a-card>
-          <a-statistic
-            title="平均数据"
-            :value="stats.avgDataPerChart"
-          >
-            <template #suffix>
-              <span class="stats-suffix">条/图</span>
-            </template>
-          </a-statistic>
-        </a-card>
-      </a-col>
-    </a-row>
 
     <!-- 更新进度 -->
     <a-alert
@@ -86,49 +33,7 @@
       />
     </a-alert>
 
-    <!-- 分类标签 -->
-    <a-tabs v-model:activeKey="activeCategory" class="category-tabs">
-      <a-tab-pane key="all" tab="全部">
-        <template #tab>
-          <span>
-            <AppstoreOutlined />
-            全部 ({{ chartsByCategory.all.length }})
-          </span>
-        </template>
-      </a-tab-pane>
-      <a-tab-pane key="page" tab="页面分析">
-        <template #tab>
-          <span>
-            <FileTextOutlined />
-            页面分析 ({{ chartsByCategory.page.length }})
-          </span>
-        </template>
-      </a-tab-pane>
-      <a-tab-pane key="behavior" tab="用户行为">
-        <template #tab>
-          <span>
-            <UserOutlined />
-            用户行为 ({{ chartsByCategory.behavior.length }})
-          </span>
-        </template>
-      </a-tab-pane>
-      <a-tab-pane key="conversion" tab="转化分析">
-        <template #tab>
-          <span>
-            <FunnelPlotOutlined />
-            转化分析 ({{ chartsByCategory.conversion.length }})
-          </span>
-        </template>
-      </a-tab-pane>
-      <a-tab-pane key="overview" tab="全局概览">
-        <template #tab>
-          <span>
-            <DashboardOutlined />
-            全局概览 ({{ chartsByCategory.overview.length }})
-          </span>
-        </template>
-      </a-tab-pane>
-    </a-tabs>
+    <!-- 顶部分类标签移除，使用左侧导航控制分类 -->
 
     <!-- 图表列表 -->
     <div class="charts-list">
@@ -160,7 +65,7 @@
 
     <!-- 删除确认对话框 -->
     <a-modal
-      v-model:visible="deleteModal.visible"
+      v-model:open="deleteModal.visible"
       title="确认删除"
       @ok="handleDelete"
       @cancel="deleteModal.visible = false"
@@ -172,8 +77,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import {
   LineChartOutlined,
   PlusOutlined,
@@ -191,6 +96,7 @@ import ChartCard from '@/components/ChartCard.vue'
 import AppLayout from '@/components/AppLayout.vue'
 
 const router = useRouter()
+const route = useRoute()
 
 // 使用图表管理器
 const {
@@ -207,7 +113,7 @@ const {
 } = useChartManager()
 
 // 本地状态
-const activeCategory = ref('all')
+const activeCategory = ref('page')
 const stats = ref(null)
 const deleteModal = ref({
   visible: false,
@@ -272,6 +178,32 @@ const handleDelete = async () => {
 onMounted(async () => {
   await init()
   stats.value = await getStats()
+  // 从路由查询参数同步分类，例如 ?category=page-analysis|click-analysis|conversion|overview|all
+  const categoryMap = {
+    'page-analysis': 'page',
+    'click-analysis': 'behavior',
+    'conversion': 'conversion',
+    'overview': 'overview',
+    'all': 'all'
+  }
+  const incoming = route.query.category
+  if (typeof incoming === 'string' && categoryMap[incoming]) {
+    activeCategory.value = categoryMap[incoming]
+  }
+})
+
+// 监听路由参数变化，确保从左侧菜单切换时即时更新分类
+watch(() => route.query.category, (val) => {
+  const categoryMap = {
+    'page-analysis': 'page',
+    'click-analysis': 'behavior',
+    'conversion': 'conversion',
+    'overview': 'overview',
+    'all': 'all'
+  }
+  if (typeof val === 'string' && categoryMap[val]) {
+    activeCategory.value = categoryMap[val]
+  }
 })
 </script>
 

@@ -5,33 +5,6 @@
     @menu-click="handleMenuClick"
   >
     <template #header-actions>
-      <!-- 缓存状态指示器 -->
-      <div class="cache-status-indicator">
-        <a-badge :color="cacheHealthColor" :text="cacheHealthText" />
-        <a-dropdown :trigger="['click']">
-          <template #overlay>
-            <a-menu @click="handleCacheAction">
-              <a-menu-item key="quick-check">
-                <ScanOutlined />
-                快速检查
-              </a-menu-item>
-              <a-menu-item key="force-refresh">
-                <ReloadOutlined />
-                强制刷新
-              </a-menu-item>
-              <a-menu-item key="open-manager">
-                <DatabaseOutlined />
-                缓存管理
-              </a-menu-item>
-            </a-menu>
-          </template>
-          <a-button size="small" style="margin-right: 8px;">
-            <DatabaseOutlined />
-            缓存
-          </a-button>
-        </a-dropdown>
-      </div>
-
       <a-button @click="triggerManualPreload" :loading="isPreloading">
         <DownloadOutlined />
         数据预加载
@@ -45,7 +18,7 @@
     <div class="home-container">
       <a-row :gutter="24">
         <!-- 左侧：AI聊天界面 -->
-        <a-col :span="12">
+        <a-col :span="8">
           <div class="left-panel">
             <AIChatInterface
               v-model:date-range="dateRange"
@@ -53,17 +26,16 @@
               @analyze-requirement="handleChatAnalysis"
               @clear-requirement="clearRequirement"
               @show-config-modal="showConfigModal"
+              @save-chart="() => { console.log('🟦 [Home] 收到子组件保存事件'); saveChartToLibrary(); }"
             />
           </div>
         </a-col>
 
         <!-- 右侧：分析结果 -->
-        <a-col :span="12">
+        <a-col :span="16">
           <div class="right-panel">
             <ChartSection
               :has-chart="hasChart"
-              @regenerate-chart="regenerateChart"
-              @export-chart="exportChart"
               @save-chart="saveChartToLibrary"
             />
           </div>
@@ -72,7 +44,7 @@
 
     <!-- 配置管理模态框 -->
     <ConfigModal
-      v-model:visible="configModalVisible"
+      v-model:open="configModalVisible"
       :api-config-form="apiConfigForm"
       :ollama-config-form="ollamaConfigForm"
       :project-config-form="projectConfigForm"
@@ -82,7 +54,7 @@
 
     <!-- 页面选择弹窗 -->
     <PageSelectionModal
-      v-model:visible="pageSelectionModalVisible"
+      v-model:open="pageSelectionModalVisible"
       :available-pages="availablePages"
       @select-page="selectPageForAnalysis"
     />
@@ -96,10 +68,7 @@ import { useStore } from 'vuex'
 import { message } from 'ant-design-vue'
 import { 
   SettingOutlined, 
-  DownloadOutlined, 
-  DatabaseOutlined, 
-  ScanOutlined, 
-  ReloadOutlined 
+  DownloadOutlined
 } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
 import { RequirementParser } from '@/utils/requirementParser'
@@ -119,7 +88,7 @@ const store = useStore()
 
 // 使用 composables
 const { availablePages, fetchMultiDayData, loadAvailablePages, validateConnection, clearCache } = useDataFetch()
-const { chartGenerator, initChartGenerator, generateChart, regenerateChart, exportChart, extractPageNames } = useChart()
+const { chartGenerator, initChartGenerator, generateChart, extractPageNames } = useChart()
 const { saveChart: saveChartToManager } = useChartManager()
 const { 
   healthStatus, 
@@ -171,19 +140,6 @@ const apiConfig = computed(() => store.state.apiConfig)
 const currentDate = computed(() => new Date().toLocaleDateString())
 const hasChart = computed(() => store.state.chartConfig !== null)
 
-// 缓存状态相关计算属性
-const cacheHealthColor = computed(() => {
-  return healthStatusColor.value
-})
-
-const cacheHealthText = computed(() => {
-  switch (healthStatus.value) {
-    case 'healthy': return '缓存正常'
-    case 'warning': return '缓存警告'
-    case 'critical': return '缓存异常'
-    default: return '未知状态'
-  }
-})
 
 // API 配置表单（移除了 defaultDate 和 baseUrl，日期在主界面上选择，baseUrl 写死在代码中）
 const apiConfigForm = computed({
@@ -969,47 +925,53 @@ const clearRequirement = () => {
   store.dispatch('updateChartConfig', null)
 }
 
-// 处理缓存操作
-const handleCacheAction = async ({ key }) => {
-  switch (key) {
-    case 'quick-check':
-      await quickHealthCheck()
-      break
-    case 'force-refresh':
-      await forceRefreshData()
-      break
-    case 'open-manager':
-      // 打开配置管理并切换到缓存管理标签
-      configModalVisible.value = true
-      // 需要等待modal打开后再切换标签，这可能需要在ConfigModal组件中处理
-      break
-  }
-}
 
 // 保存图表到图表库
 const saveChartToLibrary = async () => {
-  if (!analysisResult.value || !store.state.chartConfig) {
+  // 允许在 analysisResult 为空但 chartConfig 存在时保存（例如通过按钮选择等路径生成的图表）
+  if (!store.state.chartConfig) {
     message.warning('请先生成图表')
     return
   }
   
   try {
+    console.groupCollapsed('💾 [Home] 保存图表 - 调试')
+    console.time('saveChart')
     const chartData = store.state.chartConfig.data
-    if (!chartData || chartData.length === 0) {
+    const effectiveAnalysis = analysisResult.value || store.state.chartConfig.analysis || {}
+    const chartType = effectiveAnalysis.chartType
+    console.log('➡️ [Home] 输入参数: ', {
+      chartType,
+      analysisDescription: effectiveAnalysis?.description,
+      dataType: Array.isArray(chartData) ? 'array' : typeof chartData,
+      isChartObject: !!(chartData && !Array.isArray(chartData) && chartData.categories),
+      sampleArray: Array.isArray(chartData) ? chartData.slice(0, 2) : undefined,
+      sampleObject: !Array.isArray(chartData) ? chartData : undefined
+    })
+    if (!chartData || (Array.isArray(chartData) && chartData.length === 0)) {
       message.warning('图表数据为空，无法保存')
+      console.warn('⚠️ [Home] 数据为空，终止保存')
+      console.groupEnd()
       return
     }
     
-    // 从数据中提取日期范围
-    const dates = chartData.map(d => dayjs(d.createdAt).format('YYYY-MM-DD')).filter(d => d)
-    const uniqueDates = [...new Set(dates)].sort()
+    // 从数据中提取日期范围（兼容两种数据结构）
+    let uniqueDates = []
+    if (chartData && typeof chartData === 'object' && !Array.isArray(chartData) && chartData.categories) {
+      uniqueDates = [...new Set(chartData.categories)].sort()
+      console.log('🗓️ [Home] 使用图表对象中的categories作为日期范围', uniqueDates)
+    } else {
+      const dates = chartData.map(d => dayjs(d.createdAt).format('YYYY-MM-DD')).filter(d => d)
+      uniqueDates = [...new Set(dates)].sort()
+      console.log('🗓️ [Home] 使用原始数组数据提取的日期范围', uniqueDates)
+    }
     
     // 构造图表配置
     const chartConfig = {
-      name: analysisResult.value.description || currentRequirement.value,
+      name: effectiveAnalysis.description || currentRequirement.value,
       description: currentRequirement.value,
-      category: getCategoryByChartType(analysisResult.value.chartType),
-      chartType: analysisResult.value.chartType,
+      category: getCategoryByChartType(chartType),
+      chartType: chartType,
       mode: analysisMode.value,
       selectedPointId: store.state.apiConfig.selectedPointId,
       埋点类型: analysisMode.value === 'dual' ? '访问+点击' : '访问',
@@ -1017,31 +979,90 @@ const saveChartToLibrary = async () => {
         pageName: extractPageNames(currentRequirement.value)[0] || null
       },
       dimensions: ['date'],
-      metrics: analysisResult.value.metrics || ['uv', 'pv'],
+      metrics: effectiveAnalysis.metrics || ['uv', 'pv'],
       dateRangeStrategy: 'last_30_days'
     }
     
     // 按日期聚合数据
     const initialData = {}
     
-    // 使用聚合服务处理数据
-    for (const date of uniqueDates) {
-      const dayData = chartData.filter(d => 
-        dayjs(d.createdAt).format('YYYY-MM-DD') === date
-      )
+    // 检查是否为按钮点击分析（数据格式可能不同）
+    const isButtonClickAnalysis = chartType === 'button_click_analysis' || 
+                                 chartType === 'button_click_daily'
+    
+    if (isButtonClickAnalysis) {
+      // 按钮点击分析：数据已经是按日期聚合的格式
+      console.log('🔍 [Home] 检测到按钮点击分析，使用特殊处理逻辑')
       
-      if (dayData.length > 0) {
-        const aggregated = aggregationService.aggregateForChart(
-          dayData,
-          chartConfig,
-          date
+      // 检查数据格式：如果数据包含categories和uvData/pvData，说明已经是图表格式
+      if (chartData && typeof chartData === 'object' && !Array.isArray(chartData) && chartData.categories) {
+        console.log('📊 [Home] 数据已经是图表格式，直接转换', {
+          categoriesLen: chartData.categories?.length,
+          uvLen: chartData.uvData?.length,
+          pvLen: chartData.pvData?.length
+        })
+        
+        // 将图表格式数据转换为按日期的聚合数据
+        chartData.categories.forEach((date, index) => {
+          initialData[date] = {
+            metrics: {
+              uv: chartData.uvData[index] || 0,
+              pv: chartData.pvData[index] || 0
+            },
+            dimensions: {},
+            metadata: {
+              rawRecordCount: 0,
+              filteredRecordCount: 0,
+              processedAt: new Date().toISOString(),
+              dataQuality: 'good'
+            }
+          }
+        })
+        console.log('🧩 [Home] 转换完成: 聚合天数=', Object.keys(initialData).length)
+      } else {
+        // 使用聚合服务处理数据
+        console.log('🔧 [Home] 使用聚合服务按天处理原始点击数据')
+        for (const date of uniqueDates) {
+          const dayData = chartData.filter(d => 
+            dayjs(d.createdAt).format('YYYY-MM-DD') === date
+          )
+          
+          if (dayData.length > 0) {
+            const aggregated = aggregationService.aggregateForChart(
+              dayData,
+              chartConfig,
+              date
+            )
+            
+            // 深度克隆，移除不可序列化的对象
+            initialData[date] = JSON.parse(JSON.stringify(aggregated))
+          }
+        }
+        console.log('🧮 [Home] 聚合完成: 聚合天数=', Object.keys(initialData).length)
+      }
+    } else {
+      // 其他图表类型：使用标准聚合服务处理数据
+      console.log('📈 [Home] 非按钮点击图表，使用标准聚合')
+      for (const date of uniqueDates) {
+        const dayData = chartData.filter(d => 
+          dayjs(d.createdAt).format('YYYY-MM-DD') === date
         )
         
-        // 深度克隆，移除不可序列化的对象
-        initialData[date] = JSON.parse(JSON.stringify(aggregated))
+        if (dayData.length > 0) {
+          const aggregated = aggregationService.aggregateForChart(
+            dayData,
+            chartConfig,
+            date
+          )
+          
+          // 深度克隆，移除不可序列化的对象
+          initialData[date] = JSON.parse(JSON.stringify(aggregated))
+        }
       }
     }
     
+    console.log('📝 [Home] initialData 预览(前2天):', Object.entries(initialData).slice(0,2))
+    console.log('🧾 [Home] chartConfig 预览:', chartConfig)
     // 确保chartConfig可序列化
     const serializableChartConfig = JSON.parse(JSON.stringify(chartConfig))
     
@@ -1049,6 +1070,8 @@ const saveChartToLibrary = async () => {
     const savedChart = await saveChartToManager(serializableChartConfig, initialData)
     
     message.success(`图表"${savedChart.name}"已保存`)
+    console.timeEnd('saveChart')
+    console.groupEnd()
     
     // 提示用户查看
     const key = `save-chart-${Date.now()}`
@@ -1063,10 +1086,19 @@ const saveChartToLibrary = async () => {
     })
     
   } catch (error) {
-    console.error('保存图表失败:', error)
+    console.error('❌ [Home] 保存图表失败:', error)
+    console.error('❌ [Home] error.stack:', error?.stack)
+    console.error('❌ [Home] 当前analysisResult:', analysisResult.value)
+    console.error('❌ [Home] 当前store.chartConfig:', store.state.chartConfig)
+    console.groupEnd()
     message.error('保存图表失败: ' + error.message)
   }
 }
+
+// 将保存方法暴露为全局兜底，防止事件链断裂
+// 注意：仅用于调试/紧急兜底，不改变既有事件流
+// 在组件挂载后绑定，页面卸载时可由浏览器回收
+window._saveChart = saveChartToLibrary
 
 // 根据图表类型获取分类
 const getCategoryByChartType = (chartType) => {
@@ -1079,7 +1111,9 @@ const getCategoryByChartType = (chartType) => {
     click_heatmap: '用户行为',
     user_journey: '用户行为',
     uv_pv_chart: '页面分析',
-    single_page_uv_pv_chart: '页面分析'
+    single_page_uv_pv_chart: '页面分析',
+    button_click_analysis: '用户行为',
+    button_click_daily: '用户行为'
   }
   return categoryMap[chartType] || '页面分析'
 }
@@ -1090,13 +1124,19 @@ const getCategoryByChartType = (chartType) => {
   margin: 0 auto;
 }
 
-.left-panel, .right-panel {
-  height: calc(100vh - 20px);
+.left-panel {
+  height: calc(100vh - 120px);
   min-height: 600px;
-  padding: 20px;
-  background: #fafafa;
+  background: #ffffff;
   border-radius: 8px;
   border: 1px solid #e8e8e8;
+  overflow-y: auto;
+}
+
+.right-panel {
+  height: calc(100vh - 120px);
+  min-height: 600px;
+  border-radius: 8px;
   overflow-y: auto;
 }
 
@@ -1258,7 +1298,7 @@ const getCategoryByChartType = (chartType) => {
 }
 
 .chart-container {
-  min-height: 400px;
+  min-height: 600px;
   border: 1px solid #f0f0f0;
   border-radius: 6px;
   background: #fff;
@@ -1268,12 +1308,12 @@ const getCategoryByChartType = (chartType) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 400px;
+  height: 600px;
 }
 
 .chart-content {
   width: 100%;
-  height: 400px;
+  height: 600px;
 }
 
 .chart-actions {

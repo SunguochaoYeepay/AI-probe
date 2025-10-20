@@ -152,7 +152,7 @@
 
     <!-- 缓存设置Modal -->
     <a-modal
-      v-model:visible="settingsModalVisible"
+      v-model:open="settingsModalVisible"
       title="缓存设置"
       @ok="saveSettings"
       @cancel="settingsModalVisible = false"
@@ -196,7 +196,7 @@
 
     <!-- 统计详情Modal -->
     <a-modal
-      v-model:visible="statsModalVisible"
+      v-model:open="statsModalVisible"
       title="缓存统计详情"
       width="800px"
       :footer="null"

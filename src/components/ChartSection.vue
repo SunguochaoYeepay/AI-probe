@@ -1,100 +1,82 @@
 <template>
-  <div class="chart-section">
-    <!-- 操作按钮区域 -->
-    <div v-if="hasChart" class="chart-actions">
-      <a-button size="small" @click="regenerateChart">
-        <ReloadOutlined />
-        重新生成
-      </a-button>
-      <a-button size="small" @click="exportChart">
-        <DownloadOutlined />
-        导出图表
-      </a-button>
-      <a-button size="small" type="primary" @click="saveChart">
-        <SaveOutlined />
-        保存图表
-      </a-button>
+  <a-card 
+    class="chart-card" 
+    :bordered="true" 
+    :title="hasChart ? chartTitle : '图表分析'"
+  >
+    <template #extra>
+      <a-space>
+        <!-- 视图切换按钮 -->
+        <a-radio-group v-if="hasChart" v-model:value="viewMode" size="small" button-style="solid">
+          <a-radio-button value="chart">
+            <BarChartOutlined />
+            图表
+          </a-radio-button>
+          <a-radio-button value="table">
+            <TableOutlined />
+            表格
+          </a-radio-button>
+        </a-radio-group>
+        <!-- 保存图表按钮 -->
+        <a-button v-if="hasChart" size="small" type="primary" @click="() => { console.log('🟦 [ChartSection] 点击保存图表按钮'); saveChart(); }">
+          <SaveOutlined />
+          保存图表
+        </a-button>
+      </a-space>
+    </template>
+    
+    <!-- 生成中状态 -->
+    <div v-if="isGenerating" class="generating-chart">
+      <a-spin size="large" :tip="generationTip">
+        <div class="generating-content">
+          <div class="generating-icon">
+            <BarChartOutlined />
+          </div>
+          <div class="generating-text">
+            <h3>正在生成图表</h3>
+            <p>{{ generationStep }}</p>
+          </div>
+        </div>
+      </a-spin>
     </div>
     
-    <div class="chart-container">
-      <!-- 生成中状态 -->
-      <div v-if="isGenerating" class="generating-chart">
-        <a-spin size="large" :tip="generationTip">
-          <div class="generating-content">
-            <div class="generating-icon">
-              <BarChartOutlined />
-            </div>
-            <div class="generating-text">
-              <h3>正在生成图表</h3>
-              <p>{{ generationStep }}</p>
-            </div>
-          </div>
-        </a-spin>
-      </div>
-      
-      <!-- 空状态 -->
-      <div v-else-if="!hasChart" class="empty-chart">
-        <a-empty description="暂无图表数据，请先描述分析需求" />
-      </div>
-      
-      <!-- 有图表时的内容 -->
-      <div v-else>
-        <a-card class="chart-card" :bordered="true">
-          <!-- 图表标题和视图切换 -->
-          <div class="chart-header">
-            <div class="chart-title">
-              <h3>{{ chartTitle }}</h3>
-            </div>
-            <div class="view-switcher">
-              <!-- 视图切换按钮 -->
-              <a-radio-group v-model:value="viewMode" size="small" button-style="solid">
-                <a-radio-button value="chart">
-                  <BarChartOutlined />
-                  图表
-                </a-radio-button>
-                <a-radio-button value="table">
-                  <TableOutlined />
-                  表格
-                </a-radio-button>
-              </a-radio-group>
-            </div>
-          </div>
-          
-          <!-- 图表视图 -->
-          <div v-if="viewMode === 'chart'" id="chart-container" class="chart-content"></div>
-          
-          <!-- 表格视图 -->
-          <div v-else-if="viewMode === 'table'" class="table-content">
-            <a-table
-              :columns="tableColumns"
-              :data-source="tableData"
-              :pagination="paginationConfig"
-              size="small"
-              :scroll="{ x: 800 }"
-              bordered
-            >
-              <template #bodyCell="{ column, record }">
-                <template v-if="column.key === 'date'">
-                  {{ formatDate(record.date) }}
-                </template>
-                <template v-else-if="column.dataIndex === 'pv'">
-                  <a-tag color="blue">{{ record.pv }}</a-tag>
-                </template>
-                <template v-else-if="column.dataIndex === 'uv'">
-                  <a-tag color="green">{{ record.uv }}</a-tag>
-                </template>
-              </template>
-            </a-table>
-          </div>
-        </a-card>
-      </div>
+    <!-- 空状态 -->
+    <div v-else-if="!hasChart" class="empty-chart">
+      <a-empty description="暂无图表数据，请先描述分析需求" />
     </div>
-  </div>
+    
+    <!-- 图表视图 -->
+    <div v-else-if="viewMode === 'chart'" id="chart-container" class="chart-content"></div>
+    
+    <!-- 表格视图 -->
+    <div v-else-if="viewMode === 'table'" class="table-content">
+      <a-table
+        :columns="tableColumns"
+        :data-source="tableData"
+        :pagination="paginationConfig"
+        size="small"
+        :scroll="{ x: 800 }"
+        bordered
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'date'">
+            {{ formatDate(record.date) }}
+          </template>
+          <template v-else-if="column.dataIndex === 'pv'">
+            <a-tag color="blue">{{ record.pv }}</a-tag>
+          </template>
+          <template v-else-if="column.dataIndex === 'uv'">
+            <a-tag color="green">{{ record.uv }}</a-tag>
+          </template>
+        </template>
+      </a-table>
+    </div>
+  </a-card>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { ReloadOutlined, DownloadOutlined, SaveOutlined, BarChartOutlined, TableOutlined } from '@ant-design/icons-vue'
+import { SaveOutlined, BarChartOutlined, TableOutlined } from '@ant-design/icons-vue'
 import { useStore } from 'vuex'
 import dayjs from 'dayjs'
 
@@ -111,8 +93,6 @@ const props = defineProps({
 
 // Emits
 const emit = defineEmits([
-  'regenerate-chart',
-  'export-chart',
   'save-chart'
 ])
 
@@ -320,78 +300,99 @@ watch(() => store.state.chartConfig, () => {
 }, { deep: true })
 
 // Methods
-const regenerateChart = () => {
-  emit('regenerate-chart')
-}
-
-const exportChart = () => {
-  emit('export-chart')
-}
-
 const saveChart = () => {
+  // 调试：确保按钮点击事件已触发
+  console.log('🟦 [ChartSection] 保存图表按钮被点击')
+  // 1) 向父组件派发
   emit('save-chart')
 }
 </script>
 
 <style scoped>
-.chart-section {
-  width: 100%;
-}
-
-.chart-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.chart-container {
-  min-height: 400px;
-}
-
 .chart-card {
-  margin-bottom: 24px;
+  width: 100%;
+  /* 确保卡片有足够的高度 */
+  min-height: 700px;
+}
+
+/* 卡片标题栏样式优化 */
+.chart-card :deep(.ant-card-head) {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 0 24px;
+  min-height: 56px;
+}
+
+.chart-card :deep(.ant-card-head-title) {
+  font-size: 16px;
+  font-weight: 600;
+  color: #262626;
+}
+
+.chart-card :deep(.ant-card-extra) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 卡片内容区域样式 */
+.chart-card :deep(.ant-card-body) {
+  padding: 0;
+  height: calc(100% - 56px);
+  display: flex;
+  flex-direction: column;
 }
 
 .empty-chart {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 400px;
+  flex: 1;
+  min-height: 600px;
 }
 
 .chart-content {
   width: 100%;
-  height: 400px;
+  height: 100%;
+  min-height: 600px;
+  flex: 1;
+  /* 确保图表容器有足够的空间 */
+  overflow: hidden;
 }
 
 .table-content {
   width: 100%;
-  min-height: 400px;
+  min-height: 500px;
   padding: 16px;
-}
-
-.chart-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
+  flex: 1;
+  overflow-y: auto;
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
-  .chart-actions {
-    flex-direction: column;
-    align-items: stretch;
+  .chart-card {
+    min-height: 600px;
   }
   
-  .chart-actions .ant-radio-group {
-    width: 100%;
+  .chart-card :deep(.ant-card-head) {
+    padding: 0 16px;
+    min-height: 48px;
   }
   
-  .chart-actions .ant-radio-button-wrapper {
-    flex: 1;
-    text-align: center;
+  .chart-card :deep(.ant-card-body) {
+    height: calc(100% - 48px);
+  }
+  
+  .chart-content {
+    min-height: 500px;
+  }
+  
+  .table-content {
+    min-height: 400px;
+    padding: 8px;
+  }
+  
+  .empty-chart {
+    min-height: 500px;
   }
 }
 
@@ -410,38 +411,13 @@ const saveChart = () => {
   border-radius: 4px;
 }
 
-/* 图表头部 */
-.chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.chart-title {
-  flex: 1;
-}
-
-.chart-title h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #262626;
-  line-height: 1.4;
-}
-
-.view-switcher {
-  flex-shrink: 0;
-}
 
 /* 生成中状态样式 */
 .generating-chart {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 400px;
+  flex: 1;
   background: #fafafa;
   border-radius: 8px;
 }

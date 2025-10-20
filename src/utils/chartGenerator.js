@@ -20,11 +20,14 @@ export class ChartGenerator {
       throw new Error(`容器 ${containerId} 不存在`)
     }
     
-    // 初始化图表
+    // 初始化图表，配置passive事件监听器
     if (this.chart && !this.chart.isDisposed()) {
       this.chart.dispose()
     }
-    this.chart = echarts.init(container)
+    this.chart = echarts.init(container, null, {
+      renderer: 'canvas',
+      useDirtyRect: false
+    })
     
     // 根据图表类型生成配置
     const option = this.generateOption(analysis, data)
@@ -64,32 +67,16 @@ export class ChartGenerator {
    * @param {String} dateRange 日期范围信息（可选）
    */
   addDataInfo(option, data, dateRange = null) {
-    if (data && data.length > 0) {
-      let dateInfo = ''
-      
-      if (dateRange) {
-        // 使用传入的日期范围信息
-        dateInfo = dateRange
-      } else {
-        // 获取数据的实际日期范围
-        const dates = data.map(d => d.createdAt).filter(d => d)
-        if (dates.length > 0) {
-          const firstDate = new Date(dates[0]).toLocaleDateString()
-          const lastDate = new Date(dates[dates.length - 1]).toLocaleDateString()
-          dateInfo = firstDate === lastDate ? firstDate : `${firstDate} - ${lastDate}`
-        }
-      }
-      
-      // 在标题下方添加副标题
-      if (!option.title) {
-        option.title = {}
-      }
-      option.title.subtext = `数据日期: ${dateInfo} | 数据量: ${data.length}条`
-      option.title.subtextStyle = {
-        fontSize: 12,
-        color: '#999'
-      }
+    // 不再在图表内部添加标题和副标题，因为标题现在在卡片上
+    // 只调整图表的边距，为卡片标题留出空间
+    if (!option.grid) {
+      option.grid = {}
     }
+    // 增加顶部边距，避免图表被卡片标题截掉
+    option.grid.top = 60
+    option.grid.left = 60
+    option.grid.right = 40
+    option.grid.bottom = 60
   }
   
   /**
@@ -155,16 +142,6 @@ export class ChartGenerator {
     const funnelData = this.processFunnelData(data)
     
     return {
-      title: {
-        text: '转化漏斗分析',
-        left: 'center',
-        top: 20,
-        textStyle: {
-          color: '#2c3e50',
-          fontSize: 16,
-          fontWeight: 'bold'
-        }
-      },
       tooltip: {
         trigger: 'item',
         formatter: '{a} <br/>{b}: {c} ({d}%)'
@@ -240,16 +217,6 @@ export class ChartGenerator {
         pvValues: timeData.values
       })
       return {
-        title: {
-          text: chartTitle,
-          left: 'center',
-          top: 20,
-          textStyle: {
-            color: '#2c3e50',
-            fontSize: 16,
-            fontWeight: 'bold'
-          }
-        },
         tooltip: {
           trigger: 'axis',
           formatter: (params) => {
@@ -317,16 +284,6 @@ export class ChartGenerator {
     
     // 默认单线图表（PV）
     return {
-      title: {
-        text: chartTitle,
-        left: 'center',
-        top: 20,
-        textStyle: {
-          color: '#2c3e50',
-          fontSize: 16,
-          fontWeight: 'bold'
-        }
-      },
       tooltip: {
         trigger: 'axis',
         formatter: (params) => {
@@ -382,16 +339,6 @@ export class ChartGenerator {
     const barData = this.processBarData(data)
     
     return {
-      title: {
-        text: '页面访问量对比分析',
-        left: 'center',
-        top: 20,
-        textStyle: {
-          color: '#2c3e50',
-          fontSize: 16,
-          fontWeight: 'bold'
-        }
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: {
@@ -455,16 +402,6 @@ export class ChartGenerator {
     const pieData = this.processPieData(data)
     
     return {
-      title: {
-        text: '类型分布分析',
-        left: 'center',
-        top: 20,
-        textStyle: {
-          color: '#2c3e50',
-          fontSize: 16,
-          fontWeight: 'bold'
-        }
-      },
       tooltip: {
         trigger: 'item',
         formatter: '{b}: {c} ({d}%)'
@@ -513,16 +450,6 @@ export class ChartGenerator {
     const totalValue = this.calculateTotalValue(data)
     
     return {
-      title: {
-        text: '总体数据概览',
-        left: 'center',
-        top: 20,
-        textStyle: {
-          color: '#2c3e50',
-          fontSize: 16,
-          fontWeight: 'bold'
-        }
-      },
       series: [{
         type: 'gauge',
         center: ['50%', '60%'],
@@ -587,16 +514,6 @@ export class ChartGenerator {
     const stackedData = this.processStackedData(data)
     
     return {
-      title: {
-        text: '成功失败对比分析',
-        left: 'center',
-        top: 20,
-        textStyle: {
-          color: '#2c3e50',
-          fontSize: 16,
-          fontWeight: 'bold'
-        }
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: {
@@ -822,12 +739,6 @@ export class ChartGenerator {
     const chartData = this.processDualBarData(data)
     
     return {
-      title: {
-        text: '访问与点击对比分析',
-        left: 'center',
-        top: 20,
-        textStyle: { fontSize: 18, fontWeight: 'bold' }
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'shadow' },
@@ -882,12 +793,6 @@ export class ChartGenerator {
     const funnelData = this.processConversionFunnelData(data)
     
     return {
-      title: {
-        text: '访问到点击转化漏斗',
-        left: 'center',
-        top: 20,
-        textStyle: { fontSize: 18, fontWeight: 'bold' }
-      },
       tooltip: {
         trigger: 'item',
         formatter: '{a} <br/>{b}: {c} ({d}%)'
@@ -939,12 +844,6 @@ export class ChartGenerator {
     const heatmapData = this.processClickHeatmapData(data)
     
     return {
-      title: {
-        text: '按钮点击热度分析',
-        left: 'center',
-        top: 20,
-        textStyle: { fontSize: 18, fontWeight: 'bold' }
-      },
       tooltip: {
         trigger: 'item',
         formatter: function(params) {
@@ -977,12 +876,6 @@ export class ChartGenerator {
     const journeyData = this.processUserJourneyData(data)
     
     return {
-      title: {
-        text: '用户行为路径分析',
-        left: 'center',
-        top: 20,
-        textStyle: { fontSize: 18, fontWeight: 'bold' }
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'cross' }
@@ -1329,12 +1222,6 @@ export class ChartGenerator {
     const chartData = this.processUVPVComparisonData(data)
     
     return {
-      title: {
-        text: '页面访问UV/PV对比分析',
-        left: 'center',
-        top: 20,
-        textStyle: { fontSize: 18, fontWeight: 'bold' }
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'cross' },
@@ -1405,12 +1292,6 @@ export class ChartGenerator {
     const chartData = this.processClickUVPVComparisonData(data)
     
     return {
-      title: {
-        text: '按钮点击UV/PV对比分析',
-        left: 'center',
-        top: 20,
-        textStyle: { fontSize: 18, fontWeight: 'bold' }
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'cross' },
@@ -1574,12 +1455,6 @@ export class ChartGenerator {
     })
     
     return {
-      title: {
-        text: analysis.description || '单页面UV/PV时间趋势分析',
-        left: 'center',
-        top: 20,
-        textStyle: { fontSize: 18, fontWeight: 'bold' }
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'cross' },
@@ -1659,6 +1534,29 @@ export class ChartGenerator {
    * 处理单页面UV/PV时间数据
    */
   processSinglePageUVPVChartData(data, userDateRange = null) {
+    console.log('🔍 processSinglePageUVPVChartData 输入数据:', data)
+    
+    // 检查数据格式：如果数据已经是聚合后的格式（有uv和pv字段），直接使用
+    if (data && data.length > 0 && data[0].hasOwnProperty('uv') && data[0].hasOwnProperty('pv')) {
+      console.log('📊 检测到已聚合的数据格式，直接使用')
+      const sortedData = data
+        .map(item => ({
+          date: item.createdAt,
+          uv: item.uv || 0,
+          pv: item.pv || 0
+        }))
+        .sort((a, b) => new Date(a.date) - new Date(b.date))
+      
+      console.log('✅ 已聚合数据排序结果:', sortedData)
+      
+      return {
+        categories: sortedData.map(item => item.date),
+        uvData: sortedData.map(item => item.uv),
+        pvData: sortedData.map(item => item.pv)
+      }
+    }
+    
+    // 原始数据处理逻辑（用于实时分析）
     const timeMap = {}
     
     let fullDateRange
@@ -1713,6 +1611,8 @@ export class ChartGenerator {
       }))
       .sort((a, b) => new Date(a.date) - new Date(b.date))
     
+    console.log('✅ 原始数据处理结果:', sortedData)
+    
     return {
       categories: sortedData.map(item => item.date),
       uvData: sortedData.map(item => item.uv),
@@ -1743,14 +1643,6 @@ export class ChartGenerator {
     const chartData = this.processButtonClickAnalysisData(analysis, data)
     
     return {
-      title: {
-        text: `按钮点击分析 - ${analysis.buttonName || '未知按钮'}`,
-        left: 'center',
-        textStyle: {
-          fontSize: 18,
-          fontWeight: 'bold'
-        }
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: {
@@ -1899,14 +1791,6 @@ export class ChartGenerator {
     const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16']
     
     return {
-      title: {
-        text: `${analysis.pageName || '未知页面'} - 全部按钮点击量分析`,
-        left: 'center',
-        textStyle: {
-          fontSize: 18,
-          fontWeight: 'bold'
-        }
-      },
       tooltip: {
         trigger: 'axis',
         axisPointer: {

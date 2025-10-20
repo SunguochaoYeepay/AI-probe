@@ -6,7 +6,6 @@
         <span class="config-label">分析时间：</span>
         <a-range-picker
           v-model:value="dateRange"
-          style="width: 250px;"
           size="small"
           :disabled-date="disabledDate"
         />
@@ -18,7 +17,6 @@
           v-if="allBuryPoints.length > 0"
           v-model:value="selectedBuryPointId"
           placeholder="请选择分析埋点"
-          style="width: 200px;"
           size="small"
           @change="onBuryPointChange"
         >
@@ -27,7 +25,7 @@
             :key="point.id"
             :value="point.id"
           >
-            {{ point.name }} (ID: {{ point.id }}) - {{ point.type }}埋点
+            {{ point.name }} (ID: {{ point.id }})
           </a-select-option>
         </a-select>
         <a-button 
@@ -35,7 +33,6 @@
           type="dashed" 
           size="small"
           @click="$emit('show-config-modal')"
-          style="width: 200px;"
         >
           请先配置埋点
         </a-button>
@@ -119,7 +116,6 @@
         placeholder="请描述您想要的分析需求..."
         :rows="3"
         :maxlength="500"
-        show-count
         @keydown.enter.prevent="handleEnterKey"
       />
       <div class="input-actions">
@@ -137,7 +133,7 @@
     
     <!-- 按钮选择弹窗 -->
     <ButtonSelectionModal
-      v-model:visible="buttonSelectionModalVisible"
+      v-model:open="buttonSelectionModalVisible"
       :page-name="selectedPageName"
       :buttons="availableButtons"
       @select-button="handleButtonSelection"
@@ -1997,16 +1993,23 @@ const showWelcomeMessage = () => {
 
 .config-section {
   display: flex;
-  align-items: center;
-  gap: 24px;
-  margin-bottom: 16px;
-  padding: 12px 16px;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 16px;;
   background: #fafafa;
-  border-radius: 8px;
   flex-wrap: wrap;
+  padding: 20px;
 }
 
 .config-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 180px;
+}
+
+.config-item-row {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2021,25 +2024,26 @@ const showWelcomeMessage = () => {
 .config-label {
   font-size: 14px;
   color: var(--text-color, #262626);
-  white-space: nowrap;
   font-weight: 500;
+  margin-bottom: 2px;
 }
 
 
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  max-height: 400px;
-  padding: 8px 0;
+  max-height: calc(100vh - 400px);
   margin-bottom: 16px;
   width: 100%;
   overflow-x: hidden;
+  border-top: 1px solid #e8e9ea;
+  padding: 16px;
 }
 
 .message {
   display: flex;
   margin-bottom: 16px;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
   max-width: 100%;
   overflow: hidden;
@@ -2233,6 +2237,7 @@ const showWelcomeMessage = () => {
 .chat-input {
   padding-top: 16px;
   margin-top: 16px;
+  padding: 0 20px;
 }
 
 .input-actions {

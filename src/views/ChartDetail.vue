@@ -129,7 +129,7 @@
 
     <!-- 删除确认对话框 -->
     <a-modal
-      v-model:visible="deleteModal"
+      v-model:open="deleteModal"
       title="确认删除"
       @ok="handleDelete"
     >
@@ -155,6 +155,7 @@ import dayjs from 'dayjs'
 import { useChartManager } from '@/composables/useChartManager'
 import AppLayout from '@/components/AppLayout.vue'
 import { ChartGenerator } from '@/utils/chartGenerator'
+import { chartDB } from '@/utils/indexedDBManager'
 
 const router = useRouter()
 const route = useRoute()
@@ -223,6 +224,9 @@ const loadData = async () => {
   try {
     loading.value = true
     
+    // 等待数据库初始化完成
+    await waitForDatabaseInit()
+    
     const result = await getChartData(route.params.id)
     
     chart.value = result.chart
@@ -245,6 +249,31 @@ const loadData = async () => {
   }
 }
 
+// 等待数据库初始化完成
+const waitForDatabaseInit = async () => {
+  const maxRetries = 10
+  const retryDelay = 100
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      // 尝试访问数据库，如果成功则说明已初始化
+      await chartDB.getStats()
+      return
+    } catch (error) {
+      if (error.message.includes('数据库未初始化')) {
+        // 数据库未初始化，等待后重试
+        await new Promise(resolve => setTimeout(resolve, retryDelay))
+        continue
+      } else {
+        // 其他错误，直接抛出
+        throw error
+      }
+    }
+  }
+  
+  throw new Error('数据库初始化超时')
+}
+
 const renderChart = async () => {
   // 等待DOM更新
   await new Promise(resolve => setTimeout(resolve, 100))
@@ -260,8 +289,11 @@ const renderChart = async () => {
     chartInstance.value.dispose()
   }
   
-  // 初始化新图表
-  chartInstance.value = echarts.init(container)
+  // 初始化新图表，配置passive事件监听器
+  chartInstance.value = echarts.init(container, null, {
+    renderer: 'canvas',
+    useDirtyRect: false
+  })
   
   // 生成配置
   const chartGenerator = new ChartGenerator()
@@ -269,6 +301,13 @@ const renderChart = async () => {
   
   // 准备数据（转换格式）
   const transformedData = transformChartData(chartData.value, chart.value.config)
+  
+  console.log('🎯 准备渲染图表:', {
+    chartType: chart.value.config.chartType,
+    originalDataCount: chartData.value.length,
+    transformedDataCount: transformedData.length,
+    transformedData: transformedData
+  })
   
   // 生成图表配置
   const option = chartGenerator.generateOption(
@@ -280,6 +319,8 @@ const renderChart = async () => {
     transformedData
   )
   
+  console.log('📊 生成的图表配置:', option)
+  
   chartInstance.value.setOption(option)
   
   // 响应式
@@ -290,7 +331,16 @@ const transformChartData = (data, config) => {
   // 根据图表类型转换数据格式，使其兼容现有的ChartGenerator
   const transformed = []
   
-  data.forEach(item => {
+  console.log('🔄 转换图表数据:', { 
+    dataCount: data.length, 
+    config: config,
+    sampleData: data.slice(0, 2) // 显示前两条数据作为样本
+  })
+  
+  data.forEach((item, index) => {
+    console.log(`📊 处理数据项 ${index}:`, item)
+    
+    // 从数据库加载的数据格式：{ date, metrics, dimensions, metadata }
     const { date, metrics, dimensions } = item
     
     // 如果有维度数据（如按页面分组），展开为多条记录
@@ -306,11 +356,52 @@ const transformChartData = (data, config) => {
       })
     } else {
       // 否则直接使用指标数据
-      transformed.push({
-        createdAt: date,
-        ...metrics
-      })
+      const transformedItem = {
+        createdAt: date
+      }
+      
+      // 如果是UV/PV图表，确保有正确的字段名
+      if (config.chartType === 'single_page_uv_pv_chart' || config.chartType === 'uv_pv_chart') {
+        // 检查metrics中是否有uv和pv字段
+        if (metrics && typeof metrics === 'object') {
+          transformedItem.uv = metrics.uv || 0
+          transformedItem.pv = metrics.pv || 0
+          
+          // 如果metrics中还有其他字段，也添加进去
+          Object.keys(metrics).forEach(key => {
+            if (key !== 'uv' && key !== 'pv') {
+              transformedItem[key] = metrics[key]
+            }
+          })
+        } else {
+          // 如果没有metrics对象，尝试从item的其他字段推断
+          console.warn('⚠️ 未找到metrics对象，尝试从其他字段推断')
+          transformedItem.uv = item.uv || 0
+          transformedItem.pv = item.pv || 0
+        }
+        
+        console.log(`  ✓ UV/PV数据: UV=${transformedItem.uv}, PV=${transformedItem.pv}`)
+      } else {
+        // 其他图表类型，直接使用metrics
+        if (metrics && typeof metrics === 'object') {
+          Object.assign(transformedItem, metrics)
+        } else {
+          // 如果没有metrics对象，使用item的其他字段
+          Object.keys(item).forEach(key => {
+            if (key !== 'date' && key !== 'metrics' && key !== 'dimensions' && key !== 'metadata') {
+              transformedItem[key] = item[key]
+            }
+          })
+        }
+      }
+      
+      transformed.push(transformedItem)
     }
+  })
+  
+  console.log('✅ 转换后的数据:', {
+    count: transformed.length,
+    sample: transformed.slice(0, 2)
   })
   
   return transformed

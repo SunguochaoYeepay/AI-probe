@@ -60,7 +60,7 @@ import { computed } from 'vue'
 
 // Props
 const props = defineProps({
-  visible: {
+  open: {
     type: Boolean,
     default: false
   },
@@ -76,14 +76,14 @@ const props = defineProps({
 
 // Emits
 const emit = defineEmits([
-  'update:visible',
+  'update:open',
   'select-button'
 ])
 
 // Computed
 const visible = computed({
-  get: () => props.visible,
-  set: (value) => emit('update:visible', value)
+  get: () => props.open,
+  set: (value) => emit('update:open', value)
 })
 
 // Methods
