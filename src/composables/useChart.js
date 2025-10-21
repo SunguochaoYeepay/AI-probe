@@ -85,7 +85,7 @@ export function useChart() {
           specifiedPages.some(page => {
             if (!item.pageName) return false
             
-            // 智能匹配函数 - 更严格的匹配逻辑
+            // 智能匹配函数 - 优化匹配逻辑，提高匹配成功率
             const smartMatch = (target, source) => {
               // 1. 精确匹配
               if (target === source) return true
@@ -100,7 +100,12 @@ export function useChart() {
               const normalizedSource = source.replace(/[—_\-]/g, '')
               if (normalizedTarget === normalizedSource) return true
               
-              // 4. 关键词匹配 - 检查目标关键词是否在源页面名称中
+              // 4. 简单的包含匹配 - 优先使用更宽松的匹配策略
+              if (source.includes(target) || target.includes(source)) {
+                return true
+              }
+              
+              // 5. 关键词匹配 - 检查目标关键词是否在源页面名称中
               const targetKeywords = target.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
               const sourceKeywords = source.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
               
@@ -119,16 +124,20 @@ export function useChart() {
                 return true
               }
               
-              // 对于较长的关键词列表，至少80%的关键词要匹配
+              // 对于较长的关键词列表，至少60%的关键词要匹配（降低阈值）
               if (targetKeywords.length >= 3 && sourceKeywords.length >= 3) {
-                // 至少80%的关键词要匹配
                 const matchRatio = matchCount / Math.min(targetKeywords.length, sourceKeywords.length)
-                return matchRatio >= 0.8
+                return matchRatio >= 0.6
               }
               
-              // 5. 对于短页面名称，使用严格的包含匹配
+              // 6. 对于短页面名称，使用更宽松的匹配
               if (targetKeywords.length <= 2 && sourceKeywords.length <= 2) {
                 return target.includes(source) || source.includes(target)
+              }
+              
+              // 7. 最后尝试：检查是否有任何关键词匹配
+              if (matchCount > 0) {
+                return true
               }
               
               return false
@@ -157,9 +166,15 @@ export function useChart() {
         )
         console.log(`模糊匹配结果: ${fuzzyMatches.length} 条`)
         
+        // 调试：显示匹配的页面名称样本
+        if (filteredData.length > 0) {
+          const matchedPageNames = [...new Set(filteredData.map(item => item.pageName))]
+          console.log(`✅ 匹配到的页面名称样本:`, matchedPageNames.slice(0, 5))
+        }
+        
         // 调试：显示匹配的页面名称
         if (filteredData.length === 0) {
-          console.log('未找到匹配的页面，尝试的匹配规则:')
+          console.log('❌ 未找到匹配的页面，尝试的匹配规则:')
           specifiedPages.forEach(specifiedPage => {
             const exactMatches = actualPageNames.filter(actualPage => actualPage.includes(specifiedPage))
             const fuzzyMatches = actualPageNames.filter(actualPage => {
@@ -167,15 +182,30 @@ export function useChart() {
               const normalizedTarget = specifiedPage.replace(/[—_\-]/g, '')
               return normalizedPageName.includes(normalizedTarget)
             })
-            console.log(`  "${specifiedPage}" -> 精确匹配:`, exactMatches)
-            console.log(`  "${specifiedPage}" -> 模糊匹配:`, fuzzyMatches)
+            console.log(`  "${specifiedPage}" -> 精确匹配:`, exactMatches.slice(0, 3))
+            console.log(`  "${specifiedPage}" -> 模糊匹配:`, fuzzyMatches.slice(0, 3))
+            
+            // 显示最相似的页面名称
+            const similarPages = actualPageNames.filter(actualPage => {
+              const targetKeywords = specifiedPage.split(/[—_\-]/gi).filter(k => k.trim().length > 1)
+              const sourceKeywords = actualPage.split(/[—_\-]/gi).filter(k => k.trim().length > 1)
+              return targetKeywords.some(targetKeyword => 
+                sourceKeywords.some(sourceKeyword => 
+                  sourceKeyword.includes(targetKeyword) || targetKeyword.includes(sourceKeyword)
+                )
+              )
+            })
+            console.log(`  "${specifiedPage}" -> 相似页面:`, similarPages.slice(0, 5))
           })
           
           // 显示所有可用的页面名称，帮助用户选择
-          console.log('=== 所有可用的页面名称 ===')
-          actualPageNames.forEach((pageName, index) => {
+          console.log('=== 所有可用的页面名称（前20个） ===')
+          actualPageNames.slice(0, 20).forEach((pageName, index) => {
             console.log(`${index + 1}. ${pageName}`)
           })
+          if (actualPageNames.length > 20) {
+            console.log(`...还有${actualPageNames.length - 20}个页面`)
+          }
           console.log('========================')
         }
         
@@ -183,25 +213,50 @@ export function useChart() {
           data = filteredData
           console.log('使用过滤后的数据:', filteredData.length, '条')
         } else {
-          // 对于单页面分析，如果找不到匹配的页面，应该报错而不是显示所有数据
+          // 对于单页面分析，如果找不到匹配的页面，尝试更宽松的匹配策略
           if (analysis.chartType === 'single_page_uv_pv_chart') {
-            const availablePages = actualPageNames.slice(0, 5).join('、')
-            // 提供更友好的错误提示
-            const suggestedPages = actualPageNames.filter(page => 
-              specifiedPages.some(specified => 
-                page.includes(specified) || specified.includes(page)
-              )
-            ).slice(0, 5)
+            console.log('🔍 尝试更宽松的匹配策略...')
             
-            let errorMsg = `❌ 抱歉，系统中没有找到"${specifiedPages.join(', ')}"这个页面。\n\n`
+            // 尝试更宽松的匹配：只要包含任何一个关键词就匹配
+            const relaxedMatches = data.filter(item => 
+              specifiedPages.some(page => {
+                if (!item.pageName) return false
+                
+                // 将页面名称和指定页面都转换为关键词
+                const pageKeywords = page.split(/[—_\-]/gi).filter(k => k.trim().length > 1)
+                const itemKeywords = item.pageName.split(/[—_\-]/gi).filter(k => k.trim().length > 1)
+                
+                // 检查是否有任何关键词匹配
+                return pageKeywords.some(pageKeyword => 
+                  itemKeywords.some(itemKeyword => 
+                    itemKeyword.includes(pageKeyword) || pageKeyword.includes(itemKeyword)
+                  )
+                )
+              })
+            )
             
-            if (suggestedPages.length > 0) {
-              errorMsg += `💡 建议的页面名称：\n${suggestedPages.map(page => `• ${page}`).join('\n')}\n\n`
+            if (relaxedMatches.length > 0) {
+              console.log(`✅ 宽松匹配成功: 找到${relaxedMatches.length}条数据`)
+              data = relaxedMatches
+            } else {
+              // 如果宽松匹配也失败，提供错误提示
+              const availablePages = actualPageNames.slice(0, 5).join('、')
+              const suggestedPages = actualPageNames.filter(page => 
+                specifiedPages.some(specified => 
+                  page.includes(specified) || specified.includes(page)
+                )
+              ).slice(0, 5)
+              
+              let errorMsg = `❌ 抱歉，系统中没有找到"${specifiedPages.join(', ')}"这个页面。\n\n`
+              
+              if (suggestedPages.length > 0) {
+                errorMsg += `💡 建议的页面名称：\n${suggestedPages.map(page => `• ${page}`).join('\n')}\n\n`
+              }
+              
+              errorMsg += `📋 当前可用的页面包括：\n${actualPageNames.slice(0, 10).map(page => `• ${page}`).join('\n')}${actualPageNames.length > 10 ? `\n\n...还有${actualPageNames.length - 10}个页面` : ''}\n\n`
+              errorMsg += `请从上述页面中选择一个正确的页面名称。`
+              throw new Error(errorMsg)
             }
-            
-            errorMsg += `📋 当前可用的页面包括：\n${actualPageNames.slice(0, 10).map(page => `• ${page}`).join('\n')}${actualPageNames.length > 10 ? `\n\n...还有${actualPageNames.length - 10}个页面` : ''}\n\n`
-            errorMsg += `请从上述页面中选择一个正确的页面名称。`
-            throw new Error(errorMsg)
           } else {
             message.warning(`未找到指定页面的数据，将显示所有数据`)
             console.log('使用所有数据（未过滤）:', data.length, '条')
