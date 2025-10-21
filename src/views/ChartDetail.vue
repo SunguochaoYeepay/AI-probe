@@ -92,6 +92,18 @@
 
       <!-- 图表区域 -->
       <a-card class="chart-card" :bordered="false" title="数据可视化">
+        <template #extra>
+          <a-radio-group 
+            v-model:value="selectedTimeRange" 
+            size="small"
+            @change="onTimeRangeChange"
+            class="time-range-selector"
+          >
+            <a-radio-button value="7">7天</a-radio-button>
+            <a-radio-button value="30">近30天</a-radio-button>
+            <a-radio-button value="60">近60天</a-radio-button>
+          </a-radio-group>
+        </template>
         <div id="chart-container" class="chart-container"></div>
       </a-card>
 
@@ -178,6 +190,7 @@ const chartData = ref([])
 const dateRange = ref(null)
 const chartInstance = ref(null)
 const deleteModal = ref(false)
+const selectedTimeRange = ref('7') // 默认7天
 
 // 计算属性
 const needUpdate = computed(() => {
@@ -387,142 +400,176 @@ const renderChart = async () => {
 }
 
 const transformChartData = (data, config, chartInfo = null) => {
-  // 根据图表类型转换数据格式，使其兼容现有的ChartGenerator
+  // 🚀 关键修复：生成完整的时间轴，确保显示所有天数
   const transformed = []
   
   console.log('🔄 转换图表数据:', { 
     dataCount: data.length, 
     config: config,
     chartInfo: chartInfo,
-    sampleData: data.slice(0, 2) // 显示前两条数据作为样本
+    sampleData: data.slice(0, 2)
   })
   
-  data.forEach((item, index) => {
-    console.log(`📊 处理数据项 ${index}:`, item)
+  // 生成完整的时间轴
+  let fullDateRange = []
+  if (dateRange.value && dateRange.value.startDate && dateRange.value.endDate) {
+    const startDate = dayjs(dateRange.value.startDate)
+    const endDate = dayjs(dateRange.value.endDate)
     
-    // 从数据库加载的数据格式：{ date, metrics, dimensions, metadata }
-    const { date, metrics, dimensions } = item
+    let currentDate = startDate
+    while (currentDate.isSameOrBefore(endDate)) {
+      fullDateRange.push(currentDate.format('YYYY-MM-DD'))
+      currentDate = currentDate.add(1, 'day')
+    }
     
-    // 如果有维度数据（如按页面分组），展开为多条记录
-    if (dimensions && dimensions.byPage) {
-      dimensions.byPage.forEach(page => {
-        transformed.push({
-          createdAt: date,
-          pageName: page.page,
-          weCustomerKey: `dummy_${page.uv}`, // 模拟用户ID
-          ...metrics,
-          ...page
+    console.log(`📅 生成完整时间轴: ${fullDateRange.length}天，从 ${fullDateRange[0]} 到 ${fullDateRange[fullDateRange.length - 1]}`)
+  } else {
+    // 如果没有日期范围信息，使用现有数据的日期范围
+    const dates = data.map(item => item.date).sort()
+    if (dates.length > 0) {
+      const startDate = dayjs(dates[0])
+      const endDate = dayjs(dates[dates.length - 1])
+      
+      let currentDate = startDate
+      while (currentDate.isSameOrBefore(endDate)) {
+        fullDateRange.push(currentDate.format('YYYY-MM-DD'))
+        currentDate = currentDate.add(1, 'day')
+      }
+    }
+  }
+  
+  // 创建数据映射
+  const dataMap = new Map()
+  data.forEach(item => {
+    dataMap.set(item.date, item)
+  })
+  
+  // 为每个日期生成数据点（包括无数据的天）
+  fullDateRange.forEach(date => {
+    const existingData = dataMap.get(date)
+    
+    if (existingData) {
+      // 有数据的天，使用现有数据
+      const { date: itemDate, metrics, dimensions } = existingData
+      
+      if (dimensions && dimensions.byPage) {
+        dimensions.byPage.forEach(page => {
+          transformed.push({
+            createdAt: itemDate,
+            pageName: page.page,
+            weCustomerKey: `dummy_${page.uv}`,
+            ...metrics,
+            ...page
+          })
         })
-      })
+      } else {
+        const transformedItem = {
+          createdAt: itemDate
+        }
+        
+        // 处理按钮点击分析
+        if (config.chartType === 'button_click_analysis' || config.chartType === 'button_click_daily') {
+          const description = (chartInfo && chartInfo.description) || config.description || ''
+          
+          let pageMatch = description.match(/页面[""]([^""]+)[""]/)
+          if (!pageMatch) {
+            pageMatch = description.match(/页面"([^"]+)"/)
+          }
+          if (!pageMatch) {
+            pageMatch = description.match(/页面([^的]+)的/)
+          }
+          if (!pageMatch && description.startsWith('#')) {
+            pageMatch = description.match(/#([^ ]+)/)
+          }
+          
+          let buttonMatch = description.match(/[""]([^""]+)[""]按钮/)
+          if (!buttonMatch) {
+            buttonMatch = description.match(/"([^"]+)"按钮/)
+          }
+          if (!buttonMatch) {
+            buttonMatch = description.match(/的"([^"]+)"按钮/)
+          }
+          
+          transformedItem.type = 'click'
+          transformedItem.pageName = pageMatch ? pageMatch[1] : '未知页面'
+          transformedItem.content = buttonMatch ? buttonMatch[1] : '未知按钮'
+          
+          // 从metrics中提取UV和PV数据
+          if (metrics && typeof metrics === 'object') {
+            transformedItem.uv = metrics.uv || 0
+            transformedItem.pv = metrics.pv || 0
+          } else {
+            transformedItem.uv = existingData.uv || 0
+            transformedItem.pv = existingData.pv || 0
+          }
+        }
+        // 处理UV/PV图表
+        else if (config.chartType === 'single_page_uv_pv_chart' || config.chartType === 'uv_pv_chart') {
+          if (metrics && typeof metrics === 'object') {
+            transformedItem.uv = metrics.uv || 0
+            transformedItem.pv = metrics.pv || 0
+            Object.keys(metrics).forEach(key => {
+              if (key !== 'uv' && key !== 'pv') {
+                transformedItem[key] = metrics[key]
+              }
+            })
+          } else {
+            transformedItem.uv = existingData.uv || 0
+            transformedItem.pv = existingData.pv || 0
+          }
+        } else {
+          // 其他图表类型
+          if (metrics && typeof metrics === 'object') {
+            Object.assign(transformedItem, metrics)
+          } else {
+            Object.keys(existingData).forEach(key => {
+              if (key !== 'date' && key !== 'metrics' && key !== 'dimensions' && key !== 'metadata') {
+                transformedItem[key] = existingData[key]
+              }
+            })
+          }
+        }
+        
+        transformed.push(transformedItem)
+      }
     } else {
-      // 否则直接使用指标数据
+      // 无数据的天，生成默认数据点（值为0）
       const transformedItem = {
-        createdAt: date
+        createdAt: date,
+        uv: 0,
+        pv: 0
       }
       
-      // 如果是按钮点击分析，需要特殊处理
+      // 如果是按钮点击分析，需要添加页面和按钮信息
       if (config.chartType === 'button_click_analysis' || config.chartType === 'button_click_daily') {
-        // 从图表描述中提取页面和按钮信息，优先使用chartInfo中的描述
         const description = (chartInfo && chartInfo.description) || config.description || ''
-        console.log('🔍 数据转换时的描述:', description)
         
-        // 尝试多种匹配模式
         let pageMatch = description.match(/页面[""]([^""]+)[""]/)
-        let buttonMatch = description.match(/[""]([^""]+)[""]按钮/)
-        
-        // 如果第一种模式没匹配到，尝试其他模式
         if (!pageMatch) {
           pageMatch = description.match(/页面"([^"]+)"/)
         }
-        if (!buttonMatch) {
-          buttonMatch = description.match(/"([^"]+)"按钮/)
-        }
-        
-        // 如果还是没匹配到，尝试更宽松的匹配
         if (!pageMatch) {
           pageMatch = description.match(/页面([^的]+)的/)
+        }
+        if (!pageMatch && description.startsWith('#')) {
+          pageMatch = description.match(/#([^ ]+)/)
+        }
+        
+        let buttonMatch = description.match(/[""]([^""]+)[""]按钮/)
+        if (!buttonMatch) {
+          buttonMatch = description.match(/"([^"]+)"按钮/)
         }
         if (!buttonMatch) {
           buttonMatch = description.match(/的"([^"]+)"按钮/)
         }
         
-        // 特殊处理：如果描述以#开头，提取#后面的页面名称
-        if (!pageMatch && description.startsWith('#')) {
-          pageMatch = description.match(/#([^ ]+)/)
-        }
-        
         transformedItem.type = 'click'
         transformedItem.pageName = pageMatch ? pageMatch[1] : '未知页面'
         transformedItem.content = buttonMatch ? buttonMatch[1] : '未知按钮'
-        
-        // 添加UV/PV数据 - 从dimensions.byHour中聚合
-        console.log(`  🔍 原始数据项:`, item)
-        console.log(`  🔍 metrics对象:`, metrics)
-        console.log(`  🔍 dimensions对象:`, dimensions)
-        console.log(`  🔍 dimensions.byHour:`, dimensions?.byHour)
-        
-        // 从dimensions.byHour中聚合UV/PV数据
-        let totalUv = 0
-        let totalPv = 0
-        
-        if (dimensions && dimensions.byHour && Array.isArray(dimensions.byHour)) {
-          dimensions.byHour.forEach(hourData => {
-            totalUv += hourData.uv || 0
-            totalPv += hourData.pv || 0
-          })
-          console.log(`  🔍 从byHour聚合: 总UV=${totalUv}, 总PV=${totalPv}`)
-        } else if (metrics && typeof metrics === 'object') {
-          totalUv = metrics.uv || 0
-          totalPv = metrics.pv || 0
-          console.log(`  🔍 从metrics提取: UV=${metrics.uv}, PV=${metrics.pv}`)
-        } else {
-          totalUv = item.uv || 0
-          totalPv = item.pv || 0
-          console.log(`  🔍 从item提取: UV=${item.uv}, PV=${item.pv}`)
-        }
-        
-        transformedItem.uv = totalUv
-        transformedItem.pv = totalPv
-        
-        console.log(`  ✓ 按钮点击数据: 页面=${transformedItem.pageName}, 按钮=${transformedItem.content}, UV=${transformedItem.uv}, PV=${transformedItem.pv}`)
-        console.log(`  🔍 匹配结果: pageMatch=${pageMatch}, buttonMatch=${buttonMatch}`)
-      }
-      // 如果是UV/PV图表，确保有正确的字段名
-      else if (config.chartType === 'single_page_uv_pv_chart' || config.chartType === 'uv_pv_chart') {
-        // 检查metrics中是否有uv和pv字段
-        if (metrics && typeof metrics === 'object') {
-          transformedItem.uv = metrics.uv || 0
-          transformedItem.pv = metrics.pv || 0
-          
-          // 如果metrics中还有其他字段，也添加进去
-          Object.keys(metrics).forEach(key => {
-            if (key !== 'uv' && key !== 'pv') {
-              transformedItem[key] = metrics[key]
-            }
-          })
-        } else {
-          // 如果没有metrics对象，尝试从item的其他字段推断
-          console.warn('⚠️ 未找到metrics对象，尝试从其他字段推断')
-          transformedItem.uv = item.uv || 0
-          transformedItem.pv = item.pv || 0
-        }
-        
-        console.log(`  ✓ UV/PV数据: UV=${transformedItem.uv}, PV=${transformedItem.pv}`)
-      } else {
-        // 其他图表类型，直接使用metrics
-        if (metrics && typeof metrics === 'object') {
-          Object.assign(transformedItem, metrics)
-        } else {
-          // 如果没有metrics对象，使用item的其他字段
-          Object.keys(item).forEach(key => {
-            if (key !== 'date' && key !== 'metrics' && key !== 'dimensions' && key !== 'metadata') {
-              transformedItem[key] = item[key]
-            }
-          })
-        }
       }
       
       transformed.push(transformedItem)
+      console.log(`  📅 无数据天: ${date}，生成默认数据点 (UV=0, PV=0)`)
     }
   })
   
@@ -533,6 +580,7 @@ const transformChartData = (data, config, chartInfo = null) => {
   
   return transformed
 }
+
 
 const handleResize = () => {
   chartInstance.value?.resize()
@@ -707,6 +755,46 @@ const formatDateTime = (dateStr) => {
   return dayjs(dateStr).format('YYYY-MM-DD HH:mm')
 }
 
+// 时间范围变化处理
+const onTimeRangeChange = async (e) => {
+  const newTimeRange = e.target.value
+  console.log('🕒 [ChartDetail] 时间范围变化:', newTimeRange)
+  
+  try {
+    const days = parseInt(newTimeRange)
+    console.log(`📅 [ChartDetail] 切换到${days}天数据范围`)
+    
+    // 显示加载状态
+    message.loading(`正在加载${days}天数据...`, 0)
+    
+    // 计算新的日期范围
+    const endDate = dayjs()
+    const startDate = endDate.subtract(days - 1, 'day')
+    
+    console.log(`📊 [ChartDetail] 新日期范围: ${startDate.format('YYYY-MM-DD')} 至 ${endDate.format('YYYY-MM-DD')}`)
+    
+    // 获取新时间范围的数据
+    const result = await getChartData(route.params.id, {
+      startDate: startDate.format('YYYY-MM-DD'),
+      endDate: endDate.format('YYYY-MM-DD')
+    })
+    
+    chartData.value = result.data
+    dateRange.value = result.dateRange
+    
+    // 重新渲染图表
+    await renderChart()
+    
+    message.destroy()
+    message.success(`已切换到${days}天数据视图`)
+    
+  } catch (error) {
+    message.destroy()
+    console.error('❌ [ChartDetail] 时间范围切换失败:', error)
+    message.error(`切换时间范围失败: ${error.message}`)
+  }
+}
+
 // 生命周期
 onMounted(async () => {
   await loadData()
@@ -765,6 +853,18 @@ onUnmounted(() => {
   
   .text-danger {
     color: #ff4d4f;
+  }
+  
+  /* 时间选择器样式 */
+  .time-range-selector {
+    margin-right: 8px;
+  }
+  
+  .time-range-selector :deep(.ant-radio-button-wrapper) {
+    font-size: 12px;
+    padding: 2px 8px;
+    height: 24px;
+    line-height: 20px;
   }
 }
 </style>

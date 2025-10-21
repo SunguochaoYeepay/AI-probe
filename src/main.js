@@ -5,6 +5,7 @@ import App from './App.vue'
 import router from './router'
 import store from './store'
 import * as echarts from 'echarts'
+import './services/scheduledUpdateService' // 启动定时更新服务
 
 // 配置ECharts以减少性能警告
 echarts.registerTheme('default', {

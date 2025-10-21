@@ -37,6 +37,7 @@
             <ChartSection
               :has-chart="hasChart"
               @save-chart="saveChartToLibrary"
+              @time-range-change="handleTimeRangeChange"
             />
           </div>
         </a-col>
@@ -939,7 +940,7 @@ const saveChartToLibrary = async () => {
   }
   
   try {
-    console.groupCollapsed('💾 [Home] 保存图表 - 调试')
+    console.groupCollapsed('💾 [Home] 保存图表 - 优化版本')
     console.time('saveChart')
     const chartData = store.state.chartConfig.data
     const effectiveAnalysis = analysisResult.value || store.state.chartConfig.analysis || {}
@@ -970,6 +971,15 @@ const saveChartToLibrary = async () => {
       console.log('🗓️ [Home] 使用原始数组数据提取的日期范围', uniqueDates)
     }
     
+    // 🚀 优化策略：只保存最近7天的数据，历史数据通过定时任务补充
+    const maxInitialDays = 7
+    const recentDates = uniqueDates.slice(-maxInitialDays)
+    console.log(`📊 [Home] 优化策略：只保存最近${maxInitialDays}天数据 (${recentDates.length}/${uniqueDates.length}天)`)
+    
+    if (recentDates.length < uniqueDates.length) {
+      console.log(`⏰ [Home] 历史数据将通过定时任务补充：${uniqueDates.length - recentDates.length}天`)
+    }
+    
     // 构造图表配置
     const chartConfig = {
       name: effectiveAnalysis.description || currentRequirement.value,
@@ -984,10 +994,25 @@ const saveChartToLibrary = async () => {
       },
       dimensions: ['date'],
       metrics: effectiveAnalysis.metrics || ['uv', 'pv'],
-      dateRangeStrategy: 'last_30_days'
+      dateRangeStrategy: 'last_30_days',
+      // 🚀 新增：定时任务配置
+      scheduledUpdate: {
+        enabled: true,
+        frequency: 'daily', // 每天更新
+        time: '01:00', // 凌晨1点执行
+        maxHistoryDays: 365, // 最多保留365天历史数据
+        batchSize: 10 // 每次批量处理10天数据
+      },
+      // 🚀 新增：数据范围信息
+      dataRange: {
+        totalDays: uniqueDates.length,
+        initialDays: recentDates.length,
+        pendingDays: uniqueDates.length - recentDates.length,
+        lastDataUpdate: recentDates[recentDates.length - 1] || null
+      }
     }
     
-    // 按日期聚合数据
+    // 按日期聚合数据（只处理最近的数据）
     const initialData = {}
     
     // 检查是否为按钮点击分析（数据格式可能不同）
@@ -1006,27 +1031,30 @@ const saveChartToLibrary = async () => {
           pvLen: chartData.pvData?.length
         })
         
-        // 将图表格式数据转换为按日期的聚合数据
+        // 将图表格式数据转换为按日期的聚合数据（只处理最近的数据）
         chartData.categories.forEach((date, index) => {
-          initialData[date] = {
-            metrics: {
-              uv: chartData.uvData[index] || 0,
-              pv: chartData.pvData[index] || 0
-            },
-            dimensions: {},
-            metadata: {
-              rawRecordCount: 0,
-              filteredRecordCount: 0,
-              processedAt: new Date().toISOString(),
-              dataQuality: 'good'
+          // 🚀 优化：只保存最近的数据
+          if (recentDates.includes(date)) {
+            initialData[date] = {
+              metrics: {
+                uv: chartData.uvData[index] || 0,
+                pv: chartData.pvData[index] || 0
+              },
+              dimensions: {},
+              metadata: {
+                rawRecordCount: 0,
+                filteredRecordCount: 0,
+                processedAt: new Date().toISOString(),
+                dataQuality: 'good'
+              }
             }
           }
         })
         console.log('🧩 [Home] 转换完成: 聚合天数=', Object.keys(initialData).length)
       } else {
-        // 按钮点击分析：直接从原始数据聚合UV/PV
+        // 按钮点击分析：直接从原始数据聚合UV/PV（只处理最近的数据）
         console.log('🔧 [Home] 按钮点击分析：直接从原始数据聚合UV/PV')
-        for (const date of uniqueDates) {
+        for (const date of recentDates) {
           const dayData = chartData.filter(d => 
             dayjs(d.createdAt).format('YYYY-MM-DD') === date
           )
@@ -1082,9 +1110,9 @@ const saveChartToLibrary = async () => {
         console.log('🧩 [Home] 按钮点击数据聚合完成: 处理天数=', Object.keys(initialData).length)
       }
     } else {
-      // 其他图表类型：使用标准聚合服务处理数据
+      // 其他图表类型：使用标准聚合服务处理数据（只处理最近的数据）
       console.log('📈 [Home] 非按钮点击图表，使用标准聚合')
-      for (const date of uniqueDates) {
+      for (const date of recentDates) {
         const dayData = chartData.filter(d => 
           dayjs(d.createdAt).format('YYYY-MM-DD') === date
         )
@@ -1110,7 +1138,19 @@ const saveChartToLibrary = async () => {
     // 保存图表
     const savedChart = await saveChartToManager(serializableChartConfig, initialData)
     
-    message.success(`图表"${savedChart.name}"已保存`)
+    // 🚀 优化提示：显示保存状态和历史数据补充信息
+    const savedDays = Object.keys(initialData).length
+    const pendingDays = chartConfig.dataRange.pendingDays
+    
+    message.success(`图表"${savedChart.name}"已保存（${savedDays}天数据）`)
+    
+    if (pendingDays > 0) {
+      message.info({
+        content: `历史数据（${pendingDays}天）将通过定时任务自动补充`,
+        duration: 8
+      })
+    }
+    
     console.timeEnd('saveChart')
     console.groupEnd()
     
@@ -1140,6 +1180,115 @@ const saveChartToLibrary = async () => {
 // 注意：仅用于调试/紧急兜底，不改变既有事件流
 // 在组件挂载后绑定，页面卸载时可由浏览器回收
 window._saveChart = saveChartToLibrary
+
+// 处理时间范围变化
+const handleTimeRangeChange = async (timeRangeInfo) => {
+  console.log('🕒 [Home] 收到时间范围变化事件:', timeRangeInfo)
+  
+  if (!store.state.chartConfig) {
+    console.warn('⚠️ [Home] 没有图表配置，无法更新时间范围')
+    return
+  }
+  
+  try {
+    const { days } = timeRangeInfo
+    console.log(`📅 [Home] 切换到${days}天数据范围`)
+    
+    // 显示加载状态
+    message.loading(`正在加载${days}天数据...`, 0)
+    
+    // 计算新的日期范围
+    const endDate = dayjs()
+    const startDate = endDate.subtract(days - 1, 'day')
+    const newDateRange = [startDate, endDate]
+    
+    console.log(`📊 [Home] 新日期范围: ${startDate.format('YYYY-MM-DD')} 至 ${endDate.format('YYYY-MM-DD')}`)
+    
+    // 获取新时间范围的数据
+    const newData = await fetchDataForDateRange(newDateRange)
+    
+    // 更新图表配置中的日期范围信息
+    const updatedChartConfig = {
+      ...store.state.chartConfig,
+      analysis: {
+        ...store.state.chartConfig.analysis,
+        userDateRange: newDateRange,
+        timeRange: days
+      }
+    }
+    
+    // 更新store中的图表配置
+    store.dispatch('updateChartConfig', {
+      ...updatedChartConfig,
+      data: newData,
+      rawData: newData,
+      timestamp: new Date().toISOString()
+    })
+    
+    // 重新生成图表
+    await generateChart(updatedChartConfig.analysis, newData, newDateRange)
+    
+    message.destroy()
+    message.success(`已切换到${days}天数据视图`)
+    
+  } catch (error) {
+    message.destroy()
+    console.error('❌ [Home] 时间范围切换失败:', error)
+    message.error(`切换时间范围失败: ${error.message}`)
+  }
+}
+
+// 根据日期范围获取数据
+const fetchDataForDateRange = async (dateRange) => {
+  const [startDate, endDate] = dateRange
+  const startDateStr = startDate.format('YYYY-MM-DD')
+  const endDateStr = endDate.format('YYYY-MM-DD')
+  
+  console.log(`📡 [Home] 获取数据: ${startDateStr} 至 ${endDateStr}`)
+  
+  // 获取日期范围内的所有数据
+  const allData = []
+  let currentDate = startDate
+  
+  while (currentDate.isSameOrBefore(endDate)) {
+    const dateStr = currentDate.format('YYYY-MM-DD')
+    console.log(`📅 [Home] 获取 ${dateStr} 的数据...`)
+    
+    try {
+      const dayData = await fetchDayData({
+        date: dateStr,
+        projectId: store.state.apiConfig.projectId,
+        selectedPointId: store.state.apiConfig.selectedPointId
+      })
+      
+      allData.push(...dayData)
+      console.log(`✅ [Home] ${dateStr}: ${dayData.length} 条数据`)
+      
+    } catch (error) {
+      console.warn(`⚠️ [Home] ${dateStr} 数据获取失败:`, error)
+      // 即使某天数据获取失败，也继续处理其他天
+    }
+    
+    currentDate = currentDate.add(1, 'day')
+  }
+  
+  console.log(`📊 [Home] 总计获取 ${allData.length} 条数据`)
+  return allData
+}
+
+// 获取单天数据的辅助函数
+const fetchDayData = async ({ date, projectId, selectedPointId }) => {
+  const { yeepayAPI } = await import('@/api')
+  
+  const response = await yeepayAPI.searchBuryPointData({
+    date: date,
+    pageSize: store.state.apiConfig.pageSize || 1000,
+    projectId: projectId,
+    selectedPointId: selectedPointId
+  })
+  
+  return response.data?.dataList || []
+}
 
 // 根据图表类型获取分类
 const getCategoryByChartType = (chartType) => {

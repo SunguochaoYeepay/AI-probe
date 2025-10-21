@@ -6,6 +6,19 @@
   >
     <template #extra>
       <a-space>
+        <!-- 时间选择器 -->
+        <a-radio-group 
+          v-if="hasChart" 
+          v-model:value="selectedTimeRange" 
+          size="small"
+          @change="onTimeRangeChange"
+          class="time-range-selector"
+        >
+          <a-radio-button value="7">7天</a-radio-button>
+          <a-radio-button value="30">近30天</a-radio-button>
+          <a-radio-button value="60">近60天</a-radio-button>
+        </a-radio-group>
+        
         <!-- 保存图表按钮 -->
         <a-button v-if="hasChart" size="small" type="primary" @click="() => { console.log('🟦 [ChartSection] 点击保存图表按钮'); saveChart(); }">
           <SaveOutlined />
@@ -63,8 +76,12 @@ const props = defineProps({
 
 // Emits
 const emit = defineEmits([
-  'save-chart'
+  'save-chart',
+  'time-range-change'
 ])
+
+// 时间范围选择
+const selectedTimeRange = ref('7') // 默认7天
 
 
 // 调试：监听hasChart变化
@@ -153,6 +170,18 @@ const saveChart = () => {
   // 1) 向父组件派发
   emit('save-chart')
 }
+
+// 时间范围变化处理
+const onTimeRangeChange = (e) => {
+  const newTimeRange = e.target.value
+  console.log('🕒 [ChartSection] 时间范围变化:', newTimeRange)
+  
+  // 向父组件发送时间范围变化事件
+  emit('time-range-change', {
+    days: parseInt(newTimeRange),
+    timeRange: newTimeRange
+  })
+}
 </script>
 
 <style scoped>
@@ -179,6 +208,18 @@ const saveChart = () => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 时间选择器样式 */
+.time-range-selector {
+  margin-right: 8px;
+}
+
+.time-range-selector :deep(.ant-radio-button-wrapper) {
+  font-size: 12px;
+  padding: 2px 8px;
+  height: 24px;
+  line-height: 20px;
 }
 
 /* 卡片内容区域样式 */

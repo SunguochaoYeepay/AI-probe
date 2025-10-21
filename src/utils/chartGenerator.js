@@ -1603,13 +1603,15 @@ export class ChartGenerator {
       console.log(`使用数据实际日期范围: ${fullDateRange.length}天`)
     }
     
-    // 初始化所有日期为0
+    // 🚀 关键优化：初始化所有日期为0，确保显示所有天数（包括无数据的天）
     fullDateRange.forEach(date => {
       timeMap[date] = {
         uvSet: new Set(),
         pvCount: 0
       }
     })
+    
+    console.log(`📅 初始化时间范围: ${fullDateRange.length}天，从 ${fullDateRange[0]} 到 ${fullDateRange[fullDateRange.length - 1]}`)
     
     data.forEach(item => {
       // 按日期分组
@@ -1654,14 +1656,32 @@ export class ChartGenerator {
    */
   generateDateRange(startDate, endDate) {
     const dates = []
-    let current = new Date(startDate)
-    const end = new Date(endDate)
     
-    while (current <= end) {
-      dates.push(current.toISOString().split('T')[0])
-      current.setDate(current.getDate() + 1)
+    // 处理dayjs对象或字符串
+    let current, end
+    if (typeof startDate === 'object' && startDate.format) {
+      // dayjs对象
+      current = startDate.clone()
+      end = endDate.clone()
+    } else {
+      // 字符串或Date对象
+      current = new Date(startDate)
+      end = new Date(endDate)
     }
     
+    while (current <= end) {
+      if (typeof current === 'object' && current.format) {
+        // dayjs对象
+        dates.push(current.format('YYYY-MM-DD'))
+        current = current.add(1, 'day')
+      } else {
+        // Date对象
+        dates.push(current.toISOString().split('T')[0])
+        current.setDate(current.getDate() + 1)
+      }
+    }
+    
+    console.log(`📅 生成日期范围: ${dates.length}天，从 ${dates[0]} 到 ${dates[dates.length - 1]}`)
     return dates
   }
 
