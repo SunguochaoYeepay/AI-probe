@@ -23,8 +23,8 @@
     </template>
     
     <a-card-meta
-      :title="chart.name"
-      :description="chart.description || '暂无描述'"
+      :title="chart.description || chart.name"
+      :description="chart.name !== chart.description ? chart.name : '暂无描述'"
     />
     
     <div class="card-info">
@@ -43,14 +43,9 @@
         <span>创建于 {{ formatDate(chart.createdAt) }}</span>
       </div>
       
-      <div class="meta-item" v-if="chart.lastDataUpdate">
+      <div class="meta-item">
         <ClockCircleOutlined />
-        <span>更新于 {{ formatDate(chart.lastDataUpdate) }}</span>
-      </div>
-      
-      <div class="meta-item" v-else>
-        <ClockCircleOutlined />
-        <span class="text-warning">待更新</span>
+        <span>更新于 {{ getLastUpdateTime(chart) }}</span>
       </div>
     </div>
     
@@ -145,7 +140,15 @@ const getMetricText = (metric) => {
 
 // 格式化日期
 const formatDate = (dateStr) => {
+  if (!dateStr) return '未知'
   return dayjs(dateStr).fromNow()
+}
+
+// 获取最后更新时间
+const getLastUpdateTime = (chart) => {
+  // 优先使用数据更新时间，其次配置更新时间，最后创建时间
+  const updateTime = chart.lastDataUpdate || chart.updatedAt || chart.createdAt
+  return formatDate(updateTime)
 }
 </script>
 

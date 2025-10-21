@@ -480,7 +480,11 @@ const analyzeRequirement = async () => {
     
     // 检测单页面查询并强制转换为正确的图表类型（排除按钮点击分析）
     const specifiedPages = await extractPageNames(currentRequirement.value)
-    if (specifiedPages.length > 0 && !analysis.chartType?.includes('button_click_analysis')) {
+    if (specifiedPages.length > 0 && 
+        !analysis.chartType?.includes('button_click_analysis') && 
+        !analysis.chartType?.includes('button_click_daily') &&
+        analysis.chartType !== 'button_click_analysis' &&
+        analysis.chartType !== 'button_click_daily') {
       console.log('检测到单页面查询，强制转换为UV/PV时间组合图')
       analysis = {
         ...analysis,
@@ -1020,25 +1024,62 @@ const saveChartToLibrary = async () => {
         })
         console.log('🧩 [Home] 转换完成: 聚合天数=', Object.keys(initialData).length)
       } else {
-        // 使用聚合服务处理数据
-        console.log('🔧 [Home] 使用聚合服务按天处理原始点击数据')
+        // 按钮点击分析：直接从原始数据聚合UV/PV
+        console.log('🔧 [Home] 按钮点击分析：直接从原始数据聚合UV/PV')
         for (const date of uniqueDates) {
           const dayData = chartData.filter(d => 
             dayjs(d.createdAt).format('YYYY-MM-DD') === date
           )
           
           if (dayData.length > 0) {
-            const aggregated = aggregationService.aggregateForChart(
-              dayData,
-              chartConfig,
-              date
+            // 过滤出指定页面和按钮的点击数据
+            console.log(`🔍 [Home] 日期 ${date} 的数据过滤:`)
+            console.log(`  - 总数据量: ${dayData.length}`)
+            console.log(`  - 点击数据量: ${dayData.filter(item => item.type === 'click').length}`)
+            console.log(`  - 页面名称匹配: ${dayData.filter(item => item.pageName === effectiveAnalysis.pageName).length}`)
+            console.log(`  - 按钮名称匹配: ${dayData.filter(item => item.content === effectiveAnalysis.buttonName).length}`)
+            
+            const buttonClickData = dayData.filter(item => 
+              item.type === 'click' && 
+              item.pageName === effectiveAnalysis.pageName && 
+              item.content === effectiveAnalysis.buttonName
             )
             
-            // 深度克隆，移除不可序列化的对象
-            initialData[date] = JSON.parse(JSON.stringify(aggregated))
+            console.log(`  - 最终匹配的按钮点击数据: ${buttonClickData.length} 条`)
+            if (buttonClickData.length > 0) {
+              console.log(`  - 样本数据:`, buttonClickData.slice(0, 2))
+            }
+            
+            // 计算UV和PV
+            let uv = 0
+            let pv = 0
+            const uvSet = new Set()
+            
+            buttonClickData.forEach(item => {
+              pv++ // 每次点击都计数
+              if (item.weCustomerKey) {
+                uvSet.add(item.weCustomerKey) // 按用户去重
+              }
+            })
+            
+            uv = uvSet.size
+            
+            initialData[date] = {
+              metrics: {
+                uv: uv,
+                pv: pv
+              },
+              dimensions: {},
+              metadata: {
+                rawRecordCount: dayData.length,
+                filteredRecordCount: buttonClickData.length,
+                processedAt: new Date().toISOString(),
+                dataQuality: buttonClickData.length > 0 ? 'good' : 'no_data'
+              }
+            }
           }
         }
-        console.log('🧮 [Home] 聚合完成: 聚合天数=', Object.keys(initialData).length)
+        console.log('🧩 [Home] 按钮点击数据聚合完成: 处理天数=', Object.keys(initialData).length)
       }
     } else {
       // 其他图表类型：使用标准聚合服务处理数据

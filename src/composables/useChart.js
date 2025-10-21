@@ -317,24 +317,37 @@ export function useChart() {
         chartGenerator.value.chart = null // 清空引用，避免重复dispose
       }
       
+      // 等待更长时间确保DOM完全渲染
+      await new Promise(resolve => setTimeout(resolve, 200))
+      
       // 确认容器存在
       const container = document.getElementById('chart-container')
+      console.log('🔍 查找图表容器 chart-container:', container)
+      
       if (!container) {
         console.error('图表容器未找到，延迟重试')
-        // 延迟一点再试
-        setTimeout(() => {
+        // 延迟更长时间再试
+        setTimeout(async () => {
           const retryContainer = document.getElementById('chart-container')
+          console.log('🔍 重试查找图表容器:', retryContainer)
+          
           if (retryContainer) {
-            // 检查是否已经dispose过，避免重复dispose
-            if (chartGenerator.value.chart && !chartGenerator.value.chart.isDisposed()) {
-              chartGenerator.value.chart.dispose()
+            try {
+              // 检查是否已经dispose过，避免重复dispose
+              if (chartGenerator.value.chart && !chartGenerator.value.chart.isDisposed()) {
+                chartGenerator.value.chart.dispose()
+              }
+              chartGenerator.value.generateChart(analysisWithDateRange, data, 'chart-container')
+              message.success('图表生成完成', 3)
+            } catch (error) {
+              console.error('重试生成图表失败:', error)
+              message.error('图表生成失败')
             }
-            chartGenerator.value.generateChart(analysisWithDateRange, data, 'chart-container')
-            message.success('图表生成完成', 3)
           } else {
+            console.error('重试后仍未找到图表容器')
             message.error('图表容器加载失败')
           }
-        }, 100)
+        }, 300)
         return
       }
       
@@ -355,8 +368,18 @@ export function useChart() {
         })))
       }
       
-      chartGenerator.value.generateChart(analysisWithDateRange, data, 'chart-container')
-      message.success(`分析完成（${data.length}条数据）`)
+      try {
+        // 生成图表
+        console.log('🔧 开始生成图表')
+        chartGenerator.value.generateChart(analysisWithDateRange, data, 'chart-container')
+        console.log('✅ 图表生成成功')
+        
+        message.success(`分析完成（${data.length}条数据）`)
+      } catch (error) {
+        console.error('❌ 图表生成失败:', error)
+        message.error(`图表生成失败: ${error.message}`)
+        throw error
+      }
       
     } catch (error) {
       console.error('图表生成失败:', error)

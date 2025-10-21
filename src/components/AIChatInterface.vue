@@ -70,6 +70,7 @@
               type="primary" 
               ghost
               @click="handleAction(action)"
+              :wave="false"
             >
               {{ action.text }}
             </a-button>
@@ -124,6 +125,7 @@
           @click="() => sendMessage()"
           :loading="isAIThinking"
           :disabled="!inputMessage.trim()"
+          :wave="false"
         >
           <SendOutlined />
           发送

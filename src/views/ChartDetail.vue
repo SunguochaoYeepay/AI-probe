@@ -24,33 +24,41 @@
 
       <!-- 信息栏 -->
       <a-card class="info-card" :bordered="false">
+        <!-- 分析对象 -->
+        <div class="analysis-target" style="margin-bottom: 16px;">
+          <h3 style="margin: 0 0 8px 0; color: #1890ff;">
+            <FileTextOutlined style="margin-right: 8px;" />
+            {{ getAnalysisTarget() }}
+          </h3>
+          <p style="margin: 0; color: #666; font-size: 14px;">
+            {{ chart?.description }}
+          </p>
+        </div>
+        
         <a-row :gutter="24">
           <a-col :span="12">
-            <a-descriptions :column="2" size="small">
-              <a-descriptions-item label="分类">
+            <a-descriptions :column="1" size="small">
+              <a-descriptions-item label="分析类型">
                 <a-tag :color="getCategoryColor(chart?.category)">
                   {{ chart?.category }}
-                </a-tag>
-              </a-descriptions-item>
-              <a-descriptions-item label="状态">
-                <a-tag :color="chart?.status === 'active' ? 'green' : 'default'">
-                  {{ getStatusText(chart?.status) }}
                 </a-tag>
               </a-descriptions-item>
               <a-descriptions-item label="图表类型">
                 {{ getChartTypeName(chart?.config.chartType) }}
               </a-descriptions-item>
-              <a-descriptions-item label="分析指标">
-                <a-tag v-for="metric in chart?.config.metrics" :key="metric" size="small">
-                  {{ getMetricText(metric) }}
-                </a-tag>
+              <a-descriptions-item label="数据范围">
+                {{ chart?.config.dateRangeStrategy }}
               </a-descriptions-item>
             </a-descriptions>
           </a-col>
           <a-col :span="12">
-            <a-descriptions :column="2" size="small">
-              <a-descriptions-item label="创建时间">
-                {{ formatDateTime(chart?.createdAt) }}
+            <a-descriptions :column="1" size="small">
+              <a-descriptions-item label="数据条数">
+                <a-statistic 
+                  :value="chartData.length" 
+                  suffix="条"
+                  :value-style="{ fontSize: '14px' }"
+                />
               </a-descriptions-item>
               <a-descriptions-item label="最后更新">
                 <span v-if="chart?.lastDataUpdate">
@@ -58,15 +66,10 @@
                 </span>
                 <span v-else class="text-warning">待更新</span>
               </a-descriptions-item>
-              <a-descriptions-item label="数据范围">
-                {{ chart?.config.dateRangeStrategy }}
-              </a-descriptions-item>
-              <a-descriptions-item label="数据条数">
-                <a-statistic 
-                  :value="chartData.length" 
-                  suffix="条"
-                  :value-style="{ fontSize: '14px' }"
-                />
+              <a-descriptions-item label="状态">
+                <a-tag :color="chart?.status === 'active' ? 'green' : 'default'">
+                  {{ getStatusText(chart?.status) }}
+                </a-tag>
               </a-descriptions-item>
             </a-descriptions>
           </a-col>
@@ -89,7 +92,7 @@
 
       <!-- 图表区域 -->
       <a-card class="chart-card" :bordered="false" title="数据可视化">
-        <div id="chart-detail-container" class="chart-container"></div>
+        <div id="chart-container" class="chart-container"></div>
       </a-card>
 
       <!-- 关键指标 -->
@@ -148,7 +151,8 @@ import {
   ArrowLeftOutlined,
   ReloadOutlined,
   DownloadOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  FileTextOutlined
 } from '@ant-design/icons-vue'
 import * as echarts from 'echarts'
 import dayjs from 'dayjs'
@@ -276,64 +280,120 @@ const waitForDatabaseInit = async () => {
 
 const renderChart = async () => {
   // 等待DOM更新
-  await new Promise(resolve => setTimeout(resolve, 100))
+  await new Promise(resolve => setTimeout(resolve, 200))
   
-  const container = document.getElementById('chart-detail-container')
+  const container = document.getElementById('chart-container')
   if (!container) {
-    console.error('图表容器未找到')
+    console.error('❌ 图表容器未找到')
     return
   }
   
+  console.log('✅ 找到图表容器，开始渲染图表')
+  
   // 销毁旧图表
   if (chartInstance.value) {
+    console.log('🗑️ 销毁旧图表')
     chartInstance.value.dispose()
   }
   
-  // 初始化新图表，配置passive事件监听器
-  chartInstance.value = echarts.init(container, null, {
-    renderer: 'canvas',
-    useDirtyRect: false
-  })
-  
-  // 生成配置
-  const chartGenerator = new ChartGenerator()
-  chartGenerator.chart = chartInstance.value
-  
-  // 准备数据（转换格式）
-  const transformedData = transformChartData(chartData.value, chart.value.config)
-  
-  console.log('🎯 准备渲染图表:', {
-    chartType: chart.value.config.chartType,
-    originalDataCount: chartData.value.length,
-    transformedDataCount: transformedData.length,
-    transformedData: transformedData
-  })
-  
-  // 生成图表配置
-  const option = chartGenerator.generateOption(
-    {
+  try {
+    // 准备数据（转换格式）
+    const transformedData = transformChartData(chartData.value, chart.value.config, chart.value)
+    
+    console.log('🎯 准备渲染图表:', {
+      chartType: chart.value.config.chartType,
+      originalDataCount: chartData.value.length,
+      transformedDataCount: transformedData.length,
+      transformedData: transformedData
+    })
+    
+    // 生成图表配置
+    const analysisConfig = {
       chartType: chart.value.config.chartType,
       intent: chart.value.config.metrics,
       dateRange: `${dateRange.value.startDate} 至 ${dateRange.value.endDate}`
-    },
-    transformedData
-  )
-  
-  console.log('📊 生成的图表配置:', option)
-  
-  chartInstance.value.setOption(option)
+    }
+    
+    // 如果是按钮点击分析，需要传递页面和按钮信息
+    if (chart.value.config.chartType === 'button_click_analysis' || chart.value.config.chartType === 'button_click_daily') {
+      // 从图表描述中提取页面和按钮信息
+      const description = chart.value.description || ''
+      console.log('🔍 完整图表对象:', chart.value)
+      console.log('🔍 图表描述:', description)
+      console.log('🔍 图表名称:', chart.value.name)
+      
+      // 尝试多种匹配模式
+      let pageMatch = description.match(/页面[""]([^""]+)[""]/)
+      let buttonMatch = description.match(/[""]([^""]+)[""]按钮/)
+      
+      // 如果第一种模式没匹配到，尝试其他模式
+      if (!pageMatch) {
+        pageMatch = description.match(/页面"([^"]+)"/)
+      }
+      if (!buttonMatch) {
+        buttonMatch = description.match(/"([^"]+)"按钮/)
+      }
+      
+      // 如果还是没匹配到，尝试更宽松的匹配
+      if (!pageMatch) {
+        pageMatch = description.match(/页面([^的]+)的/)
+      }
+      if (!buttonMatch) {
+        buttonMatch = description.match(/的"([^"]+)"按钮/)
+      }
+      
+      // 特殊处理：如果描述以#开头，提取#后面的页面名称
+      if (!pageMatch && description.startsWith('#')) {
+        pageMatch = description.match(/#([^ ]+)/)
+      }
+      
+      if (pageMatch) analysisConfig.pageName = pageMatch[1]
+      if (buttonMatch) analysisConfig.buttonName = buttonMatch[1]
+      
+      console.log('🔧 按钮点击分析配置:', analysisConfig)
+      console.log('🔍 匹配结果:', { pageMatch, buttonMatch })
+    }
+    
+    // 使用修复后的ChartGenerator
+    const chartGenerator = new ChartGenerator()
+    
+    // 对于按钮点击分析，数据已经在transformChartData中处理过了，直接使用
+    if (analysisConfig.chartType === 'button_click_analysis' || analysisConfig.chartType === 'button_click_daily') {
+      // 数据已经按日期聚合，直接生成图表配置
+      const option = chartGenerator.generateButtonClickAnalysisOption(analysisConfig, transformedData)
+      
+      // 初始化图表
+      chartInstance.value = echarts.init(container, null, {
+        renderer: 'canvas',
+        useDirtyRect: false
+      })
+      
+      // 设置配置并渲染
+      chartInstance.value.setOption(option, true)
+    } else {
+      // 其他图表类型使用标准流程
+      chartInstance.value = chartGenerator.generateChart(analysisConfig, transformedData, 'chart-container')
+    }
+    
+    console.log('✅ 图表渲染成功')
+    
+  } catch (error) {
+    console.error('❌ 图表渲染失败:', error)
+    message.error(`图表渲染失败: ${error.message}`)
+  }
   
   // 响应式
   window.addEventListener('resize', handleResize)
 }
 
-const transformChartData = (data, config) => {
+const transformChartData = (data, config, chartInfo = null) => {
   // 根据图表类型转换数据格式，使其兼容现有的ChartGenerator
   const transformed = []
   
   console.log('🔄 转换图表数据:', { 
     dataCount: data.length, 
     config: config,
+    chartInfo: chartInfo,
     sampleData: data.slice(0, 2) // 显示前两条数据作为样本
   })
   
@@ -360,8 +420,75 @@ const transformChartData = (data, config) => {
         createdAt: date
       }
       
+      // 如果是按钮点击分析，需要特殊处理
+      if (config.chartType === 'button_click_analysis' || config.chartType === 'button_click_daily') {
+        // 从图表描述中提取页面和按钮信息，优先使用chartInfo中的描述
+        const description = (chartInfo && chartInfo.description) || config.description || ''
+        console.log('🔍 数据转换时的描述:', description)
+        
+        // 尝试多种匹配模式
+        let pageMatch = description.match(/页面[""]([^""]+)[""]/)
+        let buttonMatch = description.match(/[""]([^""]+)[""]按钮/)
+        
+        // 如果第一种模式没匹配到，尝试其他模式
+        if (!pageMatch) {
+          pageMatch = description.match(/页面"([^"]+)"/)
+        }
+        if (!buttonMatch) {
+          buttonMatch = description.match(/"([^"]+)"按钮/)
+        }
+        
+        // 如果还是没匹配到，尝试更宽松的匹配
+        if (!pageMatch) {
+          pageMatch = description.match(/页面([^的]+)的/)
+        }
+        if (!buttonMatch) {
+          buttonMatch = description.match(/的"([^"]+)"按钮/)
+        }
+        
+        // 特殊处理：如果描述以#开头，提取#后面的页面名称
+        if (!pageMatch && description.startsWith('#')) {
+          pageMatch = description.match(/#([^ ]+)/)
+        }
+        
+        transformedItem.type = 'click'
+        transformedItem.pageName = pageMatch ? pageMatch[1] : '未知页面'
+        transformedItem.content = buttonMatch ? buttonMatch[1] : '未知按钮'
+        
+        // 添加UV/PV数据 - 从dimensions.byHour中聚合
+        console.log(`  🔍 原始数据项:`, item)
+        console.log(`  🔍 metrics对象:`, metrics)
+        console.log(`  🔍 dimensions对象:`, dimensions)
+        console.log(`  🔍 dimensions.byHour:`, dimensions?.byHour)
+        
+        // 从dimensions.byHour中聚合UV/PV数据
+        let totalUv = 0
+        let totalPv = 0
+        
+        if (dimensions && dimensions.byHour && Array.isArray(dimensions.byHour)) {
+          dimensions.byHour.forEach(hourData => {
+            totalUv += hourData.uv || 0
+            totalPv += hourData.pv || 0
+          })
+          console.log(`  🔍 从byHour聚合: 总UV=${totalUv}, 总PV=${totalPv}`)
+        } else if (metrics && typeof metrics === 'object') {
+          totalUv = metrics.uv || 0
+          totalPv = metrics.pv || 0
+          console.log(`  🔍 从metrics提取: UV=${metrics.uv}, PV=${metrics.pv}`)
+        } else {
+          totalUv = item.uv || 0
+          totalPv = item.pv || 0
+          console.log(`  🔍 从item提取: UV=${item.uv}, PV=${item.pv}`)
+        }
+        
+        transformedItem.uv = totalUv
+        transformedItem.pv = totalPv
+        
+        console.log(`  ✓ 按钮点击数据: 页面=${transformedItem.pageName}, 按钮=${transformedItem.content}, UV=${transformedItem.uv}, PV=${transformedItem.pv}`)
+        console.log(`  🔍 匹配结果: pageMatch=${pageMatch}, buttonMatch=${buttonMatch}`)
+      }
       // 如果是UV/PV图表，确保有正确的字段名
-      if (config.chartType === 'single_page_uv_pv_chart' || config.chartType === 'uv_pv_chart') {
+      else if (config.chartType === 'single_page_uv_pv_chart' || config.chartType === 'uv_pv_chart') {
         // 检查metrics中是否有uv和pv字段
         if (metrics && typeof metrics === 'object') {
           transformedItem.uv = metrics.uv || 0
@@ -526,9 +653,42 @@ const getChartTypeName = (type) => {
     click_heatmap: '点击热力图',
     user_journey: '用户行为路径',
     uv_pv_chart: 'UV/PV分析',
-    single_page_uv_pv_chart: '单页面UV/PV分析'
+    single_page_uv_pv_chart: '单页面UV/PV分析',
+    button_click_analysis: '按钮点击分析',
+    button_click_daily: '按钮点击按天分析'
   }
   return typeMap[type] || type
+}
+
+const getAnalysisTarget = () => {
+  if (!chart.value?.description) return '未知分析对象'
+  
+  const description = chart.value.description
+  
+  // 提取页面名称
+  let pageName = ''
+  if (description.startsWith('#')) {
+    const pageMatch = description.match(/#([^ ]+)/)
+    if (pageMatch) {
+      pageName = pageMatch[1]
+    }
+  }
+  
+  // 提取按钮名称
+  let buttonName = ''
+  const buttonMatch = description.match(/"([^"]+)"按钮/)
+  if (buttonMatch) {
+    buttonName = buttonMatch[1]
+  }
+  
+  // 根据是否有按钮名称决定显示内容
+  if (buttonName) {
+    return `${pageName} 页面的 "${buttonName}" 按钮`
+  } else if (pageName) {
+    return `${pageName} 页面`
+  } else {
+    return '页面分析'
+  }
 }
 
 const getMetricText = (metric) => {
@@ -562,7 +722,6 @@ onUnmounted(() => {
 
 <style scoped lang="less">
 .chart-detail {
-  padding: 24px;
   
   .detail-header {
     display: flex;
