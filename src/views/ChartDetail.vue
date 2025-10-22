@@ -378,42 +378,54 @@ const renderChart = async () => {
     }
     // 如果是按钮点击分析，需要传递页面和按钮信息
     else if (chart.value.config.chartType === 'button_click_analysis' || chart.value.config.chartType === 'button_click_daily') {
-      // 从图表描述中提取页面和按钮信息
-      const description = chart.value.description || ''
-      console.log('🔍 完整图表对象:', chart.value)
-      console.log('🔍 图表描述:', description)
-      console.log('🔍 图表名称:', chart.value.name)
+      console.log('🔍 按钮点击分析 - 完整图表对象:', chart.value)
+      console.log('🔍 按钮点击分析 - 图表配置:', chart.value.config)
       
-      // 尝试多种匹配模式
-      let pageMatch = description.match(/页面[""]([^""]+)[""]/)
-      let buttonMatch = description.match(/[""]([^""]+)[""]按钮/)
-      
-      // 如果第一种模式没匹配到，尝试其他模式
-      if (!pageMatch) {
-        pageMatch = description.match(/页面"([^"]+)"/)
+      // 🚀 优先使用保存的原始参数
+      if (chart.value.config.buttonParams) {
+        console.log('✅ 使用保存的按钮点击分析参数:', chart.value.config.buttonParams)
+        analysisConfig.pageName = chart.value.config.buttonParams.pageName
+        analysisConfig.buttonName = chart.value.config.buttonParams.buttonName
+        analysisConfig.buttonData = chart.value.config.buttonParams.buttonData
+      } else {
+        // 如果没有保存的参数，从图表描述中提取（兼容旧数据）
+        console.log('⚠️ 未找到保存的参数，从描述中解析')
+        const description = chart.value.description || ''
+        console.log('🔍 按钮点击分析 - 图表描述:', description)
+        console.log('🔍 按钮点击分析 - 图表名称:', chart.value.name)
+        
+        // 尝试多种匹配模式
+        let pageMatch = description.match(/页面[""]([^""]+)[""]/)
+        let buttonMatch = description.match(/[""]([^""]+)[""]按钮/)
+        
+        // 如果第一种模式没匹配到，尝试其他模式
+        if (!pageMatch) {
+          pageMatch = description.match(/页面"([^"]+)"/)
+        }
+        if (!buttonMatch) {
+          buttonMatch = description.match(/"([^"]+)"按钮/)
+        }
+        
+        // 如果还是没匹配到，尝试更宽松的匹配
+        if (!pageMatch) {
+          pageMatch = description.match(/页面([^的]+)的/)
+        }
+        if (!buttonMatch) {
+          buttonMatch = description.match(/的"([^"]+)"按钮/)
+        }
+        
+        // 特殊处理：如果描述以#开头，提取#后面的页面名称
+        if (!pageMatch && description.startsWith('#')) {
+          pageMatch = description.match(/#([^ ]+)/)
+        }
+        
+        if (pageMatch) analysisConfig.pageName = pageMatch[1]
+        if (buttonMatch) analysisConfig.buttonName = buttonMatch[1]
+        
+        console.log('🔍 匹配结果:', { pageMatch, buttonMatch })
       }
-      if (!buttonMatch) {
-        buttonMatch = description.match(/"([^"]+)"按钮/)
-      }
-      
-      // 如果还是没匹配到，尝试更宽松的匹配
-      if (!pageMatch) {
-        pageMatch = description.match(/页面([^的]+)的/)
-      }
-      if (!buttonMatch) {
-        buttonMatch = description.match(/的"([^"]+)"按钮/)
-      }
-      
-      // 特殊处理：如果描述以#开头，提取#后面的页面名称
-      if (!pageMatch && description.startsWith('#')) {
-        pageMatch = description.match(/#([^ ]+)/)
-      }
-      
-      if (pageMatch) analysisConfig.pageName = pageMatch[1]
-      if (buttonMatch) analysisConfig.buttonName = buttonMatch[1]
       
       console.log('🔧 按钮点击分析配置:', analysisConfig)
-      console.log('🔍 匹配结果:', { pageMatch, buttonMatch })
     }
     
     // 使用修复后的ChartGenerator
