@@ -301,21 +301,43 @@ export class QueryConditionDataProcessor {
             // 单个条件：直接使用总PV
             value = totalPv
           } else {
-            // 多个条件：使用加权分配策略
-            const baseValue = Math.floor(totalPv / conditionNames.length)
-            const remainder = totalPv % conditionNames.length
-            
-            // 第一个条件获得余数，其他条件获得基础值
-            value = baseValue + (index === 0 ? remainder : 0)
-            
-            // 如果基础值太小，给每个条件分配至少1
-            if (baseValue === 0 && totalPv >= conditionNames.length) {
-              value = 1
-            }
-            
-            // 如果总PV很大但分配后值很小，使用更合理的分配
-            if (totalPv > 10 && value < 2) {
-              value = Math.max(2, Math.floor(totalPv * 0.3))
+            // 多个条件：使用更真实的数据分配策略
+            if (totalPv === 0) {
+              value = 0
+            } else if (totalPv === 1) {
+              // 只有1个PV时，随机分配给一个条件
+              value = index === 0 ? 1 : 0
+            } else if (totalPv <= conditionNames.length) {
+              // PV数量小于等于条件数量时，每个条件最多1个
+              value = index < totalPv ? 1 : 0
+            } else {
+              // PV数量大于条件数量时，使用加权分配
+              // 主要条件（第一个）获得更多分配
+              const mainConditionRatio = 0.4 // 主要条件占40%
+              const otherConditionRatio = 0.6 / (conditionNames.length - 1) // 其他条件平分60%
+              
+              if (index === 0) {
+                // 主要条件
+                value = Math.max(1, Math.floor(totalPv * mainConditionRatio))
+              } else {
+                // 其他条件
+                value = Math.max(0, Math.floor(totalPv * otherConditionRatio))
+              }
+              
+              // 确保总和不超过总PV
+              const currentSum = conditionNames.reduce((sum, _, i) => {
+                if (i === 0) {
+                  return sum + Math.max(1, Math.floor(totalPv * mainConditionRatio))
+                } else {
+                  return sum + Math.max(0, Math.floor(totalPv * otherConditionRatio))
+                }
+              }, 0)
+              
+              if (currentSum > totalPv) {
+                // 如果总和超过总PV，按比例缩减
+                const scale = totalPv / currentSum
+                value = Math.floor(value * scale)
+              }
             }
           }
         } else if (totalUv > 0) {
