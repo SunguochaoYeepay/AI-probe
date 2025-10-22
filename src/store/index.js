@@ -21,7 +21,8 @@ export default createStore({
       supportDualBuryPoint: false,
       selectedBuryPointIds: JSON.parse(localStorage.getItem('selectedBuryPointIds') || '[]'), // 用户选中的埋点ID列表，从localStorage加载
       visitBuryPointId: JSON.parse(localStorage.getItem('visitBuryPointId') || 'null'), // 访问埋点ID
-      clickBuryPointId: JSON.parse(localStorage.getItem('clickBuryPointId') || 'null') // 点击埋点ID
+      clickBuryPointId: JSON.parse(localStorage.getItem('clickBuryPointId') || 'null'), // 点击埋点ID
+      behaviorBuryPointIds: JSON.parse(localStorage.getItem('behaviorBuryPointIds') || '[]') // 行为分析埋点ID列表
     },
     
     // Ollama AI 配置
@@ -81,6 +82,10 @@ export default createStore({
       // 持久化点击埋点到localStorage
       if (config.clickBuryPointId !== undefined) {
         localStorage.setItem('clickBuryPointId', JSON.stringify(config.clickBuryPointId))
+      }
+      // 持久化行为分析埋点到localStorage
+      if (config.behaviorBuryPointIds !== undefined) {
+        localStorage.setItem('behaviorBuryPointIds', JSON.stringify(config.behaviorBuryPointIds))
       }
     },
     

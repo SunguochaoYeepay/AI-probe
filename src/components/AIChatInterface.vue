@@ -223,7 +223,7 @@ const allBuryPoints = computed(() => {
   const configuredPoints = []
   
   // 优先使用新的分离配置
-  if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId) {
+  if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId || (projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.length > 0)) {
     if (projectConfig.visitBuryPointId) {
       const visitPoint = allBuryPoints.find(p => p.id === projectConfig.visitBuryPointId)
       if (visitPoint) {
@@ -249,6 +249,21 @@ const allBuryPoints = computed(() => {
           type: '点击' 
         })
       }
+    }
+    if (projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.length > 0) {
+      projectConfig.behaviorBuryPointIds.forEach(behaviorId => {
+        const behaviorPoint = allBuryPoints.find(p => p.id === behaviorId)
+        if (behaviorPoint) {
+          configuredPoints.push({ ...behaviorPoint, type: '行为分析' })
+        } else {
+          // 如果埋点列表中没有找到，创建一个基本的埋点信息
+          configuredPoints.push({ 
+            id: behaviorId, 
+            name: '行为分析埋点', 
+            type: '行为分析' 
+          })
+        }
+      })
     }
     console.log('使用分离配置的埋点:', configuredPoints)
   } else {
@@ -291,13 +306,16 @@ const getCurrentBuryPointType = () => {
   }
   
   // 优先使用新的分离配置
-  if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId) {
+  if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId || (projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.length > 0)) {
     if (currentPointId === projectConfig.visitBuryPointId) {
       console.log('getCurrentBuryPointType - 匹配访问埋点，返回"访问"')
       return '访问'
     } else if (currentPointId === projectConfig.clickBuryPointId) {
       console.log('getCurrentBuryPointType - 匹配点击埋点，返回"点击"')
       return '点击'
+    } else if (projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.includes(currentPointId)) {
+      console.log('getCurrentBuryPointType - 匹配行为分析埋点，返回"行为分析"')
+      return '行为分析'
     }
     console.log('getCurrentBuryPointId - 当前埋点ID不匹配任何分离配置')
   }
@@ -364,6 +382,9 @@ const onBuryPointChange = (value) => {
     } else if (newBuryPointType === '点击') {
       localStorage.setItem('defaultBuryPointType', 'click')
       console.log('已保存用户偏好：点击埋点')
+    } else if (newBuryPointType === '行为分析') {
+      localStorage.setItem('defaultBuryPointType', 'behavior')
+      console.log('已保存用户偏好：行为分析埋点')
     }
   } else {
     console.log('埋点类型未发生变化，无需更新提示词')
@@ -482,6 +503,33 @@ const updateWelcomeMessageForBuryPointType = () => {
         text: '📊 点击转化分析', 
         type: 'select_analysis', 
         params: { type: 'user_click', description: '分析点击到转化的路径和效果' } 
+      }
+    ]
+  } else if (currentBuryPointType === '行为分析') {
+    typeChangeMessage = `🔄 检测到您已切换到行为分析模式
+
+现在为您提供用户行为分析相关的选项：`
+    
+    newActions = [
+      { 
+        text: '👤 用户行为路径', 
+        type: 'select_analysis', 
+        params: { type: 'user_behavior', description: '分析用户在应用中的行为路径和流程' } 
+      },
+      { 
+        text: '📈 行为趋势分析', 
+        type: 'select_analysis', 
+        params: { type: 'user_behavior', description: '分析用户行为的时间趋势和变化' } 
+      },
+      { 
+        text: '🎯 行为转化漏斗', 
+        type: 'select_analysis', 
+        params: { type: 'user_behavior', description: '分析用户行为转化漏斗和关键节点' } 
+      },
+      { 
+        text: '📊 多埋点综合分析', 
+        type: 'select_analysis', 
+        params: { type: 'multi_bury_point', description: '综合分析多个埋点的数据，发现用户行为模式' } 
       }
     ]
   } else {
@@ -1816,10 +1864,16 @@ onMounted(() => {
   const projectConfig = store.state.projectConfig
   let initialBuryPointId = null
   
-  if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId) {
+  if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId || (projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.length > 0)) {
     // 优先使用当前已选择的埋点
     const currentSelectedId = store.state.apiConfig.selectedPointId
-    if (currentSelectedId && (currentSelectedId === projectConfig.visitBuryPointId || currentSelectedId === projectConfig.clickBuryPointId)) {
+    const allConfiguredIds = [
+      projectConfig.visitBuryPointId,
+      projectConfig.clickBuryPointId,
+      ...(projectConfig.behaviorBuryPointIds || [])
+    ].filter(Boolean)
+    
+    if (currentSelectedId && allConfiguredIds.includes(currentSelectedId)) {
       initialBuryPointId = currentSelectedId
       console.log('使用当前已选择的埋点:', initialBuryPointId)
     } else {
@@ -1828,7 +1882,8 @@ onMounted(() => {
       console.log('检查localStorage中的偏好设置:', defaultBuryPointType)
       console.log('可用的埋点配置:', {
         visitBuryPointId: projectConfig.visitBuryPointId,
-        clickBuryPointId: projectConfig.clickBuryPointId
+        clickBuryPointId: projectConfig.clickBuryPointId,
+        behaviorBuryPointIds: projectConfig.behaviorBuryPointIds
       })
       
       if (defaultBuryPointType === 'click' && projectConfig.clickBuryPointId) {
@@ -1839,14 +1894,21 @@ onMounted(() => {
         // 用户偏好访问埋点
         initialBuryPointId = projectConfig.visitBuryPointId
         console.log('使用用户偏好的访问埋点:', initialBuryPointId)
+      } else if (defaultBuryPointType === 'behavior' && projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.length > 0) {
+        // 用户偏好行为分析埋点
+        initialBuryPointId = projectConfig.behaviorBuryPointIds[0]
+        console.log('使用用户偏好的行为分析埋点:', initialBuryPointId)
       } else {
-        // 默认优先使用访问埋点，如果没有则使用点击埋点
-        initialBuryPointId = projectConfig.visitBuryPointId || projectConfig.clickBuryPointId
+        // 默认优先使用访问埋点，如果没有则使用点击埋点，最后使用行为分析埋点
+        initialBuryPointId = projectConfig.visitBuryPointId || 
+                           projectConfig.clickBuryPointId || 
+                           (projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds[0])
         console.log('使用默认埋点选择:', initialBuryPointId)
         console.log('偏好设置无效的原因:', {
           defaultBuryPointType,
           hasClickPoint: !!projectConfig.clickBuryPointId,
-          hasVisitPoint: !!projectConfig.visitBuryPointId
+          hasVisitPoint: !!projectConfig.visitBuryPointId,
+          hasBehaviorPoints: !!(projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.length > 0)
         })
       }
     }

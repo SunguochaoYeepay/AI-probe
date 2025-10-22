@@ -120,6 +120,35 @@
               选择用于记录按钮点击行为的埋点
             </div>
           </a-form-item>
+
+          <!-- 行为分析埋点配置 -->
+          <a-form-item v-if="currentBuryPoints?.buryPoints?.length > 0" label="行为分析埋点">
+            <a-select
+              v-model:value="behaviorBuryPointIds"
+              placeholder="请选择行为分析埋点（可多选）"
+              style="width: 100%"
+              @change="onBehaviorBuryPointChange"
+              show-search
+              :filter-option="filterBuryPoint"
+              allow-clear
+              mode="multiple"
+              :max-tag-count="3"
+            >
+              <a-select-option
+                v-for="point in currentBuryPoints.buryPoints"
+                :key="point.id"
+                :value="point.id"
+              >
+                <div class="bury-point-option">
+                  <span class="bury-point-name">{{ point.name }}</span>
+                  <span class="bury-point-id">(ID: {{ point.id }})</span>
+                </div>
+              </a-select-option>
+            </a-select>
+            <div style="color: #999; font-size: 12px; margin-top: 4px;">
+              选择用于记录用户行为分析的埋点，支持多选
+            </div>
+          </a-form-item>
           
           <a-form-item label="访问令牌">
             <a-input-password v-model:value="projectConfigForm.accessToken" autocomplete="current-password" />
@@ -265,6 +294,9 @@ const visitBuryPointId = ref(null)
 // 点击埋点ID
 const clickBuryPointId = ref(null)
 
+// 行为分析埋点ID列表
+const behaviorBuryPointIds = ref([])
+
 // 监听props变化，初始化选中的埋点
 watch(() => props.projectConfigForm.selectedBuryPointIds, (newIds) => {
   if (newIds && Array.isArray(newIds)) {
@@ -286,6 +318,14 @@ watch(() => props.projectConfigForm.clickBuryPointId, (newId) => {
   if (newId) {
     clickBuryPointId.value = newId
     console.log('从props初始化点击埋点:', clickBuryPointId.value)
+  }
+}, { immediate: true })
+
+// 监听行为分析埋点变化
+watch(() => props.projectConfigForm.behaviorBuryPointIds, (newIds) => {
+  if (newIds && Array.isArray(newIds)) {
+    behaviorBuryPointIds.value = [...newIds]
+    console.log('从props初始化行为分析埋点:', behaviorBuryPointIds.value)
   }
 }, { immediate: true })
 
@@ -360,6 +400,9 @@ const onProjectSelect = async (projectId) => {
     
     // 清空选中的埋点，让用户自己选择
     selectedBuryPointIds.value = []
+    visitBuryPointId.value = null
+    clickBuryPointId.value = null
+    behaviorBuryPointIds.value = []
     
     message.success(`项目 ${projectId} 配置加载成功，已加载 ${currentBuryPoints.value?.buryPoints?.length || 0} 个埋点`)
     
@@ -367,7 +410,10 @@ const onProjectSelect = async (projectId) => {
     emit('project-config-updated', {
       projectId,
       config: currentBuryPoints.value,
-      selectedBuryPointIds: []
+      selectedBuryPointIds: [],
+      visitBuryPointId: null,
+      clickBuryPointId: null,
+      behaviorBuryPointIds: []
     })
   } catch (err) {
     message.error(`加载项目配置失败: ${err.message}`)
@@ -397,7 +443,10 @@ const onBuryPointsChange = (checkedValues) => {
     emit('project-config-updated', {
       projectId: currentProject.value.id,
       config: currentBuryPoints.value,
-      selectedBuryPointIds: checkedValues
+      selectedBuryPointIds: checkedValues,
+      visitBuryPointId: visitBuryPointId.value,
+      clickBuryPointId: clickBuryPointId.value,
+      behaviorBuryPointIds: behaviorBuryPointIds.value
     })
   }
 }
@@ -425,7 +474,8 @@ const onVisitBuryPointChange = (pointId) => {
       projectId: currentProject.value.id,
       config: currentBuryPoints.value,
       visitBuryPointId: pointId,
-      clickBuryPointId: clickBuryPointId.value
+      clickBuryPointId: clickBuryPointId.value,
+      behaviorBuryPointIds: behaviorBuryPointIds.value
     })
   }
 }
@@ -453,7 +503,37 @@ const onClickBuryPointChange = (pointId) => {
       projectId: currentProject.value.id,
       config: currentBuryPoints.value,
       visitBuryPointId: visitBuryPointId.value,
-      clickBuryPointId: pointId
+      clickBuryPointId: pointId,
+      behaviorBuryPointIds: behaviorBuryPointIds.value
+    })
+  }
+}
+
+// 行为分析埋点变化处理
+const onBehaviorBuryPointChange = (pointIds) => {
+  console.log('选中的行为分析埋点:', pointIds)
+  
+  // 更新 store 中的行为分析埋点配置
+  store.dispatch('updateProjectConfig', {
+    behaviorBuryPointIds: pointIds
+  })
+  
+  // 如果当前没有设置访问埋点和点击埋点，使用第一个行为分析埋点作为默认选择
+  if (pointIds && pointIds.length > 0 && !visitBuryPointId.value && !clickBuryPointId.value) {
+    store.dispatch('updateApiConfig', {
+      selectedPointId: pointIds[0]
+    })
+    console.log(`✅ 行为分析埋点已更新，同步更新 apiConfig.selectedPointId: ${pointIds[0]}`)
+  }
+  
+  // 发送配置更新事件
+  if (currentProject.value) {
+    emit('project-config-updated', {
+      projectId: currentProject.value.id,
+      config: currentBuryPoints.value,
+      visitBuryPointId: visitBuryPointId.value,
+      clickBuryPointId: clickBuryPointId.value,
+      behaviorBuryPointIds: pointIds
     })
   }
 }
@@ -578,6 +658,21 @@ watch(() => props.visible, async (newVisible) => {
 .bury-point-id {
   font-size: 12px;
   color: #999;
+}
+
+/* 行为分析埋点多选样式 */
+:deep(.ant-select-multiple .ant-select-selection-item) {
+  background: #e6f7ff;
+  border: 1px solid #91d5ff;
+  color: #1890ff;
+}
+
+:deep(.ant-select-multiple .ant-select-selection-item-remove) {
+  color: #1890ff;
+}
+
+:deep(.ant-select-multiple .ant-select-selection-item-remove:hover) {
+  color: #40a9ff;
 }
 
 </style>
