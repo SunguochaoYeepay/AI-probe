@@ -266,6 +266,9 @@ const onMenuClick = ({ key }) => {
     case 'button-clicks':
       router.push('/my-charts?category=click-analysis&type=' + key)
       break
+    case 'query-conditions':
+      router.push('/my-charts?category=query-analysis&type=' + key)
+      break
     case 'user-journey':
     case 'user-duration':
     case 'device-analysis':
