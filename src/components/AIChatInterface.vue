@@ -2,19 +2,27 @@
   <div class="ai-chat-container">
     <!-- 配置选择区域 -->
     <div class="config-section">
+      <!-- 分析时间部分已隐藏，默认使用近7天 -->
+      
       <div class="config-item">
-        <span class="config-label">分析时间：</span>
-        <a-range-picker
-          v-model:value="dateRange"
+        <span class="config-label">分析类型：</span>
+        <a-select
+          v-model:value="selectedAnalysisType"
+          placeholder="请选择分析类型"
           size="small"
-          :disabled-date="disabledDate"
-        />
+          @change="onAnalysisTypeChange"
+        >
+          <a-select-option value="page_analysis">页面分析</a-select-option>
+          <a-select-option value="click_analysis">点击分析</a-select-option>
+          <a-select-option value="behavior_analysis">行为分析</a-select-option>
+        </a-select>
       </div>
       
       <div class="config-item">
         <span class="config-label">分析埋点：</span>
+        <!-- 单选模式 -->
         <a-select
-          v-if="allBuryPoints.length > 0"
+          v-if="allBuryPoints.length > 0 && selectedAnalysisType !== 'behavior_analysis'"
           v-model:value="selectedBuryPointId"
           placeholder="请选择分析埋点"
           size="small"
@@ -28,8 +36,28 @@
             {{ point.name }} (ID: {{ point.id }})
           </a-select-option>
         </a-select>
+        
+        <!-- 多选模式（行为分析） -->
+        <a-select
+          v-if="allBuryPoints.length > 0 && selectedAnalysisType === 'behavior_analysis'"
+          v-model:value="selectedBuryPointIds"
+          mode="multiple"
+          placeholder="请选择分析埋点（支持多选）"
+          size="small"
+          @change="onBuryPointChange"
+        >
+          <a-select-option
+            v-for="point in allBuryPoints"
+            :key="point.id"
+            :value="point.id"
+          >
+            {{ point.name }} (ID: {{ point.id }})
+          </a-select-option>
+        </a-select>
+        
+        <!-- 配置埋点按钮 -->
         <a-button 
-          v-else
+          v-if="allBuryPoints.length === 0"
           type="dashed" 
           size="small"
           @click="$emit('show-config-modal')"
@@ -187,6 +215,10 @@ const store = useStore()
 
 // 埋点选择
 const selectedBuryPointId = ref(null)
+const selectedBuryPointIds = ref([]) // 用于行为分析的多选
+
+// 分析类型选择
+const selectedAnalysisType = ref('page_analysis') // 默认为页面分析
 
 // 按钮选择相关
 const buttonSelectionModalVisible = ref(false)
@@ -216,56 +248,90 @@ const dateRange = computed({
   }
 })
 
-// 获取已配置的埋点信息（支持新的分离配置）
+// 获取已配置的埋点信息（支持新的分离配置，并根据分析类型过滤）
 const allBuryPoints = computed(() => {
   const projectConfig = store.state.projectConfig
   const allBuryPoints = projectConfig?.buryPoints || []
   const configuredPoints = []
   
+  // 尝试从localStorage获取埋点信息作为备用方案
+  const getBuryPointInfo = (pointId) => {
+    // 先尝试从store获取
+    const storePoint = allBuryPoints.find(p => p.id === pointId)
+    if (storePoint) return storePoint
+    
+    // 备用方案：根据ID推断埋点信息
+    if (pointId === 110) {
+      return { id: 110, name: '低代码_页面浏览', type: '访问' }
+    } else if (pointId === 109) {
+      return { id: 109, name: '低代码_点击事件', type: '点击' }
+    }
+    
+    return { id: pointId, name: `埋点 ${pointId}`, type: '未知' }
+  }
+  
+  // 调试信息：查看实际的数据结构
+  console.log('🔍 AIChatInterface - 项目配置调试信息:', {
+    projectConfig: projectConfig,
+    allBuryPoints: allBuryPoints,
+    allBuryPointsLength: allBuryPoints.length,
+    allBuryPointsContent: JSON.parse(JSON.stringify(allBuryPoints)), // 深度克隆以查看完整内容
+    visitBuryPointId: projectConfig?.visitBuryPointId,
+    clickBuryPointId: projectConfig?.clickBuryPointId,
+    behaviorBuryPointIds: projectConfig?.behaviorBuryPointIds,
+    visitPoint: projectConfig?.visitPoint,
+    clickPoint: projectConfig?.clickPoint,
+    fullProjectConfig: JSON.parse(JSON.stringify(projectConfig)) // 查看完整的项目配置
+  })
+  
   // 优先使用新的分离配置
   if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId || (projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.length > 0)) {
-    if (projectConfig.visitBuryPointId) {
-      const visitPoint = allBuryPoints.find(p => p.id === projectConfig.visitBuryPointId)
-      if (visitPoint) {
-        configuredPoints.push({ ...visitPoint, type: '访问' })
-      } else {
-        // 如果埋点列表中没有找到，创建一个基本的埋点信息
-        configuredPoints.push({ 
-          id: projectConfig.visitBuryPointId, 
-          name: '访问埋点', 
-          type: '访问' 
-        })
-      }
-    }
-    if (projectConfig.clickBuryPointId && projectConfig.clickBuryPointId !== projectConfig.visitBuryPointId) {
-      const clickPoint = allBuryPoints.find(p => p.id === projectConfig.clickBuryPointId)
-      if (clickPoint) {
-        configuredPoints.push({ ...clickPoint, type: '点击' })
-      } else {
-        // 如果埋点列表中没有找到，创建一个基本的埋点信息
-        configuredPoints.push({ 
-          id: projectConfig.clickBuryPointId, 
-          name: '点击埋点', 
-          type: '点击' 
-        })
-      }
-    }
-    if (projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.length > 0) {
-      projectConfig.behaviorBuryPointIds.forEach(behaviorId => {
-        const behaviorPoint = allBuryPoints.find(p => p.id === behaviorId)
-        if (behaviorPoint) {
-          configuredPoints.push({ ...behaviorPoint, type: '行为分析' })
-        } else {
-          // 如果埋点列表中没有找到，创建一个基本的埋点信息
-          configuredPoints.push({ 
-            id: behaviorId, 
-            name: '行为分析埋点', 
-            type: '行为分析' 
+    // 根据分析类型过滤埋点
+    switch (selectedAnalysisType.value) {
+      case 'page_analysis':
+        // 页面分析只显示访问埋点
+        if (projectConfig.visitBuryPointId) {
+          const visitPoint = getBuryPointInfo(projectConfig.visitBuryPointId)
+          configuredPoints.push({ ...visitPoint, type: '访问' })
+        }
+        break
+        
+      case 'click_analysis':
+        // 点击分析只显示点击埋点
+        if (projectConfig.clickBuryPointId) {
+          const clickPoint = getBuryPointInfo(projectConfig.clickBuryPointId)
+          configuredPoints.push({ ...clickPoint, type: '点击' })
+        }
+        break
+        
+      case 'behavior_analysis':
+        // 行为分析只显示行为分析埋点
+        if (projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.length > 0) {
+          projectConfig.behaviorBuryPointIds.forEach(behaviorId => {
+            const behaviorPoint = getBuryPointInfo(behaviorId)
+            configuredPoints.push({ ...behaviorPoint, type: '行为分析' })
           })
         }
-      })
+        break
+        
+      default:
+        // 默认显示所有类型的埋点
+        if (projectConfig.visitBuryPointId) {
+          const visitPoint = getBuryPointInfo(projectConfig.visitBuryPointId)
+          configuredPoints.push({ ...visitPoint, type: '访问' })
+        }
+        if (projectConfig.clickBuryPointId && projectConfig.clickBuryPointId !== projectConfig.visitBuryPointId) {
+          const clickPoint = getBuryPointInfo(projectConfig.clickBuryPointId)
+          configuredPoints.push({ ...clickPoint, type: '点击' })
+        }
+        if (projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.length > 0) {
+          projectConfig.behaviorBuryPointIds.forEach(behaviorId => {
+            const behaviorPoint = getBuryPointInfo(behaviorId)
+            configuredPoints.push({ ...behaviorPoint, type: '行为分析' })
+          })
+        }
     }
-    console.log('使用分离配置的埋点:', configuredPoints)
+    console.log(`使用分离配置的埋点 (分析类型: ${selectedAnalysisType.value}):`, configuredPoints)
   } else {
     // 回退到旧的配置方式
     const selectedIds = projectConfig?.selectedBuryPointIds || []
@@ -274,10 +340,10 @@ const allBuryPoints = computed(() => {
       if (point) {
         configuredPoints.push({ ...point, type: '通用' })
       } else {
-        // 如果埋点列表中没有找到，创建一个基本的埋点信息
+        // 如果埋点列表中没有找到，保留原始ID，不创建通用名称
         configuredPoints.push({ 
           id: id, 
-          name: '通用埋点', 
+          name: `埋点 ${id}`, 
           type: '通用' 
         })
       }
@@ -348,52 +414,217 @@ const getCurrentBuryPointType = () => {
 const onBuryPointChange = (value) => {
   console.log('埋点选择变化:', value)
   
-  // 先获取旧的埋点类型（基于当前的selectedBuryPointId.value）
-  const oldBuryPointType = getBuryPointTypeById(selectedBuryPointId.value)
-  console.log('旧的埋点ID:', selectedBuryPointId.value)
-  console.log('旧的埋点类型:', oldBuryPointType)
-  
-  // 更新埋点选择
-  selectedBuryPointId.value = value
-  
-  // 只更新 apiConfig.selectedPointId，不修改 projectConfig
-  // 因为这里只是在已配置的埋点之间切换，不改变配置本身
-  store.dispatch('updateApiConfig', {
-    selectedPointId: value
-  })
-  
-  console.log(`✅ 当前分析埋点已切换到: ${value}`)
-  console.log('🔍 更新后的store.state.apiConfig.selectedPointId:', store.state.apiConfig.selectedPointId)
-  
-  // 获取新的埋点类型（基于新的埋点ID）
-  const newBuryPointType = getBuryPointTypeById(value)
-  console.log('新的埋点类型:', newBuryPointType)
-  console.log(`埋点类型变化: ${oldBuryPointType} -> ${newBuryPointType}`)
-  
-  // 如果埋点类型发生变化，自动更新提示词
-  if (oldBuryPointType !== newBuryPointType) {
-    console.log('埋点类型发生变化，自动更新提示词')
-    updateWelcomeMessageForBuryPointType()
+  // 根据分析类型处理不同的选择逻辑
+  if (selectedAnalysisType.value === 'behavior_analysis') {
+    // 行为分析支持多选
+    selectedBuryPointIds.value = value || []
+    console.log(`✅ 行为分析埋点已更新: ${selectedBuryPointIds.value.join(', ')}`)
     
-    // 保存用户的埋点类型偏好到localStorage
-    if (newBuryPointType === '访问') {
-      localStorage.setItem('defaultBuryPointType', 'visit')
-      console.log('已保存用户偏好：访问埋点')
-    } else if (newBuryPointType === '点击') {
-      localStorage.setItem('defaultBuryPointType', 'click')
-      console.log('已保存用户偏好：点击埋点')
-    } else if (newBuryPointType === '行为分析') {
-      localStorage.setItem('defaultBuryPointType', 'behavior')
-      console.log('已保存用户偏好：行为分析埋点')
-    }
+    // 更新store中的多选埋点
+    store.dispatch('updateApiConfig', {
+      selectedPointIds: selectedBuryPointIds.value,
+      selectedPointId: selectedBuryPointIds.value.length > 0 ? selectedBuryPointIds.value[0] : null // 主埋点设为第一个
+    })
   } else {
-    console.log('埋点类型未发生变化，无需更新提示词')
-    console.log('🔍 当前聊天记录数量:', messages.value.length)
-    console.log('🔍 聊天记录内容:', messages.value)
-    // 每次埋点切换都显示对应的提示词
-    console.log('埋点切换完成，显示当前埋点的提示词')
-    showWelcomeMessage()
+    // 其他分析类型单选
+    const oldBuryPointType = getBuryPointTypeById(selectedBuryPointId.value)
+    console.log('旧的埋点ID:', selectedBuryPointId.value)
+    console.log('旧的埋点类型:', oldBuryPointType)
+    
+    // 更新埋点选择
+    selectedBuryPointId.value = value
+    
+    // 只更新 apiConfig.selectedPointId，不修改 projectConfig
+    // 因为这里只是在已配置的埋点之间切换，不改变配置本身
+    store.dispatch('updateApiConfig', {
+      selectedPointId: value
+    })
+    
+    console.log(`✅ 当前分析埋点已切换到: ${value}`)
+    console.log('🔍 更新后的store.state.apiConfig.selectedPointId:', store.state.apiConfig.selectedPointId)
+    
+    // 获取新的埋点类型（基于新的埋点ID）
+    const newBuryPointType = getBuryPointTypeById(value)
+    console.log('新的埋点类型:', newBuryPointType)
+    console.log(`埋点类型变化: ${oldBuryPointType} -> ${newBuryPointType}`)
+    
+    // 如果埋点类型发生变化，自动更新提示词
+    if (oldBuryPointType !== newBuryPointType) {
+      console.log('埋点类型发生变化，自动更新提示词')
+      updateWelcomeMessageForBuryPointType()
+      
+      // 保存用户的埋点类型偏好到localStorage
+      if (newBuryPointType === '访问') {
+        localStorage.setItem('defaultBuryPointType', 'visit')
+        console.log('已保存用户偏好：访问埋点')
+      } else if (newBuryPointType === '点击') {
+        localStorage.setItem('defaultBuryPointType', 'click')
+        console.log('已保存用户偏好：点击埋点')
+      } else if (newBuryPointType === '行为分析') {
+        localStorage.setItem('defaultBuryPointType', 'behavior')
+        console.log('已保存用户偏好：行为分析埋点')
+      }
+    } else {
+      console.log('埋点类型未发生变化，无需更新提示词')
+      console.log('🔍 当前聊天记录数量:', messages.value.length)
+      console.log('🔍 聊天记录内容:', messages.value)
+      // 每次埋点切换都显示对应的提示词
+      console.log('埋点切换完成，显示当前埋点的提示词')
+      showWelcomeMessage()
+    }
   }
+}
+
+// 分析类型变化处理
+const onAnalysisTypeChange = (value) => {
+  console.log('分析类型变化:', value)
+  selectedAnalysisType.value = value
+  
+  // 检查当前选择的埋点是否在新的过滤列表中
+  const filteredPoints = allBuryPoints.value
+  
+  if (value === 'behavior_analysis') {
+    // 切换到行为分析模式，清空单选埋点，初始化多选埋点
+    selectedBuryPointId.value = null
+    if (filteredPoints.length > 0 && selectedBuryPointIds.value.length === 0) {
+      // 如果没有已选择的多选埋点，自动选择第一个可用的埋点
+      selectedBuryPointIds.value = [filteredPoints[0].id]
+      console.log(`自动选择第一个可用埋点: ${filteredPoints[0].id} (${filteredPoints[0].name})`)
+    }
+    
+    // 更新store中的多选埋点和分析类型
+    store.dispatch('updateApiConfig', {
+      selectedPointIds: selectedBuryPointIds.value,
+      selectedPointId: selectedBuryPointIds.value.length > 0 ? selectedBuryPointIds.value[0] : null,
+      selectedAnalysisType: selectedAnalysisType.value
+    })
+  } else {
+    // 切换到其他分析类型，清空多选埋点，处理单选埋点
+    selectedBuryPointIds.value = []
+    
+    // 尝试从store中恢复之前的选择
+    const storeSelectedPointId = store.state.apiConfig.selectedPointId
+    console.log('尝试从store恢复埋点选择:', storeSelectedPointId)
+    
+    // 检查store中的埋点是否在新的过滤列表中
+    if (storeSelectedPointId && filteredPoints.find(p => p.id === storeSelectedPointId)) {
+      // store中的埋点仍然有效，使用它
+      selectedBuryPointId.value = storeSelectedPointId
+      console.log(`从store恢复埋点选择: ${storeSelectedPointId}`)
+    } else {
+      // store中的埋点无效或不存在，自动选择第一个可用的埋点
+      if (filteredPoints.length > 0) {
+        const firstPoint = filteredPoints[0]
+        selectedBuryPointId.value = firstPoint.id
+        console.log(`自动切换到第一个可用埋点: ${firstPoint.id} (${firstPoint.name})`)
+      } else {
+        // 如果没有可用的埋点，清空选择
+        selectedBuryPointId.value = null
+        console.log('没有可用的埋点，清空选择')
+      }
+    }
+    
+    // 更新store中的单选埋点和分析类型
+    store.dispatch('updateApiConfig', {
+      selectedPointId: selectedBuryPointId.value,
+      selectedAnalysisType: selectedAnalysisType.value
+    })
+  }
+  
+  // 根据分析类型更新提示消息
+  let typeChangeMessage = ''
+  let newActions = []
+  
+  switch (value) {
+    case 'page_analysis':
+      typeChangeMessage = `📊 页面访问分析
+
+请选择您要分析的页面范围：`
+      
+      newActions = [
+        { 
+          text: '整体页面访问量', 
+          type: 'select_analysis', 
+          params: { type: 'page_visits', scope: 'all', description: '分析所有页面的访问量、UV/PV趋势等' } 
+        },
+        { 
+          text: '选择页面分析', 
+          type: 'select_analysis', 
+          params: { type: 'page_visits', scope: 'specific', description: '分析特定页面的访问趋势' } 
+        }
+      ]
+      break
+      
+    case 'click_analysis':
+      // 点击分析直接跳转到页面选择，不需要中间选项
+      typeChangeMessage = `🖱️ 点击分析模式
+
+请选择您要分析点击行为的页面：`
+      
+      newActions = [
+        { 
+          text: '选择分析页面', 
+          type: 'show_page_list', 
+          params: { type: 'user_click', scope: 'page' } 
+        }
+      ]
+      break
+      
+      case 'behavior_analysis':
+        typeChangeMessage = `🔄 检测到您已切换到行为分析模式
+
+现在为您提供用户行为分析相关的选项：`
+        
+        newActions = [
+          { 
+            text: '👤 用户行为路径', 
+            type: 'select_analysis', 
+            params: { type: 'user_behavior', description: '分析用户在应用中的行为路径和流程' } 
+          },
+          { 
+            text: '📈 行为趋势分析', 
+            type: 'select_analysis', 
+            params: { type: 'user_behavior', description: '分析用户行为的时间趋势和变化' } 
+          },
+          { 
+            text: '🎯 行为转化漏斗', 
+            type: 'select_analysis', 
+            params: { type: 'user_behavior', description: '分析用户行为转化漏斗和关键节点' } 
+          },
+          { 
+            text: '📊 多埋点综合分析', 
+            type: 'select_analysis', 
+            params: { type: 'multi_bury_point', description: '综合分析多个埋点的数据，发现用户行为模式' } 
+          }
+        ]
+      break
+      
+    default:
+      typeChangeMessage = `🔄 分析类型已更新
+
+请选择您想要进行的分析类型：`
+      
+      newActions = [
+        { 
+          text: '📊 页面访问分析', 
+          type: 'select_analysis', 
+          params: { type: 'page_visits', description: '分析页面的访问量、UV/PV趋势等' } 
+        },
+        { 
+          text: '🖱️ 用户点击分析', 
+          type: 'select_analysis', 
+          params: { type: 'user_click', description: '分析用户点击行为、按钮热度等' } 
+        },
+        { 
+          text: '🔄 行为转化分析', 
+          type: 'select_analysis', 
+          params: { type: 'conversion', description: '分析用户行为路径和转化漏斗' } 
+        }
+      ]
+  }
+  
+  // 添加新的提示消息
+  addMessage(typeChangeMessage, 'ai', newActions)
 }
 
 // 根据埋点ID获取埋点类型（不依赖selectedBuryPointId.value）
@@ -1860,6 +2091,13 @@ watch(messages, () => {
 
 // 初始化欢迎消息
 onMounted(() => {
+  // 初始化分析类型（从store中恢复）
+  const storeAnalysisType = store.state.apiConfig.selectedAnalysisType
+  if (storeAnalysisType) {
+    selectedAnalysisType.value = storeAnalysisType
+    console.log('从store恢复分析类型:', storeAnalysisType)
+  }
+  
   // 初始化埋点选择（支持新的分离配置）
   const projectConfig = store.state.projectConfig
   let initialBuryPointId = null

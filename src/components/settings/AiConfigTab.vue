@@ -195,7 +195,6 @@ const handleReset = () => {
 
 <style scoped lang="less">
 .ai-config-tab {
-  max-width: 600px;
   
   .config-card {
     margin-bottom: 16px;

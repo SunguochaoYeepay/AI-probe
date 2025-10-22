@@ -8,7 +8,7 @@
       <a-space>
         <!-- 时间选择器 -->
         <a-radio-group 
-          v-if="hasChart" 
+          v-if="hasChart && showTimeRangeSelector" 
           v-model:value="selectedTimeRange" 
           size="small"
           @change="onTimeRangeChange"
@@ -71,6 +71,10 @@ const props = defineProps({
   hasChart: {
     type: Boolean,
     default: false
+  },
+  showTimeRangeSelector: {
+    type: Boolean,
+    default: true // 默认显示时间选择器
   }
 })
 

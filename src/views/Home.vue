@@ -36,6 +36,7 @@
           <div class="right-panel">
             <ChartSection
               :has-chart="hasChart"
+              :show-time-range-selector="false"
               @save-chart="saveChartToLibrary"
               @time-range-change="handleTimeRangeChange"
             />
@@ -290,10 +291,13 @@ const analyzeButtonClickRequirement = async () => {
   
   try {
     // 构建按钮点击分析的固定配置
+    const pageName = store.state.buttonAnalysisParams.pageName
+    const buttonName = store.state.buttonAnalysisParams.buttonName
+    
     const analysis = {
       intent: 'button_click_analysis',
       chartType: 'button_click_analysis',
-      description: '按钮点击分析',
+      description: `分析页面"${pageName}"的"${buttonName}"按钮点击情况`,
       confidence: 0.95,
       dataFields: [],
       dimensions: [],
@@ -302,8 +306,8 @@ const analyzeButtonClickRequirement = async () => {
       originalText: currentRequirement.value,
       source: 'button_selection',
       parameters: {
-        pageName: store.state.buttonAnalysisParams.pageName,
-        buttonName: store.state.buttonAnalysisParams.buttonName
+        pageName: pageName,
+        buttonName: buttonName
       }
     }
     
@@ -424,11 +428,26 @@ const analyzeRequirement = async () => {
         analysis.chartType !== 'button_click_analysis' &&
         analysis.chartType !== 'button_click_daily') {
       console.log('检测到单页面查询，强制转换为UV/PV时间组合图')
+      
+      // 根据分析类型生成具体的描述
+      const analysisType = store.state.apiConfig.selectedAnalysisType || 'page_analysis'
+      let specificDescription = ''
+      
+      if (analysisType === 'page_analysis') {
+        specificDescription = `分析页面"${specifiedPages[0]}"的访问量数据`
+      } else if (analysisType === 'click_analysis') {
+        specificDescription = `分析页面"${specifiedPages[0]}"的点击行为`
+      } else if (analysisType === 'behavior_analysis') {
+        specificDescription = `分析页面"${specifiedPages[0]}"的用户行为`
+      } else {
+        specificDescription = `分析页面"${specifiedPages[0]}"的数据`
+      }
+      
       analysis = {
         ...analysis,
         intent: 'single_page_uv_pv_analysis',
         chartType: 'single_page_uv_pv_chart',
-        description: 'UV/PV时间趋势分析', // 简化图表标题
+        description: specificDescription, // 使用具体的页面分析描述
         parameters: {
           ...analysis.parameters,
           pageName: specifiedPages[0]
@@ -830,11 +849,33 @@ const saveChartToLibrary = async () => {
       console.log(`⏰ [Home] 历史数据将通过定时任务补充：${uniqueDates.length - recentDates.length}天`)
     }
     
-    // 构造图表配置
+    // 构造图表配置 - 改进图表名称生成
+    let chartName = effectiveAnalysis.description || currentRequirement.value
+    
+    // 如果没有具体的描述，尝试从需求中提取页面名称生成更具体的名称
+    if (!chartName || chartName === '数据分析' || chartName === '数据对比分析') {
+      const pageName = extractPageNames(currentRequirement.value)[0]
+      if (pageName && pageName !== '__ALL__') {
+        // 根据分析类型生成不同的名称
+        const analysisType = store.state.apiConfig.selectedAnalysisType || 'page_analysis'
+        if (analysisType === 'page_analysis') {
+          chartName = `分析页面"${pageName}"的访问量数据`
+        } else if (analysisType === 'click_analysis') {
+          chartName = `分析页面"${pageName}"的点击行为`
+        } else if (analysisType === 'behavior_analysis') {
+          chartName = `分析页面"${pageName}"的用户行为`
+        } else {
+          chartName = `分析页面"${pageName}"的数据`
+        }
+      } else {
+        chartName = currentRequirement.value || '数据分析'
+      }
+    }
+    
     const chartConfig = {
-      name: effectiveAnalysis.description || currentRequirement.value,
+      name: chartName,
       description: currentRequirement.value,
-      category: getCategoryByChartType(chartType),
+      category: getCategoryByAnalysisType(store.state.apiConfig.selectedAnalysisType || 'page_analysis'),
       chartType: chartType,
       mode: analysisMode.value,
       selectedPointId: store.state.apiConfig.selectedPointId,
@@ -1140,22 +1181,14 @@ const fetchDayData = async ({ date, projectId, selectedPointId }) => {
   return response.data?.dataList || []
 }
 
-// 根据图表类型获取分类
-const getCategoryByChartType = (chartType) => {
+// 根据分析类型获取分类
+const getCategoryByAnalysisType = (analysisType) => {
   const categoryMap = {
-    line: '页面分析',
-    bar: '页面分析',
-    pie: '页面分析',
-    funnel: '转化分析',
-    conversion_funnel: '转化分析',
-    click_heatmap: '用户行为',
-    user_journey: '用户行为',
-    uv_pv_chart: '页面分析',
-    single_page_uv_pv_chart: '页面分析',
-    button_click_analysis: '用户行为',
-    button_click_daily: '用户行为'
+    'page_analysis': '页面分析',
+    'click_analysis': '用户行为',
+    'behavior_analysis': '用户行为'
   }
-  return categoryMap[chartType] || '页面分析'
+  return categoryMap[analysisType] || '页面分析'
 }
 </script>
 

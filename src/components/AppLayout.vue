@@ -122,7 +122,7 @@ defineExpose({
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 64px;
+    height: 53px;
     border-bottom: 1px solid var(--border-color, #d9d9d9);
     
     .header-left {
