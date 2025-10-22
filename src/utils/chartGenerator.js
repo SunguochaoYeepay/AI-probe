@@ -1789,14 +1789,24 @@ export class ChartGenerator {
     // 检查数据是否已经按日期聚合过
     let chartData
     if (data && data.length > 0 && data[0].hasOwnProperty('uv') && data[0].hasOwnProperty('pv')) {
-      // 数据已经聚合过，直接使用
+      // 数据已经聚合过，需要判断是否为多条件
       console.log('📊 使用已聚合的查询条件数据:', data)
+      
+      // 🚀 修复：正确判断是否为多条件
+      const queryCondition = analysis.parameters?.queryCondition || ''
+      const isMultiCondition = queryCondition.startsWith('多条件:') || 
+                              queryCondition.includes('、') || 
+                              queryCondition.includes('，') ||
+                              (analysis.originalText && analysis.originalText.includes('多个'))
+      
       chartData = {
         categories: data.map(item => item.date || item.createdAt),
         uvData: data.map(item => item.uv || 0),
         pvData: data.map(item => item.pv || 0),
-        isMultipleConditions: false
+        isMultipleConditions: isMultiCondition
       }
+      
+      console.log(`🔍 判断多条件状态: queryCondition="${queryCondition}", isMultiCondition=${isMultiCondition}`)
     } else {
       // 数据未聚合，需要处理
       chartData = this.processQueryConditionAnalysisData(analysis, data)
