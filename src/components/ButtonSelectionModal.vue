@@ -213,72 +213,68 @@ const tableColumns = computed(() => {
 const tableData = computed(() => {
   if (props.selectionType === 'queries') {
     // 查询条件：构建树形结构
+    console.log('🔍 构建查询条件树形结构，原始数据:', props.buttons)
+    
     const treeData = []
     const groupMap = new Map()
     
-    // 按组分类
+    // 先按组分类所有数据
+    const groups = new Map()
+    
     props.buttons.forEach((button, index) => {
+      const groupType = button.groupType || button.parentType
+      if (!groups.has(groupType)) {
+        groups.set(groupType, {
+          summary: null,
+          items: []
+        })
+      }
+      
       if (button.isSummary) {
-        // 汇总项作为父节点
-        const parentKey = `group_${button.groupType}`
-        if (!groupMap.has(parentKey)) {
-          groupMap.set(parentKey, {
-            key: parentKey,
-            content: `${button.groupType}:全部${button.groupType}`,
-            displayName: `全部${button.groupType}`,
-            groupType: button.groupType,
-            pv: button.pv,
-            uv: button.uv,
-            isSummary: true,
-            children: []
-          })
-        }
+        groups.get(groupType).summary = button
       } else {
-        // 子项
-        const parentKey = `group_${button.parentType || button.groupType}`
-        if (groupMap.has(parentKey)) {
-          groupMap.get(parentKey).children.push({
-            key: button.content || `item_${index}`,
-            content: button.content,
-            displayName: button.displayName,
-            groupType: button.groupType,
-            parentType: button.parentType,
-            pv: button.pv,
-            uv: button.uv,
-            isSummary: false,
-            selected: false
-          })
-        } else {
-          // 如果没有对应的父节点，创建一个
-          groupMap.set(parentKey, {
-            key: parentKey,
-            content: `${button.parentType || button.groupType}:全部${button.parentType || button.groupType}`,
-            displayName: `全部${button.parentType || button.groupType}`,
-            groupType: button.parentType || button.groupType,
-            pv: 0,
-            uv: 0,
-            isSummary: true,
-            children: [{
-              key: button.content || `item_${index}`,
-              content: button.content,
-              displayName: button.displayName,
-              groupType: button.groupType,
-              parentType: button.parentType,
-              pv: button.pv,
-              uv: button.uv,
-              isSummary: false,
-              selected: false
-            }]
-          })
-        }
+        groups.get(groupType).items.push(button)
       }
     })
     
-    // 转换为数组
-    groupMap.forEach(group => {
-      treeData.push(group)
+    console.log('🔍 分组后的数据:', groups)
+    
+    // 为每个组构建树形结构
+    groups.forEach((group, groupType) => {
+      const parentKey = `group_${groupType}`
+      
+      // 创建父节点（汇总项）
+      const parentNode = {
+        key: parentKey,
+        content: group.summary ? group.summary.content : `全部${groupType}`,
+        displayName: group.summary ? group.summary.displayName : `全部${groupType}`,
+        groupType: groupType,
+        pv: group.summary ? group.summary.pv : group.items.reduce((sum, item) => sum + item.pv, 0),
+        uv: group.summary ? group.summary.uv : group.items.reduce((sum, item) => sum + item.uv, 0),
+        isSummary: true,
+        children: []
+      }
+      
+      // 添加子节点
+      group.items.forEach((item, index) => {
+        const childNode = {
+          key: item.content || `item_${groupType}_${index}`,
+          content: item.content,
+          displayName: item.displayName,
+          groupType: item.groupType,
+          parentType: item.parentType || groupType,
+          pv: item.pv,
+          uv: item.uv,
+          isSummary: false,
+          selected: false
+        }
+        parentNode.children.push(childNode)
+      })
+      
+      treeData.push(parentNode)
     })
     
+    console.log('🔍 构建完成的树形数据:', treeData)
     return treeData
   } else {
     // 按钮：保持原有结构，但移除"全部"选项

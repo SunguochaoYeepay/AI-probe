@@ -377,6 +377,7 @@ export function groupQueryConditions(conditions) {
     })
   })
   
+  console.log('🔍 groupQueryConditions 返回结果:', result)
   return result
 }
 

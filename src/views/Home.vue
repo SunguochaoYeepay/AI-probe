@@ -67,6 +67,7 @@ import {
 import dayjs from 'dayjs'
 import { RequirementParser } from '@/utils/requirementParser'
 import { useDataFetch } from '@/composables/useDataFetch'
+import { chartDB } from '@/utils/indexedDBManager'
 import { useChart } from '@/composables/useChart'
 import { useChartManager } from '@/composables/useChartManager'
 import { useDataConsistency } from '@/composables/useDataConsistency'
@@ -415,6 +416,11 @@ const analyzeQueryConditionRequirement = async () => {
     const pageName = store.state.queryConditionAnalysisParams.pageName
     const queryCondition = store.state.queryConditionAnalysisParams.queryCondition
     const queryData = store.state.queryConditionAnalysisParams.queryData
+    
+    // 设置分析类型为查询条件分析
+    store.dispatch('updateApiConfig', {
+      selectedAnalysisType: 'query_condition_analysis'
+    })
     
     const analysis = {
       intent: 'query_condition_analysis',
@@ -995,6 +1001,21 @@ const saveChartToLibrary = async () => {
       }
     }
     
+    // 🔍 检查图表名称是否已存在
+    console.log('🔍 [Home] 检查图表名称重复性:', chartName)
+    const existingCharts = await chartDB.getAllCharts()
+    const duplicateChart = existingCharts.find(chart => chart.name === chartName)
+    
+    if (duplicateChart) {
+      console.warn('⚠️ [Home] 发现重复图表名称:', chartName)
+      message.warning({
+        content: `图表名称"${chartName}"已存在，请修改需求后重新生成图表`,
+        duration: 5
+      })
+      console.groupEnd()
+      return
+    }
+    
     const chartConfig = {
       name: chartName,
       description: currentRequirement.value,
@@ -1309,7 +1330,8 @@ const getCategoryByAnalysisType = (analysisType) => {
   const categoryMap = {
     'page_analysis': '页面分析',
     'click_analysis': '用户行为',
-    'behavior_analysis': '用户行为'
+    'behavior_analysis': '用户行为',
+    'query_condition_analysis': '查询条件分析'
   }
   return categoryMap[analysisType] || '页面分析'
 }
