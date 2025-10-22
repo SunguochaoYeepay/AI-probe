@@ -467,8 +467,46 @@ const transformChartData = (data, config, chartInfo = null) => {
           createdAt: itemDate
         }
         
+        // 处理查询条件分析
+        if (config.chartType === 'query_condition_analysis') {
+          const description = (chartInfo && chartInfo.description) || config.description || ''
+          
+          // 提取页面名称
+          let pageMatch = description.match(/页面[""]([^""]+)[""]/)
+          if (!pageMatch) {
+            pageMatch = description.match(/页面"([^"]+)"/)
+          }
+          if (!pageMatch) {
+            pageMatch = description.match(/页面([^的]+)的/)
+          }
+          if (!pageMatch && description.startsWith('#')) {
+            pageMatch = description.match(/#([^ ]+)/)
+          }
+          
+          // 提取查询条件
+          let conditionMatch = description.match(/[""]([^""]+)[""]查询条件/)
+          if (!conditionMatch) {
+            conditionMatch = description.match(/"([^"]+)"查询条件/)
+          }
+          if (!conditionMatch) {
+            conditionMatch = description.match(/的"([^"]+)"查询条件/)
+          }
+          
+          transformedItem.type = 'query'
+          transformedItem.pageName = pageMatch ? pageMatch[1] : '未知页面'
+          transformedItem.content = conditionMatch ? conditionMatch[1] : '查询条件'
+          
+          // 从metrics中提取UV和PV数据
+          if (metrics && typeof metrics === 'object') {
+            transformedItem.uv = metrics.uv || 0
+            transformedItem.pv = metrics.pv || 0
+          } else {
+            transformedItem.uv = existingData.uv || 0
+            transformedItem.pv = existingData.pv || 0
+          }
+        }
         // 处理按钮点击分析
-        if (config.chartType === 'button_click_analysis' || config.chartType === 'button_click_daily') {
+        else if (config.chartType === 'button_click_analysis' || config.chartType === 'button_click_daily') {
           const description = (chartInfo && chartInfo.description) || config.description || ''
           
           let pageMatch = description.match(/页面[""]([^""]+)[""]/)
@@ -540,8 +578,35 @@ const transformChartData = (data, config, chartInfo = null) => {
         pv: 0
       }
       
+      // 如果是查询条件分析，需要添加页面和查询条件信息
+      if (config.chartType === 'query_condition_analysis') {
+        const description = (chartInfo && chartInfo.description) || config.description || ''
+        
+        let pageMatch = description.match(/页面[""]([^""]+)[""]/)
+        if (!pageMatch) {
+          pageMatch = description.match(/页面"([^"]+)"/)
+        }
+        if (!pageMatch) {
+          pageMatch = description.match(/页面([^的]+)的/)
+        }
+        if (!pageMatch && description.startsWith('#')) {
+          pageMatch = description.match(/#([^ ]+)/)
+        }
+        
+        let conditionMatch = description.match(/[""]([^""]+)[""]查询条件/)
+        if (!conditionMatch) {
+          conditionMatch = description.match(/"([^"]+)"查询条件/)
+        }
+        if (!conditionMatch) {
+          conditionMatch = description.match(/的"([^"]+)"查询条件/)
+        }
+        
+        transformedItem.type = 'query'
+        transformedItem.pageName = pageMatch ? pageMatch[1] : '未知页面'
+        transformedItem.content = conditionMatch ? conditionMatch[1] : '查询条件'
+      }
       // 如果是按钮点击分析，需要添加页面和按钮信息
-      if (config.chartType === 'button_click_analysis' || config.chartType === 'button_click_daily') {
+      else if (config.chartType === 'button_click_analysis' || config.chartType === 'button_click_daily') {
         const description = (chartInfo && chartInfo.description) || config.description || ''
         
         let pageMatch = description.match(/页面[""]([^""]+)[""]/)
