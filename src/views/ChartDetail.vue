@@ -594,7 +594,8 @@ const refreshData = async () => {
 const updateNow = async () => {
   try {
     refreshing.value = true
-    await updateSingleChart(route.params.id)
+    // 强制更新，包括今天的数据
+    await updateSingleChart(route.params.id, null, true)
     await loadData()
   } catch (error) {
     console.error('更新失败:', error)

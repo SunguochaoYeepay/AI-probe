@@ -5,6 +5,7 @@ import MyCharts from '@/views/MyCharts.vue'
 import ChartDetail from '@/views/ChartDetail.vue'
 import ChartNavigationDemo from '@/views/ChartNavigationDemo.vue'
 import ThemeDemo from '@/views/ThemeDemo.vue'
+import Settings from '@/views/Settings.vue'
 
 const routes = [
   {
@@ -53,6 +54,14 @@ const routes = [
     component: ThemeDemo,
     meta: {
       title: '主题系统演示'
+    }
+  },
+  {
+    path: '/settings',
+    name: 'Settings',
+    component: Settings,
+    meta: {
+      title: '系统设置'
     }
   }
 ]

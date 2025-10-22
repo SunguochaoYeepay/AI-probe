@@ -11,6 +11,15 @@ import { aggregationService } from '@/utils/aggregationService'
 import { yeepayAPI } from '@/api'
 import { useStore } from 'vuex'
 
+/**
+ * 格式化最后更新时间
+ * @param {string} date - 日期字符串 (YYYY-MM-DD)
+ * @returns {string} - 格式化的时间戳 (YYYY-MM-DD HH:mm:ss)
+ */
+function formatLastUpdateTime(date) {
+  return dayjs(date).endOf('day').format('YYYY-MM-DD HH:mm:ss')
+}
+
 export function useChartManager() {
   const store = useStore()
   
@@ -137,7 +146,7 @@ export function useChartManager() {
         // 更新最后数据更新时间
         const latestDate = Object.keys(initialData).sort().pop()
         await chartDB.updateChart(chart.id, {
-          lastDataUpdate: latestDate
+          lastDataUpdate: formatLastUpdateTime(latestDate)
         })
       }
       
@@ -272,8 +281,9 @@ export function useChartManager() {
               ...aggregated
             })
             
+            // 设置合理的最后更新时间
             await chartDB.updateChart(chart.id, {
-              lastDataUpdate: targetDate
+              lastDataUpdate: formatLastUpdateTime(targetDate)
             })
             
             updateProgress.value.current++
@@ -301,7 +311,7 @@ export function useChartManager() {
   /**
    * 更新单个图表（手动刷新）
    */
-  const updateSingleChart = async (chartId, targetDate = null) => {
+  const updateSingleChart = async (chartId, targetDate = null, forceUpdate = false) => {
     try {
       loading.value = true
       
@@ -310,41 +320,71 @@ export function useChartManager() {
         throw new Error('图表不存在')
       }
       
-      const date = targetDate || dayjs().subtract(1, 'day').format('YYYY-MM-DD')
-      
-      // 检查是否已有数据
-      const hasData = await chartDB.hasChartData(chartId, date)
-      if (hasData) {
-        console.log(`📊 ${date} 的数据已存在，跳过`)
-        message.info('数据已是最新')
-        return
+      // 如果没有指定日期，则更新昨天和今天的数据
+      let datesToUpdate = []
+      if (targetDate) {
+        datesToUpdate = [targetDate]
+      } else {
+        const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD')
+        const today = dayjs().format('YYYY-MM-DD')
+        datesToUpdate = [yesterday, today]
       }
       
-      message.loading(`正在更新图表...`, 0)
+      let updatedCount = 0
+      for (const date of datesToUpdate) {
+        // 检查是否已有数据（除非强制更新）
+        if (!forceUpdate) {
+          const hasData = await chartDB.hasChartData(chartId, date)
+          if (hasData) {
+            console.log(`📊 ${date} 的数据已存在，跳过`)
+            continue
+          }
+        }
+        
+        message.loading(`正在更新图表 ${date}...`, 0)
+        
+        try {
+          // 获取原始数据
+          const rawData = await fetchDayData({
+            date: date,
+            projectId: chart.config.dataSource.projectId,
+            selectedPointId: chart.config.dataSource.selectedPointId
+          })
+          
+          // 聚合
+          const aggregated = aggregationService.aggregateForChart(rawData, chart.config, date)
+          
+          // 保存
+          await chartDB.saveChartData({
+            chartId: chartId,
+            date: date,
+            ...aggregated
+          })
+          
+          updatedCount++
+          console.log(`✅ ${date} 数据更新成功`)
+          
+        } catch (error) {
+          console.error(`❌ ${date} 数据更新失败:`, error)
+          // 继续处理其他日期，不中断整个流程
+        }
+      }
       
-      // 获取原始数据
-      const rawData = await fetchDayData({
-        date: date,
-        projectId: chart.config.dataSource.projectId,
-        selectedPointId: chart.config.dataSource.selectedPointId
-      })
-      
-      // 聚合
-      const aggregated = aggregationService.aggregateForChart(rawData, chart.config, date)
-      
-      // 保存
-      await chartDB.saveChartData({
-        chartId: chartId,
-        date: date,
-        ...aggregated
-      })
-      
-      await chartDB.updateChart(chartId, {
-        lastDataUpdate: date
-      })
+      // 更新图表的最后更新时间
+      if (updatedCount > 0) {
+        const latestDate = datesToUpdate[datesToUpdate.length - 1]
+        await chartDB.updateChart(chartId, {
+          lastDataUpdate: formatLastUpdateTime(latestDate)
+        })
+      }
       
       message.destroy()
-      message.success('图表已更新')
+      
+      if (updatedCount > 0) {
+        message.success(`图表已更新，共更新 ${updatedCount} 天的数据`)
+      } else {
+        message.info('所有数据都是最新的')
+      }
       
       await loadCharts()
       

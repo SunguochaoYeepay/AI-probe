@@ -16,6 +16,45 @@ export function useDataConsistency() {
   const healthStatus = ref('unknown') // 'healthy', 'warning', 'critical', 'unknown'
 
   /**
+   * 获取所有配置的埋点ID
+   */
+  const getSelectedPointIds = () => {
+    const projectConfig = store.state.projectConfig
+    const pointIds = new Set()
+    
+    console.log('🔍 获取埋点配置:', {
+      visitBuryPointId: projectConfig.visitBuryPointId,
+      clickBuryPointId: projectConfig.clickBuryPointId,
+      behaviorBuryPointIds: projectConfig.behaviorBuryPointIds,
+      selectedBuryPointIds: projectConfig.selectedBuryPointIds
+    })
+    
+    // 添加访问埋点
+    if (projectConfig.visitBuryPointId) {
+      pointIds.add(projectConfig.visitBuryPointId)
+    }
+    
+    // 添加点击埋点
+    if (projectConfig.clickBuryPointId) {
+      pointIds.add(projectConfig.clickBuryPointId)
+    }
+    
+    // 添加行为分析埋点
+    if (projectConfig.behaviorBuryPointIds && Array.isArray(projectConfig.behaviorBuryPointIds)) {
+      projectConfig.behaviorBuryPointIds.forEach(id => pointIds.add(id))
+    }
+    
+    // 兼容旧的配置格式
+    if (projectConfig.selectedBuryPointIds && Array.isArray(projectConfig.selectedBuryPointIds)) {
+      projectConfig.selectedBuryPointIds.forEach(id => pointIds.add(id))
+    }
+    
+    const result = Array.from(pointIds)
+    console.log('📊 最终埋点ID列表:', result)
+    return result
+  }
+
+  /**
    * 执行完整的数据一致性检查
    */
   const runFullCheck = async () => {
@@ -24,7 +63,8 @@ export function useDataConsistency() {
       return
     }
 
-    const selectedPointIds = store.state.projectConfig?.selectedBuryPointIds || []
+    // 获取所有配置的埋点ID
+    const selectedPointIds = getSelectedPointIds()
     
     if (selectedPointIds.length === 0) {
       message.error('请先选择埋点')
@@ -78,7 +118,7 @@ export function useDataConsistency() {
    * 快速健康检查（仅检查关键指标）
    */
   const quickHealthCheck = async () => {
-    const selectedPointIds = store.state.projectConfig?.selectedBuryPointIds || []
+    const selectedPointIds = getSelectedPointIds()
     
     if (selectedPointIds.length === 0) {
       return { healthy: false, reason: '未选择埋点' }
@@ -108,7 +148,7 @@ export function useDataConsistency() {
       return
     }
 
-    const selectedPointIds = store.state.projectConfig?.selectedBuryPointIds || []
+    const selectedPointIds = getSelectedPointIds()
     const hideLoading = message.loading('正在自动修复问题...', 0)
     
     try {
@@ -146,7 +186,7 @@ export function useDataConsistency() {
    * 强制刷新当前数据
    */
   const forceRefreshData = async () => {
-    const selectedPointIds = store.state.projectConfig?.selectedBuryPointIds || []
+    const selectedPointIds = getSelectedPointIds()
     
     if (selectedPointIds.length === 0) {
       message.error('请先选择埋点')
@@ -230,7 +270,7 @@ export function useDataConsistency() {
    */
   const getCacheStats = async () => {
     try {
-      const selectedPointIds = store.state.projectConfig?.selectedBuryPointIds || []
+      const selectedPointIds = getSelectedPointIds()
       const stats = {
         totalPoints: selectedPointIds.length,
         cachedDays: 0,

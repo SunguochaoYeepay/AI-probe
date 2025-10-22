@@ -149,24 +149,12 @@
       </a-sub-menu>
 
       <!-- 设置 -->
-      <a-sub-menu key="settings">
+      <a-menu-item key="settings">
         <template #icon>
           <SettingOutlined />
         </template>
-        <template #title>设置</template>
-        <a-menu-item key="chart-management">
-          <template #icon>
-            <UnorderedListOutlined />
-          </template>
-          <span>图表管理</span>
-        </a-menu-item>
-        <a-menu-item key="data-source">
-          <template #icon>
-            <DatabaseOutlined />
-          </template>
-          <span>数据源配置</span>
-        </a-menu-item>
-      </a-sub-menu>
+        <span>系统设置</span>
+      </a-menu-item>
     </a-menu>
 
    
@@ -287,6 +275,9 @@ const onMenuClick = ({ key }) => {
       break
     case 'data-source':
       router.push('/project-config')
+      break
+    case 'settings':
+      router.push('/settings')
       break
   }
 }

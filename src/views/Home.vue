@@ -43,15 +43,6 @@
         </a-col>
       </a-row>
 
-    <!-- 配置管理模态框 -->
-    <ConfigModal
-      v-model:open="configModalVisible"
-      :api-config-form="apiConfigForm"
-      :ollama-config-form="ollamaConfigForm"
-      :project-config-form="projectConfigForm"
-      @save-config="saveConfig"
-      @project-config-updated="onProjectConfigUpdated"
-    />
 
     <!-- 页面选择弹窗 -->
     <PageSelectionModal
@@ -66,6 +57,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
+import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { 
   SettingOutlined, 
@@ -81,11 +73,11 @@ import { aggregationService } from '@/utils/aggregationService'
 import { dataPreloadService } from '@/services/dataPreloadService'
 import AIChatInterface from '@/components/AIChatInterface.vue'
 import ChartSection from '@/components/ChartSection.vue'
-import ConfigModal from '@/components/ConfigModal.vue'
 import PageSelectionModal from '@/components/PageSelectionModal.vue'
 import AppLayout from '@/components/AppLayout.vue'
 
 const store = useStore()
+const router = useRouter()
 
 // 使用 composables
 const { availablePages, fetchMultiDayData, loadAvailablePages, validateConnection, clearCache } = useDataFetch()
@@ -102,7 +94,6 @@ const {
 // 响应式数据
 const currentRequirement = ref('')
 const analyzing = ref(false)
-const configModalVisible = ref(false)
 const analysisMode = ref('single') // 'single' 或 'dual'
 const dateRange = ref([dayjs().subtract(6, 'day'), dayjs()]) // 默认最近7天
 const pageSelectionModalVisible = ref(false) // 页面选择弹窗
@@ -142,60 +133,6 @@ const currentDate = computed(() => new Date().toLocaleDateString())
 const hasChart = computed(() => store.state.chartConfig !== null)
 
 
-// API 配置表单（移除了 defaultDate 和 baseUrl，日期在主界面上选择，baseUrl 写死在代码中）
-const apiConfigForm = computed({
-  get: () => ({
-    pageSize: store.state.apiConfig.pageSize
-  }),
-  set: (value) => {
-    store.dispatch('updateApiConfig', value)
-  }
-})
-
-// 项目配置表单
-const projectConfigForm = computed({
-  get: () => ({
-    accessToken: store.state.apiConfig.accessToken,
-    selectedProjectId: store.state.projectConfig.currentProject?.id || store.state.apiConfig.projectId || 'event1021',
-    selectedBuryPointIds: store.state.projectConfig.selectedBuryPointIds || [],
-    // 添加新的埋点配置字段
-    visitBuryPointId: store.state.projectConfig.visitBuryPointId,
-    clickBuryPointId: store.state.projectConfig.clickBuryPointId
-  }),
-  set: (value) => {
-    store.dispatch('updateApiConfig', {
-      projectId: value.selectedProjectId,
-      accessToken: value.accessToken
-    })
-    // 同时更新项目配置中的埋点选择
-    if (value.selectedBuryPointIds) {
-      store.dispatch('updateProjectConfig', {
-        selectedBuryPointIds: value.selectedBuryPointIds
-      })
-    }
-    // 更新新的埋点配置
-    if (value.visitBuryPointId !== undefined) {
-      store.dispatch('updateProjectConfig', {
-        visitBuryPointId: value.visitBuryPointId
-      })
-    }
-    if (value.clickBuryPointId !== undefined) {
-      store.dispatch('updateProjectConfig', {
-        clickBuryPointId: value.clickBuryPointId
-      })
-    }
-  }
-})
-
-// Ollama 配置表单
-const ollamaConfigForm = computed({
-  get: () => ({
-    ...store.state.ollamaConfig
-  }),
-  set: (value) => {
-    store.dispatch('updateOllamaConfig', value)
-  }
-})
 
 // 需求解析器（会根据配置动态初始化）
 let requirementParser = null
@@ -627,37 +564,6 @@ const analyzeRequirement = async () => {
 
 
 
-// 事件处理方法
-const onProjectConfigUpdated = (configInfo) => {
-  console.log('项目配置更新事件:', configInfo)
-  
-  // 更新 Vuex 状态
-  store.dispatch('updateProjectConfig', {
-    currentProject: {
-      id: configInfo.projectId,
-      name: configInfo.projectId
-    },
-    ...configInfo.config,
-    selectedBuryPointIds: configInfo.selectedBuryPointIds || []
-  })
-  
-  // 同时更新 apiConfig 中的 selectedPointId（取第一个选中的埋点）
-  if (configInfo.selectedBuryPointIds && configInfo.selectedBuryPointIds.length > 0) {
-    const firstSelectedPointId = configInfo.selectedBuryPointIds[0]
-    store.dispatch('updateApiConfig', {
-      selectedPointId: firstSelectedPointId
-    })
-    console.log(`同步更新 apiConfig.selectedPointId: ${firstSelectedPointId}`)
-  }
-  
-  const buryPointsCount = configInfo.selectedBuryPointIds?.length || 0
-  message.success(`项目 ${configInfo.projectId} 配置已更新，已选择 ${buryPointsCount} 个埋点`)
-  
-  // 如果有当前的分析结果，可以重新生成图表以使用新的埋点配置
-  if (analysisResult.value) {
-    message.info('项目配置已更新，如需应用新配置请重新生成图表')
-  }
-}
 
 const onDateRangeChange = async (dates, dateStrings) => {
   console.log('====================================')
@@ -726,7 +632,7 @@ const refreshData = async () => {
 }
 
 const showConfigModal = () => {
-  configModalVisible.value = true
+  router.push('/settings')
 }
 
 const handleMenuClick = (menuKey) => {
@@ -753,62 +659,6 @@ const triggerManualPreload = async () => {
   }
 }
 
-const saveConfig = async (configData) => {
-  try {
-    // 如果有埋点选择信息，更新到store
-    if (configData && configData.selectedBuryPointIds) {
-      store.dispatch('updateProjectConfig', {
-        selectedBuryPointIds: configData.selectedBuryPointIds
-      })
-      
-      // 同时更新 apiConfig 中的 selectedPointId（取第一个选中的埋点）
-      if (configData.selectedBuryPointIds.length > 0) {
-        const firstSelectedPointId = configData.selectedBuryPointIds[0]
-        store.dispatch('updateApiConfig', {
-          selectedPointId: firstSelectedPointId
-        })
-        console.log(`保存配置时同步更新 apiConfig.selectedPointId: ${firstSelectedPointId}`)
-      }
-      
-      console.log('保存埋点选择:', configData.selectedBuryPointIds)
-    }
-    
-    // 配置已通过 v-model 自动同步到 store
-    configModalVisible.value = false
-    message.success('配置保存成功')
-    
-    // 重新初始化需求解析器（应用新的 Ollama 配置）
-    const ollamaConfig = store.state.ollamaConfig
-    requirementParser = new RequirementParser({
-      useAI: ollamaConfig.enabled,
-      ollama: {
-        baseURL: ollamaConfig.baseURL,
-        model: ollamaConfig.model,
-        timeout: ollamaConfig.timeout
-      }
-    })
-    console.log('需求解析器已重新初始化，AI 模式:', ollamaConfig.enabled ? '启用' : '禁用')
-    
-    // 重新验证连接
-    await validateConnection()
-    
-    // 配置保存后，自动触发数据预加载
-    console.log('配置已保存，准备启动数据预加载...')
-    try {
-      // 在后台异步执行预加载，不阻塞用户操作
-      dataPreloadService.triggerPreload().then(() => {
-        console.log('数据预加载已完成')
-      }).catch(err => {
-        console.warn('数据预加载失败:', err)
-      })
-      message.info('数据预加载已启动，请稍候...', 2)
-    } catch (error) {
-      console.warn('启动数据预加载失败:', error)
-    }
-  } catch (error) {
-    console.error('保存配置后验证连接失败:', error)
-  }
-}
 
 const fillPrompt = async (text) => {
   if (text === '页面访问量') {

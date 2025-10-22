@@ -202,12 +202,17 @@ const loadChartUpdateStatus = async () => {
     
     for (const chart of charts) {
       const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD')
+      const today = dayjs().format('YYYY-MM-DD')
       const hasYesterdayData = await chartDB.hasChartData(chart.id, yesterday)
+      const hasTodayData = await chartDB.hasChartData(chart.id, today)
+      
+      // 如果昨天或今天的数据缺失，标记为需要更新
+      const needsUpdate = !hasYesterdayData || !hasTodayData
       
       status.push({
         id: chart.id,
         name: chart.name,
-        status: hasYesterdayData ? 'up_to_date' : 'needs_update',
+        status: needsUpdate ? 'needs_update' : 'up_to_date',
         lastUpdate: chart.dataRange?.lastDataUpdate,
         pendingDays: chart.dataRange?.pendingDays || 0
       })

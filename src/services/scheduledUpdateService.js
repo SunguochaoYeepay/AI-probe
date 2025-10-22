@@ -9,6 +9,15 @@ import { aggregationService } from '@/utils/aggregationService'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 
+/**
+ * 格式化最后更新时间
+ * @param {string} date - 日期字符串 (YYYY-MM-DD)
+ * @returns {string} - 格式化的时间戳 (YYYY-MM-DD HH:mm:ss)
+ */
+function formatLastUpdateTime(date) {
+  return dayjs(date).endOf('day').format('YYYY-MM-DD HH:mm:ss')
+}
+
 class ScheduledUpdateService {
   constructor() {
     this.isRunning = false
@@ -78,21 +87,73 @@ class ScheduledUpdateService {
       // 检查每个图表是否需要更新
       const chartsToUpdate = []
       const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD')
+      const today = dayjs().format('YYYY-MM-DD')
 
       for (const chart of charts) {
+        console.log(`🔍 检查图表: ${chart.name} (ID: ${chart.id})`)
+        console.log(`  - 定时更新启用: ${chart.config?.scheduledUpdate?.enabled}`)
+        
         // 检查是否启用了定时更新
-        if (!chart.config?.scheduledUpdate?.enabled) {
+        let isScheduledUpdateEnabled = chart.config?.scheduledUpdate?.enabled
+        
+        // 兼容旧的配置格式
+        if (isScheduledUpdateEnabled === undefined && chart.updateStrategy?.enabled) {
+          isScheduledUpdateEnabled = chart.updateStrategy.enabled
+          console.log(`  - 使用旧配置格式: ${isScheduledUpdateEnabled}`)
+        }
+        
+        // 如果都没有配置，默认启用定时更新
+        if (isScheduledUpdateEnabled === undefined) {
+          isScheduledUpdateEnabled = true
+          console.log(`  - 默认启用定时更新`)
+          
+          // 更新图表配置，添加scheduledUpdate配置
+          try {
+            await chartDB.updateChart(chart.id, {
+              config: {
+                ...chart.config,
+                scheduledUpdate: {
+                  enabled: true,
+                  frequency: 'daily',
+                  time: '01:00',
+                  maxHistoryDays: 365,
+                  batchSize: 10
+                }
+              }
+            })
+            console.log(`  - 已更新图表配置，添加定时更新设置`)
+          } catch (error) {
+            console.warn(`  - 更新图表配置失败:`, error)
+          }
+        }
+        
+        if (!isScheduledUpdateEnabled) {
+          console.log(`  - 跳过: 定时更新未启用`)
           continue
         }
 
         // 检查昨天的数据是否存在
         const hasYesterdayData = await chartDB.hasChartData(chart.id, yesterday)
+        console.log(`  - 昨天数据 (${yesterday}): ${hasYesterdayData ? '存在' : '缺失'}`)
         if (!hasYesterdayData) {
           chartsToUpdate.push({
             chart,
             date: yesterday,
             priority: 'high' // 昨天数据缺失，高优先级
           })
+          console.log(`  - 添加更新任务: 昨天数据`)
+        }
+
+        // 检查今天的数据是否存在（新增）
+        const hasTodayData = await chartDB.hasChartData(chart.id, today)
+        console.log(`  - 今天数据 (${today}): ${hasTodayData ? '存在' : '缺失'}`)
+        if (!hasTodayData) {
+          chartsToUpdate.push({
+            chart,
+            date: today,
+            priority: 'high' // 今天数据缺失，也是高优先级
+          })
+          console.log(`  - 添加更新任务: 今天数据`)
         }
 
         // 检查是否有历史数据需要补充
@@ -280,7 +341,8 @@ class ScheduledUpdateService {
     const dataRange = chart.dataRange || {}
     
     // 更新最后数据更新时间
-    dataRange.lastDataUpdate = newDate
+    // 设置为当天的结束时间（23:59:59），表示该天的数据已完整
+    dataRange.lastDataUpdate = formatLastUpdateTime(newDate)
     
     // 减少待补充天数
     if (dataRange.pendingDays > 0) {
