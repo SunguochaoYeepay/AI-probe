@@ -45,8 +45,7 @@
             row-key="id"
           >
             <template #bodyCell="{ column, record }">
-              
-              <template v-else-if="column.key === 'category'">
+              <template v-if="column.key === 'category'">
                 <a-tag :color="getCategoryColor(record.category)">
                   {{ getCategoryText(record.category) }}
                 </a-tag>
