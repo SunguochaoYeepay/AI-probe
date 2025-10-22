@@ -36,7 +36,7 @@
     <!-- 筛选区域 -->
     <div class="filter-section">
       <a-row :gutter="16" align="middle">
-        <a-col :span="12">
+        <a-col :span="8">
           <a-input
             v-model:value="searchKeyword"
             placeholder="搜索图表名称或描述..."
@@ -48,6 +48,46 @@
             </template>
           </a-input>
         </a-col>
+        
+        <!-- 页面筛选 -->
+        <a-col :span="4" v-if="activeType === 'page-visits' || activeType === 'button-clicks' || activeType === 'query-conditions'">
+          <a-input
+            v-model:value="pageFilter"
+            placeholder="筛选页面..."
+            allow-clear
+          >
+            <template #prefix>
+              <FileTextOutlined />
+            </template>
+          </a-input>
+        </a-col>
+        
+        <!-- 按钮筛选 -->
+        <a-col :span="4" v-if="activeType === 'button-clicks'">
+          <a-input
+            v-model:value="buttonFilter"
+            placeholder="筛选按钮..."
+            allow-clear
+          >
+            <template #prefix>
+              <ThunderboltOutlined />
+            </template>
+          </a-input>
+        </a-col>
+        
+        <!-- 查询条件筛选 -->
+        <a-col :span="4" v-if="activeType === 'query-conditions'">
+          <a-input
+            v-model:value="queryConditionFilter"
+            placeholder="筛选查询条件..."
+            allow-clear
+          >
+            <template #prefix>
+              <SearchOutlined />
+            </template>
+          </a-input>
+        </a-col>
+        
         <a-col :span="4">
           <a-button type="primary" @click="handleSearch">
             <SearchOutlined /> 查询
@@ -71,7 +111,7 @@
         :loading="loading"
         :pagination="paginationConfig"
         row-key="id"
-        :scroll="{ x: 1350 }"
+        :scroll="{ x: getTableScrollWidth() }"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
@@ -94,6 +134,18 @@
           <template v-else-if="column.key === 'pageName'">
             <span class="page-name">
               {{ getPageName(record) }}
+            </span>
+          </template>
+          
+          <template v-else-if="column.key === 'buttonName'">
+            <span class="button-name">
+              {{ getButtonName(record) }}
+            </span>
+          </template>
+          
+          <template v-else-if="column.key === 'queryCondition'">
+            <span class="query-condition">
+              {{ getQueryCondition(record) }}
             </span>
           </template>
           
@@ -163,7 +215,8 @@ import {
   SearchOutlined,
   ClearOutlined,
   EyeOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  ThunderboltOutlined
 } from '@ant-design/icons-vue'
 import { useChartManager } from '@/composables/useChartManager'
 import ChartCard from '@/components/ChartCard.vue'
@@ -189,6 +242,7 @@ const {
 
 // 本地状态
 const activeCategory = ref('page')
+const activeType = ref('')
 const stats = ref(null)
 const deleteModal = ref({
   visible: false,
@@ -197,9 +251,12 @@ const deleteModal = ref({
 
 // 筛选相关状态
 const searchKeyword = ref('')
+const pageFilter = ref('')
+const buttonFilter = ref('')
+const queryConditionFilter = ref('')
 
-// 表格列配置
-const tableColumns = [
+// 基础列配置
+const baseColumns = [
   {
     title: '图表名称',
     key: 'name',
@@ -217,12 +274,6 @@ const tableColumns = [
       { text: '转化分析', value: '转化分析' },
       { text: '全局概览', value: '全局概览' }
     ]
-  },
-  {
-    title: '所属页面',
-    key: 'pageName',
-    width: 150,
-    filters: []
   },
   {
     title: '状态',
@@ -253,6 +304,72 @@ const tableColumns = [
   }
 ]
 
+// 动态列配置
+const tableColumns = computed(() => {
+  const columns = [...baseColumns]
+  
+  // 根据当前分类和类型插入不同的列
+  if (activeType.value === 'page-visits') {
+    // 页面访问量：显示页面名称
+    columns.splice(2, 0, {
+      title: '所属页面',
+      key: 'pageName',
+      width: 150,
+      filters: []
+    })
+  } else if (activeType.value === 'button-clicks') {
+    // 按钮点击：显示页面名称和按钮名称
+    columns.splice(2, 0, {
+      title: '所属页面',
+      key: 'pageName',
+      width: 150,
+      filters: []
+    })
+    columns.splice(3, 0, {
+      title: '点击按钮',
+      key: 'buttonName',
+      width: 150,
+      filters: []
+    })
+  } else if (activeType.value === 'query-conditions') {
+    // 查询条件分析：显示页面名称和查询条件
+    columns.splice(2, 0, {
+      title: '所属页面',
+      key: 'pageName',
+      width: 150,
+      filters: []
+    })
+    columns.splice(3, 0, {
+      title: '查询条件',
+      key: 'queryCondition',
+      width: 150,
+      filters: []
+    })
+  } else {
+    // 默认显示所有列
+    columns.splice(2, 0, {
+      title: '所属页面',
+      key: 'pageName',
+      width: 150,
+      filters: []
+    })
+    columns.splice(3, 0, {
+      title: '点击按钮',
+      key: 'buttonName',
+      width: 150,
+      filters: []
+    })
+    columns.splice(4, 0, {
+      title: '查询条件',
+      key: 'queryCondition',
+      width: 150,
+      filters: []
+    })
+  }
+  
+  return columns
+})
+
 // 分页配置
 const paginationConfig = {
   pageSize: 10,
@@ -266,9 +383,33 @@ const filteredCharts = computed(() => {
   return chartsByCategory.value[activeCategory.value] || []
 })
 
+// 监听路由参数变化
+watch(() => route.query, (newQuery) => {
+  activeCategory.value = newQuery.category || 'page'
+  activeType.value = newQuery.type || ''
+  console.log('路由参数变化:', { category: activeCategory.value, type: activeType.value })
+}, { immediate: true })
+
 // 筛选后的图表列表
 const displayCharts = computed(() => {
   let charts = filteredCharts.value
+
+  // 根据类型筛选图表
+  if (activeType.value) {
+    charts = charts.filter(chart => {
+      const config = chart.config || {}
+      switch (activeType.value) {
+        case 'page-visits':
+          return config.chartType === 'single_page_uv_pv_chart'
+        case 'button-clicks':
+          return config.chartType === 'button_click_analysis' || config.chartType === 'button_click_daily'
+        case 'query-conditions':
+          return config.chartType === 'query_condition_analysis'
+        default:
+          return true
+      }
+    })
+  }
 
   // 搜索筛选
   if (searchKeyword.value) {
@@ -277,6 +418,30 @@ const displayCharts = computed(() => {
       (chart.name && chart.name.toLowerCase().includes(keyword)) ||
       (chart.description && chart.description.toLowerCase().includes(keyword))
     )
+  }
+
+  // 页面筛选
+  if (pageFilter.value) {
+    charts = charts.filter(chart => {
+      const pageName = getPageName(chart)
+      return pageName.toLowerCase().includes(pageFilter.value.toLowerCase())
+    })
+  }
+
+  // 按钮筛选
+  if (buttonFilter.value) {
+    charts = charts.filter(chart => {
+      const buttonName = getButtonName(chart)
+      return buttonName.toLowerCase().includes(buttonFilter.value.toLowerCase())
+    })
+  }
+
+  // 查询条件筛选
+  if (queryConditionFilter.value) {
+    charts = charts.filter(chart => {
+      const queryCondition = getQueryCondition(chart)
+      return queryCondition.toLowerCase().includes(queryConditionFilter.value.toLowerCase())
+    })
   }
 
   // 按创建时间排序（最新的在前）
@@ -304,6 +469,23 @@ const handleMenuClick = (menuKey) => {
 // 筛选相关方法
 const handleSearch = () => {
   // 搜索逻辑在计算属性中处理
+}
+
+// 获取表格滚动宽度
+const getTableScrollWidth = () => {
+  let width = 1200 // 基础宽度
+  
+  if (activeType.value === 'page-visits') {
+    width = 1350 // 基础 + 页面列
+  } else if (activeType.value === 'button-clicks') {
+    width = 1500 // 基础 + 页面列 + 按钮列
+  } else if (activeType.value === 'query-conditions') {
+    width = 1500 // 基础 + 页面列 + 查询条件列
+  } else {
+    width = 1650 // 基础 + 所有列
+  }
+  
+  return width
 }
 
 // 移除resetFilters函数，不再需要
@@ -431,6 +613,82 @@ const getPageName = (chart) => {
       return '查询条件分析'
     case 'uv_pv_chart':
       return '整站分析'
+    default:
+      return '-'
+  }
+}
+
+// 提取按钮名称
+const getButtonName = (chart) => {
+  const config = chart.config || {}
+  
+  // 1. 优先从保存的参数中获取按钮名称
+  if (config.buttonParams?.buttonName) {
+    return config.buttonParams.buttonName
+  }
+  
+  // 2. 从图表描述中提取按钮名称
+  const description = chart.description || chart.name || ''
+  
+  // 匹配 "的'XXX'按钮..." 格式
+  const buttonMatch = description.match(/的["'](.+?)["']按钮/)
+  if (buttonMatch) {
+    return buttonMatch[1]
+  }
+  
+  // 匹配 "'XXX'按钮..." 格式
+  const buttonMatch2 = description.match(/["'](.+?)["']按钮/)
+  if (buttonMatch2) {
+    return buttonMatch2[1]
+  }
+  
+  // 3. 根据图表类型返回默认值
+  switch (config.chartType) {
+    case 'button_click_analysis':
+    case 'button_click_daily':
+      return '按钮点击'
+    default:
+      return '-'
+  }
+}
+
+// 提取查询条件
+const getQueryCondition = (chart) => {
+  const config = chart.config || {}
+  
+  // 1. 优先从保存的参数中获取查询条件
+  if (config.queryConditionParams?.queryCondition) {
+    const condition = config.queryConditionParams.queryCondition
+    // 如果是多条件，只显示前几个条件
+    if (condition.startsWith('多条件:')) {
+      const conditions = condition.replace('多条件:', '').split(/[、，]/)
+      if (conditions.length > 2) {
+        return `${conditions.slice(0, 2).join('、')}等${conditions.length}个条件`
+      }
+      return conditions.join('、')
+    }
+    return condition
+  }
+  
+  // 2. 从图表描述中提取查询条件
+  const description = chart.description || chart.name || ''
+  
+  // 匹配 "的'XXX'查询条件..." 格式
+  const conditionMatch = description.match(/的["'](.+?)["']查询条件/)
+  if (conditionMatch) {
+    return conditionMatch[1]
+  }
+  
+  // 匹配 "'XXX'查询条件..." 格式
+  const conditionMatch2 = description.match(/["'](.+?)["']查询条件/)
+  if (conditionMatch2) {
+    return conditionMatch2[1]
+  }
+  
+  // 3. 根据图表类型返回默认值
+  switch (config.chartType) {
+    case 'query_condition_analysis':
+      return '查询条件'
     default:
       return '-'
   }

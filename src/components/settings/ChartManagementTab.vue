@@ -63,6 +63,18 @@
                 </span>
               </template>
               
+              <template v-else-if="column.key === 'buttonName'">
+                <span class="button-name">
+                  {{ getButtonName(record) }}
+                </span>
+              </template>
+              
+              <template v-else-if="column.key === 'queryCondition'">
+                <span class="query-condition">
+                  {{ getQueryCondition(record) }}
+                </span>
+              </template>
+              
               <template v-else-if="column.key === 'lastUpdate'">
                 {{ formatDate(record.lastDataUpdate) }}
               </template>
@@ -143,6 +155,18 @@ const columns = [
     title: '所属页面',
     dataIndex: 'pageName',
     key: 'pageName',
+    width: 150
+  },
+  {
+    title: '点击按钮',
+    dataIndex: 'buttonName',
+    key: 'buttonName',
+    width: 150
+  },
+  {
+    title: '查询条件',
+    dataIndex: 'queryCondition',
+    key: 'queryCondition',
     width: 150
   },
   {
@@ -301,6 +325,82 @@ const getPageName = (chart) => {
       return '查询条件分析'
     case 'uv_pv_chart':
       return '整站分析'
+    default:
+      return '-'
+  }
+}
+
+// 提取按钮名称
+const getButtonName = (chart) => {
+  const config = chart.config || {}
+  
+  // 1. 优先从保存的参数中获取按钮名称
+  if (config.buttonParams?.buttonName) {
+    return config.buttonParams.buttonName
+  }
+  
+  // 2. 从图表描述中提取按钮名称
+  const description = chart.description || chart.name || ''
+  
+  // 匹配 "的'XXX'按钮..." 格式
+  const buttonMatch = description.match(/的["'](.+?)["']按钮/)
+  if (buttonMatch) {
+    return buttonMatch[1]
+  }
+  
+  // 匹配 "'XXX'按钮..." 格式
+  const buttonMatch2 = description.match(/["'](.+?)["']按钮/)
+  if (buttonMatch2) {
+    return buttonMatch2[1]
+  }
+  
+  // 3. 根据图表类型返回默认值
+  switch (config.chartType) {
+    case 'button_click_analysis':
+    case 'button_click_daily':
+      return '按钮点击'
+    default:
+      return '-'
+  }
+}
+
+// 提取查询条件
+const getQueryCondition = (chart) => {
+  const config = chart.config || {}
+  
+  // 1. 优先从保存的参数中获取查询条件
+  if (config.queryConditionParams?.queryCondition) {
+    const condition = config.queryConditionParams.queryCondition
+    // 如果是多条件，只显示前几个条件
+    if (condition.startsWith('多条件:')) {
+      const conditions = condition.replace('多条件:', '').split(/[、，]/)
+      if (conditions.length > 2) {
+        return `${conditions.slice(0, 2).join('、')}等${conditions.length}个条件`
+      }
+      return conditions.join('、')
+    }
+    return condition
+  }
+  
+  // 2. 从图表描述中提取查询条件
+  const description = chart.description || chart.name || ''
+  
+  // 匹配 "的'XXX'查询条件..." 格式
+  const conditionMatch = description.match(/的["'](.+?)["']查询条件/)
+  if (conditionMatch) {
+    return conditionMatch[1]
+  }
+  
+  // 匹配 "'XXX'查询条件..." 格式
+  const conditionMatch2 = description.match(/["'](.+?)["']查询条件/)
+  if (conditionMatch2) {
+    return conditionMatch2[1]
+  }
+  
+  // 3. 根据图表类型返回默认值
+  switch (config.chartType) {
+    case 'query_condition_analysis':
+      return '查询条件'
     default:
       return '-'
   }
