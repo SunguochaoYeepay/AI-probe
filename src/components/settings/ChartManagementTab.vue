@@ -137,7 +137,7 @@ const stats = ref({
   userBehavior: 0
 })
 
-// 表格列配置
+// 表格列配置 - 调整列顺序，将页面名称、按钮、查询条件放在类型之后
 const columns = [
   {
     title: '图表名称',

@@ -36,21 +36,8 @@
     <!-- 筛选区域 -->
     <div class="filter-section">
       <a-row :gutter="16" align="middle">
-        <a-col :span="8">
-          <a-input
-            v-model:value="searchKeyword"
-            placeholder="搜索图表名称或描述..."
-            allow-clear
-            @input="handleSearch"
-          >
-            <template #prefix>
-              <SearchOutlined />
-            </template>
-          </a-input>
-        </a-col>
-        
         <!-- 页面筛选 -->
-        <a-col :span="4" v-if="activeType === 'page-visits' || activeType === 'button-clicks' || activeType === 'query-conditions'">
+        <a-col :span="6" v-if="activeType === 'page-visits' || activeType === 'button-clicks' || activeType === 'query-conditions'">
           <a-input
             v-model:value="pageFilter"
             placeholder="筛选页面..."
@@ -63,7 +50,7 @@
         </a-col>
         
         <!-- 按钮筛选 -->
-        <a-col :span="4" v-if="activeType === 'button-clicks'">
+        <a-col :span="6" v-if="activeType === 'button-clicks'">
           <a-input
             v-model:value="buttonFilter"
             placeholder="筛选按钮..."
@@ -76,7 +63,7 @@
         </a-col>
         
         <!-- 查询条件筛选 -->
-        <a-col :span="4" v-if="activeType === 'query-conditions'">
+        <a-col :span="6" v-if="activeType === 'query-conditions'">
           <a-input
             v-model:value="queryConditionFilter"
             placeholder="筛选查询条件..."
@@ -250,7 +237,6 @@ const deleteModal = ref({
 })
 
 // 筛选相关状态
-const searchKeyword = ref('')
 const pageFilter = ref('')
 const buttonFilter = ref('')
 const queryConditionFilter = ref('')
@@ -308,7 +294,7 @@ const baseColumns = [
 const tableColumns = computed(() => {
   const columns = [...baseColumns]
   
-  // 根据当前分类和类型插入不同的列
+  // 根据当前分类和类型插入不同的列，放在类型列之后
   if (activeType.value === 'page-visits') {
     // 页面访问量：显示页面名称
     columns.splice(2, 0, {
@@ -346,7 +332,7 @@ const tableColumns = computed(() => {
       filters: []
     })
   } else {
-    // 默认显示所有列
+    // 默认显示所有列，按页面名称、按钮、查询条件的顺序
     columns.splice(2, 0, {
       title: '所属页面',
       key: 'pageName',
@@ -411,14 +397,7 @@ const displayCharts = computed(() => {
     })
   }
 
-  // 搜索筛选
-  if (searchKeyword.value) {
-    const keyword = searchKeyword.value.toLowerCase()
-    charts = charts.filter(chart => 
-      (chart.name && chart.name.toLowerCase().includes(keyword)) ||
-      (chart.description && chart.description.toLowerCase().includes(keyword))
-    )
-  }
+  // 移除图表名称搜索筛选，只保留分类筛选
 
   // 页面筛选
   if (pageFilter.value) {
@@ -468,7 +447,7 @@ const handleMenuClick = (menuKey) => {
 
 // 筛选相关方法
 const handleSearch = () => {
-  // 搜索逻辑在计算属性中处理
+  // 筛选逻辑在计算属性中处理
 }
 
 // 获取表格滚动宽度
