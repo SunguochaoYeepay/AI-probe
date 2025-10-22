@@ -329,39 +329,52 @@ const renderChart = async () => {
     
     // 如果是查询条件分析，需要传递页面和查询条件信息
     if (chart.value.config.chartType === 'query_condition_analysis') {
-      // 从图表描述中提取页面和查询条件信息
-      const description = chart.value.description || ''
       console.log('🔍 查询条件分析 - 完整图表对象:', chart.value)
-      console.log('🔍 查询条件分析 - 图表描述:', description)
-      console.log('🔍 查询条件分析 - 图表名称:', chart.value.name)
+      console.log('🔍 查询条件分析 - 图表配置:', chart.value.config)
       
-      // 尝试多种匹配模式提取页面名称
-      let pageMatch = description.match(/页面[""]([^""]+)[""]/)
-      if (!pageMatch) {
-        pageMatch = description.match(/页面"([^"]+)"/)
+      // 🚀 优先使用保存的原始参数
+      if (chart.value.config.queryConditionParams) {
+        console.log('✅ 使用保存的查询条件参数:', chart.value.config.queryConditionParams)
+        analysisConfig.parameters = {
+          pageName: chart.value.config.queryConditionParams.pageName,
+          queryCondition: chart.value.config.queryConditionParams.queryCondition,
+          queryData: chart.value.config.queryConditionParams.queryData
+        }
+      } else {
+        // 如果没有保存的参数，从图表描述中提取（兼容旧数据）
+        console.log('⚠️ 未找到保存的参数，从描述中解析')
+        const description = chart.value.description || ''
+        console.log('🔍 查询条件分析 - 图表描述:', description)
+        
+        // 尝试多种匹配模式提取页面名称
+        let pageMatch = description.match(/页面[""]([^""]+)[""]/)
+        if (!pageMatch) {
+          pageMatch = description.match(/页面"([^"]+)"/)
+        }
+        if (!pageMatch) {
+          pageMatch = description.match(/页面([^的]+)的/)
+        }
+        if (!pageMatch && description.startsWith('#')) {
+          pageMatch = description.match(/#([^ ]+)/)
+        }
+        
+        // 尝试多种匹配模式提取查询条件
+        let conditionMatch = description.match(/[""]([^""]+)[""]查询条件/)
+        if (!conditionMatch) {
+          conditionMatch = description.match(/"([^"]+)"查询条件/)
+        }
+        if (!conditionMatch) {
+          conditionMatch = description.match(/的"([^"]+)"查询条件/)
+        }
+        
+        // 设置参数
+        if (pageMatch) analysisConfig.parameters = { ...analysisConfig.parameters, pageName: pageMatch[1] }
+        if (conditionMatch) analysisConfig.parameters = { ...analysisConfig.parameters, queryCondition: conditionMatch[1] }
+        
+        console.log('🔍 匹配结果:', { pageMatch, conditionMatch })
       }
-      if (!pageMatch) {
-        pageMatch = description.match(/页面([^的]+)的/)
-      }
-      if (!pageMatch && description.startsWith('#')) {
-        pageMatch = description.match(/#([^ ]+)/)
-      }
-      
-      // 尝试多种匹配模式提取查询条件
-      let conditionMatch = description.match(/[""]([^""]+)[""]查询条件/)
-      if (!conditionMatch) {
-        conditionMatch = description.match(/"([^"]+)"查询条件/)
-      }
-      if (!conditionMatch) {
-        conditionMatch = description.match(/的"([^"]+)"查询条件/)
-      }
-      
-      // 设置参数
-      if (pageMatch) analysisConfig.parameters = { ...analysisConfig.parameters, pageName: pageMatch[1] }
-      if (conditionMatch) analysisConfig.parameters = { ...analysisConfig.parameters, queryCondition: conditionMatch[1] }
       
       console.log('🔧 查询条件分析配置:', analysisConfig)
-      console.log('🔍 匹配结果:', { pageMatch, conditionMatch })
     }
     // 如果是按钮点击分析，需要传递页面和按钮信息
     else if (chart.value.config.chartType === 'button_click_analysis' || chart.value.config.chartType === 'button_click_daily') {

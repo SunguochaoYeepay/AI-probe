@@ -1047,6 +1047,26 @@ const saveChartToLibrary = async () => {
       }
     }
     
+    // 🚀 新增：保存查询条件分析的原始参数
+    if (chartType === 'query_condition_analysis' && store.state.queryConditionAnalysisParams.pageName) {
+      chartConfig.queryConditionParams = {
+        pageName: store.state.queryConditionAnalysisParams.pageName,
+        queryCondition: store.state.queryConditionAnalysisParams.queryCondition,
+        queryData: store.state.queryConditionAnalysisParams.queryData
+      }
+      console.log('💾 保存查询条件分析参数:', chartConfig.queryConditionParams)
+    }
+    
+    // 🚀 新增：保存按钮点击分析的原始参数
+    if ((chartType === 'button_click_analysis' || chartType === 'button_click_daily') && store.state.buttonAnalysisParams.pageName) {
+      chartConfig.buttonParams = {
+        pageName: store.state.buttonAnalysisParams.pageName,
+        buttonName: store.state.buttonAnalysisParams.buttonName,
+        buttonData: store.state.buttonAnalysisParams.buttonData
+      }
+      console.log('💾 保存按钮点击分析参数:', chartConfig.buttonParams)
+    }
+    
     // 按日期聚合数据（只处理最近的数据）
     const initialData = {}
     
