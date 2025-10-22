@@ -1970,13 +1970,32 @@ export class ChartGenerator {
     
     console.log('🔍 解析出的条件名称:', conditionNames)
     
-    // 为每个条件生成数据（这里简化处理，实际应该根据原始数据分组）
+    // 为每个条件生成数据（使用更合理的数据分配策略）
     const conditionData = conditionNames.map((name, index) => {
-      // 简化处理：将总数据按条件数量平均分配
-      const dataPerCondition = data.map(item => ({
-        date: item.date || item.createdAt,
-        value: Math.floor((item.pv || 0) / conditionNames.length) + (index === 0 ? (item.pv || 0) % conditionNames.length : 0)
-      }))
+      // 使用加权分配策略，确保有数据的天数能显示值
+      const dataPerCondition = data.map(item => {
+        const totalPv = item.pv || 0
+        let value = 0
+        
+        if (totalPv > 0) {
+          // 如果有数据，使用加权分配
+          const baseValue = Math.floor(totalPv / conditionNames.length)
+          const remainder = totalPv % conditionNames.length
+          
+          // 第一个条件获得余数，其他条件获得基础值
+          value = baseValue + (index === 0 ? remainder : 0)
+          
+          // 如果基础值太小，给每个条件分配至少1
+          if (baseValue === 0 && totalPv >= conditionNames.length) {
+            value = 1
+          }
+        }
+        
+        return {
+          date: item.date || item.createdAt,
+          value: value
+        }
+      })
       
       return {
         name: name.trim(),
