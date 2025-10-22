@@ -190,7 +190,7 @@ const chartData = ref([])
 const dateRange = ref(null)
 const chartInstance = ref(null)
 const deleteModal = ref(false)
-const selectedTimeRange = ref('7') // 默认7天
+const selectedTimeRange = ref('7') // 默认7天，会在loadData中根据图表配置更新
 
 // 计算属性
 const needUpdate = computed(() => {
@@ -254,6 +254,23 @@ const loadData = async () => {
       chart: chart.value.name,
       dataCount: chartData.value.length
     })
+    
+    // 🚀 根据图表的数据范围策略设置默认时间范围
+    const dateRangeStrategy = chart.value.config.dateRangeStrategy
+    if (dateRangeStrategy === 'last_30_days') {
+      selectedTimeRange.value = '30'
+      console.log('📅 设置默认时间范围为30天')
+    } else if (dateRangeStrategy === 'last_7_days') {
+      selectedTimeRange.value = '7'
+      console.log('📅 设置默认时间范围为7天')
+    } else if (dateRangeStrategy === 'last_60_days') {
+      selectedTimeRange.value = '60'
+      console.log('📅 设置默认时间范围为60天')
+    } else {
+      // 默认保持7天
+      selectedTimeRange.value = '7'
+      console.log('📅 使用默认时间范围7天')
+    }
     
     // 渲染图表
     await renderChart()
