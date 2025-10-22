@@ -1508,7 +1508,9 @@ export class ChartGenerator {
     const chartData = dataProcessorFactory.process(analysis.chartType, data, {
       format: format,
       analysis: analysis,
-      userDateRange: userDateRange
+      userDateRange: userDateRange,
+      // 🚀 传递日期范围信息
+      dateRange: analysis.dateRangeObj
     })
     
     console.log('📊 单页面UV/PV图表数据:', {
@@ -1751,7 +1753,9 @@ export class ChartGenerator {
     // 使用统一的数据处理逻辑
     const chartData = dataProcessorFactory.process(analysis.chartType, data, {
       format: format,
-      analysis: analysis
+      analysis: analysis,
+      // 🚀 传递日期范围信息
+      dateRange: analysis.dateRangeObj
     })
     
     console.log(`🔍 [ChartGenerator] 按钮点击分析图表数据:`, {
@@ -1884,7 +1888,9 @@ export class ChartGenerator {
       format: format,
       analysis: analysis,
       queryCondition: analysis.parameters?.queryCondition || '',
-      queryData: analysis.parameters?.queryData
+      queryData: analysis.parameters?.queryData,
+      // 🚀 传递日期范围信息
+      dateRange: analysis.dateRangeObj
     })
     
     // 获取查询条件信息

@@ -341,7 +341,12 @@ const renderChart = async () => {
     const analysisConfig = {
       chartType: chart.value.config.chartType,
       intent: chart.value.config.metrics,
-      dateRange: `${dateRange.value.startDate} 至 ${dateRange.value.endDate}`
+      dateRange: `${dateRange.value.startDate} 至 ${dateRange.value.endDate}`,
+      // 🚀 添加日期范围对象，供数据处理器使用
+      dateRangeObj: {
+        startDate: dateRange.value.startDate,
+        endDate: dateRange.value.endDate
+      }
     }
     
     // 如果是查询条件分析，需要传递页面和查询条件信息
@@ -657,7 +662,12 @@ const transformChartData = async (data, config, chartInfo = null) => {
         parameters: analysisParameters
       },
       queryCondition: config.queryConditionParams?.queryCondition || '',
-      queryData: config.queryConditionParams?.queryData
+      queryData: config.queryConditionParams?.queryData,
+      // 🚀 传递用户选择的日期范围
+      dateRange: {
+        startDate: dateRange.value?.startDate,
+        endDate: dateRange.value?.endDate
+      }
     })
     
     console.log('✅ [ChartDetail] 统一数据处理完成:', result)
@@ -1139,7 +1149,14 @@ const onTimeRangeChange = async (e) => {
     await renderChart()
     
     message.destroy()
-    message.success(`已切换到${days}天数据视图`)
+    
+    // 🚀 修复：显示实际数据天数而不是选择的天数
+    const actualDataDays = chartData.value.length
+    if (actualDataDays === days) {
+      message.success(`已切换到${days}天数据视图`)
+    } else {
+      message.success(`已切换到${days}天数据视图（实际数据：${actualDataDays}天）`)
+    }
     
   } catch (error) {
     message.destroy()

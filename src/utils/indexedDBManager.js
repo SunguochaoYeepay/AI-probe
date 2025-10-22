@@ -238,13 +238,24 @@ class ChartDatabase {
 
       request.onsuccess = () => {
         let data = request.result
+        
+        console.log('🔍 [IndexedDB] getChartData 原始数据:', {
+          chartId,
+          originalDataCount: data.length,
+          dateRange: options,
+          sampleDates: data.slice(0, 3).map(d => d.date)
+        })
 
         // 按日期过滤
         if (options.startDate) {
+          const beforeFilter = data.length
           data = data.filter(d => d.date >= options.startDate)
+          console.log(`🔍 [IndexedDB] 按开始日期过滤: ${beforeFilter} -> ${data.length} (>= ${options.startDate})`)
         }
         if (options.endDate) {
+          const beforeFilter = data.length
           data = data.filter(d => d.date <= options.endDate)
+          console.log(`🔍 [IndexedDB] 按结束日期过滤: ${beforeFilter} -> ${data.length} (<= ${options.endDate})`)
         }
 
         // 按日期排序

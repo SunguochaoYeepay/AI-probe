@@ -153,27 +153,121 @@ export class QueryConditionDataProcessor {
   allocate(aggregatedData, options) {
     const { queryCondition, queryData } = options
 
+    // 🚀 修复：生成完整的时间轴，填充缺失的天数为0值
+    if (!aggregatedData || aggregatedData.length === 0) {
+      return {
+        categories: [],
+        uvData: [],
+        pvData: [],
+        isMultipleConditions: false,
+        conditionData: []
+      }
+    }
+
+    // 🚀 优先使用用户选择的日期范围，如果没有则使用数据的实际日期范围
+    let startDate, endDate
+    
+    if (options.dateRange && options.dateRange.startDate && options.dateRange.endDate) {
+      // 使用用户选择的日期范围
+      startDate = options.dateRange.startDate
+      endDate = options.dateRange.endDate
+      this.logger.log('📅 [QueryConditionDataProcessor] 使用用户选择的日期范围:', {
+        startDate: startDate,
+        endDate: endDate
+      })
+    } else {
+      // 使用数据的实际日期范围
+      const dates = aggregatedData.map(item => item.date).sort()
+      startDate = dates[0]
+      endDate = dates[dates.length - 1]
+      this.logger.log('📅 [QueryConditionDataProcessor] 使用数据的实际日期范围:', {
+        startDate: startDate,
+        endDate: endDate
+      })
+    }
+    
+    // 生成完整的时间轴
+    const fullDateRange = []
+    let currentDate = new Date(startDate)
+    const endDateObj = new Date(endDate)
+    
+    while (currentDate <= endDateObj) {
+      fullDateRange.push(currentDate.toISOString().split('T')[0])
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+    
+    // 创建数据映射
+    const dataMap = new Map()
+    aggregatedData.forEach(item => {
+      dataMap.set(item.date, item)
+    })
+    
+    // 为每个日期生成数据点（包括无数据的天）
+    const categories = []
+    const uvData = []
+    const pvData = []
+    
+    fullDateRange.forEach(date => {
+      categories.push(date)
+      const existingData = dataMap.get(date)
+      if (existingData) {
+        uvData.push(existingData.uv || 0)
+        pvData.push(existingData.pv || 0)
+      } else {
+        // 无数据的天，填充0值
+        uvData.push(0)
+        pvData.push(0)
+      }
+    })
+
     // 判断是否为多条件
     const isMultiCondition = this.isMultiCondition(queryCondition)
     
     if (!isMultiCondition) {
       // 单条件：直接返回UV/PV数据
+      this.logger.log('📊 [QueryConditionDataProcessor] 完整时间轴生成（单条件）:', {
+        originalDataCount: aggregatedData.length,
+        fullDateRangeCount: fullDateRange.length,
+        startDate: startDate,
+        endDate: endDate,
+        categoriesSample: categories.slice(0, 3),
+        uvDataSample: uvData.slice(0, 3),
+        pvDataSample: pvData.slice(0, 3)
+      })
+      
       return {
-        categories: aggregatedData.map(item => item.date),
-        uvData: aggregatedData.map(item => item.uv),
-        pvData: aggregatedData.map(item => item.pv),
+        categories: categories,
+        uvData: uvData,
+        pvData: pvData,
         isMultipleConditions: false,
         conditionData: []
       }
     }
 
     // 多条件：使用分配策略
-    const conditionData = this.generateConditionData(aggregatedData, queryCondition)
+    // 为多条件生成完整时间轴的数据
+    const fullAggregatedData = fullDateRange.map(date => {
+      const existingData = dataMap.get(date)
+      return existingData || { date: date, pv: 0, uv: 0 }
+    })
+    
+    const conditionData = this.generateConditionData(fullAggregatedData, queryCondition)
+    
+    this.logger.log('📊 [QueryConditionDataProcessor] 完整时间轴生成（多条件）:', {
+      originalDataCount: aggregatedData.length,
+      fullDateRangeCount: fullDateRange.length,
+      startDate: startDate,
+      endDate: endDate,
+      categoriesSample: categories.slice(0, 3),
+      uvDataSample: uvData.slice(0, 3),
+      pvDataSample: pvData.slice(0, 3),
+      conditionDataCount: conditionData.length
+    })
     
     return {
-      categories: aggregatedData.map(item => item.date),
-      uvData: aggregatedData.map(item => item.uv),
-      pvData: aggregatedData.map(item => item.pv),
+      categories: categories,
+      uvData: uvData,
+      pvData: pvData,
       isMultipleConditions: true,
       conditionData: conditionData
     }

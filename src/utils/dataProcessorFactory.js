@@ -160,11 +160,87 @@ export class ButtonClickDataProcessor extends BaseDataProcessor {
   }
 
   allocate(aggregatedData, options) {
-    // 按钮点击分析：直接返回UV/PV数据
+    // 🚀 修复：生成完整的时间轴，填充缺失的天数为0值
+    if (!aggregatedData || aggregatedData.length === 0) {
+      return {
+        categories: [],
+        uvData: [],
+        pvData: [],
+        isMultipleConditions: false,
+        conditionData: []
+      }
+    }
+
+    // 🚀 优先使用用户选择的日期范围，如果没有则使用数据的实际日期范围
+    let startDate, endDate
+    
+    if (options.dateRange && options.dateRange.startDate && options.dateRange.endDate) {
+      // 使用用户选择的日期范围
+      startDate = options.dateRange.startDate
+      endDate = options.dateRange.endDate
+      this.logger.log('📅 [ButtonClickDataProcessor] 使用用户选择的日期范围:', {
+        startDate: startDate,
+        endDate: endDate
+      })
+    } else {
+      // 使用数据的实际日期范围
+      const dates = aggregatedData.map(item => item.date).sort()
+      startDate = dates[0]
+      endDate = dates[dates.length - 1]
+      this.logger.log('📅 [ButtonClickDataProcessor] 使用数据的实际日期范围:', {
+        startDate: startDate,
+        endDate: endDate
+      })
+    }
+    
+    // 生成完整的时间轴
+    const fullDateRange = []
+    let currentDate = new Date(startDate)
+    const endDateObj = new Date(endDate)
+    
+    while (currentDate <= endDateObj) {
+      fullDateRange.push(currentDate.toISOString().split('T')[0])
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+    
+    // 创建数据映射
+    const dataMap = new Map()
+    aggregatedData.forEach(item => {
+      dataMap.set(item.date, item)
+    })
+    
+    // 为每个日期生成数据点（包括无数据的天）
+    const categories = []
+    const uvData = []
+    const pvData = []
+    
+    fullDateRange.forEach(date => {
+      categories.push(date)
+      const existingData = dataMap.get(date)
+      if (existingData) {
+        uvData.push(existingData.uv || 0)
+        pvData.push(existingData.pv || 0)
+      } else {
+        // 无数据的天，填充0值
+        uvData.push(0)
+        pvData.push(0)
+      }
+    })
+    
+    this.logger.log('📊 [ButtonClickDataProcessor] 完整时间轴生成:', {
+      originalDataCount: aggregatedData.length,
+      fullDateRangeCount: fullDateRange.length,
+      startDate: startDate,
+      endDate: endDate,
+      categoriesSample: categories.slice(0, 3),
+      uvDataSample: uvData.slice(0, 3),
+      pvDataSample: pvData.slice(0, 3)
+    })
+    
     return {
-      categories: aggregatedData.map(item => item.date),
-      uvData: aggregatedData.map(item => item.uv),
-      pvData: aggregatedData.map(item => item.pv),
+      categories: categories,
+      uvData: uvData,
+      pvData: pvData,
       isMultipleConditions: false,
       conditionData: []
     }
@@ -369,11 +445,87 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
   }
 
   allocate(aggregatedData, options) {
-    // 页面访问分析：直接返回UV/PV数据
+    // 🚀 修复：生成完整的时间轴，填充缺失的天数为0值
+    if (!aggregatedData || aggregatedData.length === 0) {
+      return {
+        categories: [],
+        uvData: [],
+        pvData: [],
+        isMultipleConditions: false,
+        conditionData: []
+      }
+    }
+
+    // 🚀 优先使用用户选择的日期范围，如果没有则使用数据的实际日期范围
+    let startDate, endDate
+    
+    if (options.dateRange && options.dateRange.startDate && options.dateRange.endDate) {
+      // 使用用户选择的日期范围
+      startDate = options.dateRange.startDate
+      endDate = options.dateRange.endDate
+      this.logger.log('📅 [PageAccessDataProcessor] 使用用户选择的日期范围:', {
+        startDate: startDate,
+        endDate: endDate
+      })
+    } else {
+      // 使用数据的实际日期范围
+      const dates = aggregatedData.map(item => item.date).sort()
+      startDate = dates[0]
+      endDate = dates[dates.length - 1]
+      this.logger.log('📅 [PageAccessDataProcessor] 使用数据的实际日期范围:', {
+        startDate: startDate,
+        endDate: endDate
+      })
+    }
+    
+    // 生成完整的时间轴
+    const fullDateRange = []
+    let currentDate = new Date(startDate)
+    const endDateObj = new Date(endDate)
+    
+    while (currentDate <= endDateObj) {
+      fullDateRange.push(currentDate.toISOString().split('T')[0])
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+    
+    // 创建数据映射
+    const dataMap = new Map()
+    aggregatedData.forEach(item => {
+      dataMap.set(item.date, item)
+    })
+    
+    // 为每个日期生成数据点（包括无数据的天）
+    const categories = []
+    const uvData = []
+    const pvData = []
+    
+    fullDateRange.forEach(date => {
+      categories.push(date)
+      const existingData = dataMap.get(date)
+      if (existingData) {
+        uvData.push(existingData.uv || 0)
+        pvData.push(existingData.pv || 0)
+      } else {
+        // 无数据的天，填充0值
+        uvData.push(0)
+        pvData.push(0)
+      }
+    })
+    
+    this.logger.log('📊 [PageAccessDataProcessor] 完整时间轴生成:', {
+      originalDataCount: aggregatedData.length,
+      fullDateRangeCount: fullDateRange.length,
+      startDate: startDate,
+      endDate: endDate,
+      categoriesSample: categories.slice(0, 3),
+      uvDataSample: uvData.slice(0, 3),
+      pvDataSample: pvData.slice(0, 3)
+    })
+    
     return {
-      categories: aggregatedData.map(item => item.date),
-      uvData: aggregatedData.map(item => item.uv),
-      pvData: aggregatedData.map(item => item.pv),
+      categories: categories,
+      uvData: uvData,
+      pvData: pvData,
       isMultipleConditions: false,
       conditionData: []
     }
