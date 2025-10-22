@@ -414,6 +414,7 @@ const analyzeQueryConditionRequirement = async () => {
     // 构建查询条件分析的固定配置
     const pageName = store.state.queryConditionAnalysisParams.pageName
     const queryCondition = store.state.queryConditionAnalysisParams.queryCondition
+    const queryData = store.state.queryConditionAnalysisParams.queryData
     
     const analysis = {
       intent: 'query_condition_analysis',
@@ -428,7 +429,8 @@ const analyzeQueryConditionRequirement = async () => {
       source: 'query_condition_selection',
       parameters: {
         pageName: pageName,
-        queryCondition: queryCondition
+        queryCondition: queryCondition,
+        queryData: queryData
       }
     }
     

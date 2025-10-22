@@ -16,7 +16,6 @@
         :columns="tableColumns"
         :data-source="tableData"
         :pagination="false"
-        :scroll="{ y: 500 }"
         row-key="key"
         size="small"
         :expand-row-by-click="false"
@@ -60,9 +59,27 @@
           </template>
           
           <template v-else-if="column.key === 'action'">
-            <a-button type="primary" size="small" @click="selectButton(record)">
-              选择分析
-            </a-button>
+            <template v-if="selectionType === 'queries' && !record.isSummary">
+              <!-- 查询条件的子项支持多选 -->
+              <a-checkbox 
+                v-model:checked="record.selected"
+                @change="handleSubItemSelection(record)"
+              >
+                选择
+              </a-checkbox>
+            </template>
+            <template v-else-if="selectionType === 'queries' && record.isSummary">
+              <!-- 查询条件的父级分类显示"全部"按钮 -->
+              <a-button type="primary" size="small" @click="selectAllSubItems(record)">
+                全部
+              </a-button>
+            </template>
+            <template v-else>
+              <!-- 其他情况使用单选按钮 -->
+              <a-button type="primary" size="small" @click="selectButton(record)">
+                选择分析
+              </a-button>
+            </template>
           </template>
         </template>
       </a-table>
@@ -70,12 +87,31 @@
       <div v-if="buttons.length === 0" class="no-data">
         <a-empty :description="selectionType === 'queries' ? '该页面暂无查询条件数据' : '该页面暂无按钮点击数据'" />
       </div>
+      
+      <!-- 多选确认区域 -->
+      <div v-if="selectionType === 'queries' && selectedSubItems.length > 0" class="multi-selection-footer">
+        <div class="selected-items">
+          <span>已选择 {{ selectedSubItems.length }} 个条件：</span>
+          <a-tag 
+            v-for="item in selectedSubItems" 
+            :key="item.key"
+            closable
+            @close="removeSelectedItem(item)"
+          >
+            {{ item.displayName }}
+          </a-tag>
+        </div>
+        <div class="action-buttons">
+          <a-button @click="clearSelection">清空选择</a-button>
+          <a-button type="primary" @click="confirmMultiSelection">确认分析</a-button>
+        </div>
+      </div>
     </div>
   </a-drawer>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 // Props
 const props = defineProps({
@@ -101,8 +137,12 @@ const props = defineProps({
 // Emits
 const emit = defineEmits([
   'update:open',
-  'select-button'
+  'select-button',
+  'select-multiple-conditions'
 ])
+
+// 响应式数据
+const selectedSubItems = ref([])
 
 // Computed
 const visible = computed({
@@ -205,7 +245,8 @@ const tableData = computed(() => {
             parentType: button.parentType,
             pv: button.pv,
             uv: button.uv,
-            isSummary: false
+            isSummary: false,
+            selected: false
           })
         } else {
           // 如果没有对应的父节点，创建一个
@@ -225,7 +266,8 @@ const tableData = computed(() => {
               parentType: button.parentType,
               pv: button.pv,
               uv: button.uv,
-              isSummary: false
+              isSummary: false,
+              selected: false
             }]
           })
         }
@@ -252,9 +294,95 @@ const selectButton = (button) => {
   emit('select-button', button)
 }
 
+const handleSubItemSelection = (item) => {
+  if (item.selected) {
+    // 添加到选中列表
+    if (!selectedSubItems.value.find(selected => selected.key === item.key)) {
+      selectedSubItems.value.push(item)
+    }
+  } else {
+    // 从选中列表移除
+    const index = selectedSubItems.value.findIndex(selected => selected.key === item.key)
+    if (index > -1) {
+      selectedSubItems.value.splice(index, 1)
+    }
+  }
+}
+
+const removeSelectedItem = (item) => {
+  // 从选中列表移除
+  const index = selectedSubItems.value.findIndex(selected => selected.key === item.key)
+  if (index > -1) {
+    selectedSubItems.value.splice(index, 1)
+  }
+  
+  // 更新表格中的选中状态
+  const currentTableData = tableData.value
+  currentTableData.forEach(group => {
+    if (group.children) {
+      group.children.forEach(child => {
+        if (child.key === item.key) {
+          child.selected = false
+        }
+      })
+    }
+  })
+}
+
+const clearSelection = () => {
+  selectedSubItems.value = []
+  
+  // 清空表格中的选中状态
+  const currentTableData = tableData.value
+  currentTableData.forEach(group => {
+    if (group.children) {
+      group.children.forEach(child => {
+        child.selected = false
+      })
+    }
+  })
+}
+
+const selectAllSubItems = (parentRecord) => {
+  console.log('🔍 选择全部子项:', parentRecord)
+  
+  // 找到对应的父级分组
+  const currentTableData = tableData.value
+  const parentGroup = currentTableData.find(group => group.key === parentRecord.key)
+  
+  if (parentGroup && parentGroup.children) {
+    // 勾选所有子项
+    parentGroup.children.forEach(child => {
+      child.selected = true
+      
+      // 添加到选中列表（如果还没有的话）
+      if (!selectedSubItems.value.find(selected => selected.key === child.key)) {
+        selectedSubItems.value.push(child)
+      }
+    })
+    
+    console.log('✅ 已勾选所有子项:', parentGroup.children.length, '个')
+  }
+}
+
+const confirmMultiSelection = () => {
+  if (selectedSubItems.value.length > 0) {
+    emit('select-multiple-conditions', selectedSubItems.value)
+    visible.value = false
+  }
+}
+
 const handleCancel = () => {
+  clearSelection()
   visible.value = false
 }
+
+// 监听弹窗关闭，清空选择
+watch(visible, (newVal) => {
+  if (!newVal) {
+    clearSelection()
+  }
+})
 </script>
 
 <style scoped>
@@ -308,6 +436,31 @@ const handleCancel = () => {
 
 .item-name {
   color: #333;
+}
+
+/* 多选确认区域样式 */
+.multi-selection-footer {
+  margin-top: 16px;
+  padding: 16px;
+  background-color: #f5f5f5;
+  border-radius: 6px;
+  border: 1px solid #d9d9d9;
+}
+
+.selected-items {
+  margin-bottom: 12px;
+}
+
+.selected-items span {
+  margin-right: 8px;
+  font-weight: 500;
+  color: #333;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 
 /* 树形表格样式 */

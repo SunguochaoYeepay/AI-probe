@@ -1794,51 +1794,50 @@ export class ChartGenerator {
       chartData = {
         categories: data.map(item => item.date || item.createdAt),
         uvData: data.map(item => item.uv || 0),
-        pvData: data.map(item => item.pv || 0)
+        pvData: data.map(item => item.pv || 0),
+        isMultipleConditions: false
       }
     } else {
       // 数据未聚合，需要处理
       chartData = this.processQueryConditionAnalysisData(analysis, data)
     }
     
-    return {
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: {
-          type: 'shadow'
-        },
-        formatter: function(params) {
-          let result = `<strong>${params[0].axisValue}</strong><br/>`
-          params.forEach(param => {
-            result += `${param.seriesName}: ${param.value}<br/>`
-          })
-          return result
-        }
-      },
-      legend: {
-        data: ['UV (独立用户)', 'PV (使用次数)'],
-        top: 30
-      },
-      grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '3%',
-        top: '15%',
-        containLabel: true
-      },
-      xAxis: {
-        type: 'category',
-        data: chartData.categories,
-        axisLabel: {
-          rotate: 45,
-          interval: 0
-        }
-      },
-      yAxis: {
-        type: 'value',
-        name: '使用次数'
-      },
-      series: [
+    // 获取查询条件信息
+    const queryCondition = analysis.parameters?.queryCondition || '查询条件'
+    const pageName = analysis.parameters?.pageName || '页面'
+    
+    console.log(`🔍 查询条件分析配置: 页面="${pageName}", 条件="${queryCondition}", 多条件=${chartData.isMultipleConditions}`)
+    
+    const series = []
+    
+    if (chartData.isMultipleConditions) {
+      // 多条件场景：分别显示每个条件的PV柱状图
+      const colors = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc']
+      
+      chartData.conditionData.forEach((condition, index) => {
+        series.push({
+          name: condition.name,
+          type: 'bar',
+          data: condition.data,
+          itemStyle: {
+            color: colors[index % colors.length]
+          },
+          emphasis: {
+            itemStyle: {
+              color: colors[index % colors.length],
+              opacity: 0.8
+            }
+          },
+          label: {
+            show: true,
+            position: 'top',
+            formatter: '{c}'
+          }
+        })
+      })
+    } else {
+      // 单条件时显示UV和PV
+      series.push(
         {
           name: 'UV (独立用户)',
           type: 'bar',
@@ -1873,7 +1872,68 @@ export class ChartGenerator {
             formatter: '{c}'
           }
         }
-      ]
+      )
+    }
+    
+    // 根据条件类型生成不同的标题
+    let titleText
+    if (chartData.isMultipleConditions) {
+      if (queryCondition === 'all' || queryCondition === '全部查询条件' || queryCondition === '全部状态') {
+        titleText = `${pageName} - 全部查询条件使用情况`
+      } else {
+        titleText = `${pageName} - 多查询条件使用情况`
+      }
+    } else {
+      titleText = `${pageName} - "${queryCondition}"查询条件使用情况`
+    }
+    
+    return {
+      title: {
+        text: titleText,
+        left: 'center',
+        top: 10,
+        textStyle: {
+          fontSize: 16,
+          fontWeight: 'bold'
+        }
+      },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow'
+        },
+        formatter: function(params) {
+          let result = `<strong>${params[0].axisValue}</strong><br/>`
+          params.forEach(param => {
+            result += `${param.seriesName}: ${param.value}<br/>`
+          })
+          return result
+        }
+      },
+      legend: {
+        data: series.map(s => s.name),
+        top: 30
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        top: chartData.isMultipleConditions ? '20%' : '15%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: chartData.categories,
+        axisLabel: {
+          rotate: 45,
+          interval: 0
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: '使用次数'
+      },
+      series: series
     }
   }
   
@@ -1892,9 +1952,535 @@ export class ChartGenerator {
       return {
         categories: [],
         uvData: [],
-        pvData: []
+        pvData: [],
+        conditionData: []
       }
     }
+    
+    // 检查是否是全部条件或多条件场景
+    const isAllConditions = queryCondition === 'all' || queryCondition === '全部查询条件' || queryCondition === '全部状态'
+    const isMultiConditionSelection = queryCondition && queryCondition.startsWith('多条件:')
+    const hasMultipleConditionsInText = analysis.originalText && 
+      (analysis.originalText.includes('多个') || 
+       analysis.originalText.includes('条件') && analysis.originalText.includes('和') ||
+       analysis.originalText.includes('、') ||
+       analysis.originalText.includes('，') ||
+       analysis.originalText.includes('全部'))
+    
+    const showMultipleConditions = isAllConditions || isMultiConditionSelection || hasMultipleConditionsInText
+    
+    if (showMultipleConditions) {
+      // 多条件场景：按条件分组显示
+      return this.processMultipleConditionsData(data, analysis)
+    } else {
+      // 单条件场景：按日期聚合
+      return this.processSingleConditionData(data)
+    }
+  }
+  
+  /**
+   * 处理多条件数据（分别显示每个条件）
+   */
+  processMultipleConditionsData(data, analysis) {
+    console.log('🔍 处理多条件数据，按条件分组显示')
+    console.log('🔍 分析参数:', analysis)
+    
+    // 获取用户选择的具体条件信息
+    const queryCondition = analysis.parameters?.queryCondition
+    const queryData = analysis.parameters?.queryData
+    
+    // 检查是否是状态分类的多选
+    const isStatusGroup = queryData?.groupType === '状态' && queryCondition?.startsWith('多条件:')
+    const isTimeGroup = queryData?.groupType === '申请时间' && queryCondition?.startsWith('多条件:')
+    
+    if (isStatusGroup) {
+      console.log('🔍 检测到状态分类多选，按状态值聚合数据')
+      return this.processStatusGroupData(data, analysis)
+    }
+    
+    if (isTimeGroup) {
+      console.log('🔍 检测到申请时间分类多选，按申请时间值聚合数据')
+      return this.processTimeGroupData(data, analysis)
+    }
+    
+    // 按条件分组数据
+    const conditionMap = new Map()
+    
+    data.forEach(item => {
+      // 提取查询条件名称
+      let conditionName = '未知条件'
+      
+      // 尝试从不同字段提取条件名称
+      if (item.content) {
+        conditionName = item.content
+      } else if (item.queryCondition) {
+        conditionName = item.queryCondition
+      } else if (item.condition) {
+        conditionName = item.condition
+      } else if (item.status) {
+        conditionName = item.status
+      }
+      
+      // 如果用户选择了具体的条件类型（如"全部状态"），需要过滤数据
+      if (queryCondition && queryCondition !== 'all' && queryCondition !== '全部查询条件') {
+        // 检查当前条件是否属于用户选择的类型
+        if (!this.isConditionMatch(conditionName, queryCondition, queryData)) {
+          return // 跳过不匹配的条件
+        }
+      }
+      
+      if (!conditionMap.has(conditionName)) {
+        conditionMap.set(conditionName, new Map())
+      }
+      
+      const date = item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]
+      const conditionData = conditionMap.get(conditionName)
+      
+      if (!conditionData.has(date)) {
+        conditionData.set(date, {
+          date: date,
+          pv: 0,
+          uvSet: new Set()
+        })
+      }
+      
+      const dayData = conditionData.get(date)
+      dayData.pv++
+      
+      if (item.weCustomerKey) {
+        dayData.uvSet.add(item.weCustomerKey)
+      }
+    })
+    
+    // 获取所有日期
+    const allDates = new Set()
+    conditionMap.forEach(conditionData => {
+      conditionData.forEach(dayData => {
+        allDates.add(dayData.date)
+      })
+    })
+    
+    const sortedDates = Array.from(allDates).sort((a, b) => new Date(a) - new Date(b))
+    
+    // 构建每个条件的数据
+    const conditionData = []
+    conditionMap.forEach((conditionDayData, conditionName) => {
+      const pvData = sortedDates.map(date => {
+        const dayData = conditionDayData.get(date)
+        return dayData ? dayData.pv : 0
+      })
+      
+      conditionData.push({
+        name: conditionName,
+        data: pvData
+      })
+    })
+    
+    console.log(`📊 多条件数据分组结果:`, conditionData)
+    
+    return {
+      categories: sortedDates,
+      conditionData: conditionData,
+      isMultipleConditions: true
+    }
+  }
+  
+  /**
+   * 处理状态分类数据（按状态值聚合）
+   */
+  processStatusGroupData(data, analysis) {
+    console.log('🔍 处理状态分类数据，按状态值聚合')
+    
+    const queryData = analysis.parameters?.queryData
+    const selectedStatusValues = queryData?.allConditions?.map(c => c.content.split('::')[1]) || []
+    
+    console.log('🔍 选中的状态值:', selectedStatusValues)
+    
+    // 按状态值分组数据
+    const statusMap = new Map()
+    
+    data.forEach(item => {
+      // 提取查询条件名称
+      let conditionName = '未知条件'
+      
+      if (item.content) {
+        conditionName = item.content
+      } else if (item.queryCondition) {
+        conditionName = item.queryCondition
+      } else if (item.condition) {
+        conditionName = item.condition
+      } else if (item.status) {
+        conditionName = item.status
+      }
+      
+      // 检查条件是否匹配用户选择的状态值
+      if (!this.isConditionMatch(conditionName, analysis.parameters?.queryCondition, queryData)) {
+        return // 跳过不匹配的条件
+      }
+      
+      // 提取状态值
+      let statusValue = '未知状态'
+      try {
+        const parsed = JSON.parse(conditionName)
+        if (parsed.状态) {
+          statusValue = parsed.状态
+        }
+      } catch (e) {
+        // 不是JSON格式，跳过
+        return
+      }
+      
+      // 只处理用户选择的状态值
+      if (!selectedStatusValues.includes(statusValue)) {
+        return
+      }
+      
+      if (!statusMap.has(statusValue)) {
+        statusMap.set(statusValue, new Map())
+      }
+      
+      const date = item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]
+      const statusData = statusMap.get(statusValue)
+      
+      if (!statusData.has(date)) {
+        statusData.set(date, {
+          date: date,
+          pv: 0,
+          uvSet: new Set()
+        })
+      }
+      
+      const dayData = statusData.get(date)
+      dayData.pv++
+      
+      if (item.weCustomerKey) {
+        dayData.uvSet.add(item.weCustomerKey)
+      }
+    })
+    
+    // 生成完整的日期范围（使用数据的时间范围）
+    const allDates = new Set()
+    statusMap.forEach(statusData => {
+      statusData.forEach(dayData => {
+        allDates.add(dayData.date)
+      })
+    })
+    
+    let sortedDates = []
+    if (allDates.size > 0) {
+      // 从原始数据中获取日期范围
+      const dataDates = data.map(item => item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0])
+      const uniqueDataDates = [...new Set(dataDates)].sort((a, b) => new Date(a) - new Date(b))
+      
+      if (uniqueDataDates.length > 0) {
+        const startDate = new Date(uniqueDataDates[0])
+        const endDate = new Date(uniqueDataDates[uniqueDataDates.length - 1])
+        
+        // 生成完整的日期范围
+        const currentDate = new Date(startDate)
+        while (currentDate <= endDate) {
+          sortedDates.push(currentDate.toISOString().split('T')[0])
+          currentDate.setDate(currentDate.getDate() + 1)
+        }
+        
+        console.log(`📅 状态分类生成的完整日期范围:`, sortedDates)
+        console.log(`📅 原始数据日期范围: ${uniqueDataDates[0]} 到 ${uniqueDataDates[uniqueDataDates.length - 1]}`)
+      } else {
+        sortedDates = Array.from(allDates).sort((a, b) => new Date(a) - new Date(b))
+      }
+    } else {
+      sortedDates = Array.from(allDates).sort((a, b) => new Date(a) - new Date(b))
+    }
+    
+    // 构建每个状态的数据
+    const conditionData = []
+    statusMap.forEach((statusDayData, statusValue) => {
+      const pvData = sortedDates.map(date => {
+        const dayData = statusDayData.get(date)
+        return dayData ? dayData.pv : 0
+      })
+      
+      conditionData.push({
+        name: statusValue,
+        data: pvData
+      })
+    })
+    
+    console.log(`📊 状态分类数据分组结果:`, conditionData)
+    
+    return {
+      categories: sortedDates,
+      conditionData: conditionData,
+      isMultipleConditions: true
+    }
+  }
+  
+  /**
+   * 处理申请时间分类数据（按申请时间值聚合）
+   */
+  processTimeGroupData(data, analysis) {
+    console.log('🔍 处理申请时间分类数据，按申请时间值聚合')
+    
+    const queryData = analysis.parameters?.queryData
+    const selectedTimeValues = queryData?.allConditions?.map(c => c.content.split('::')[1]) || []
+    
+    console.log('🔍 选中的申请时间值:', selectedTimeValues)
+    
+    // 按申请时间值分组数据
+    const timeMap = new Map()
+    
+    data.forEach(item => {
+      // 提取查询条件名称
+      let conditionName = '未知条件'
+      
+      if (item.content) {
+        conditionName = item.content
+      } else if (item.queryCondition) {
+        conditionName = item.queryCondition
+      } else if (item.condition) {
+        conditionName = item.condition
+      } else if (item.status) {
+        conditionName = item.status
+      }
+      
+      // 提取申请时间值
+      let timeValue = '未知时间'
+      try {
+        const parsed = JSON.parse(conditionName)
+        if (parsed.申请时间) {
+          timeValue = parsed.申请时间
+        }
+      } catch (e) {
+        // 不是JSON格式，跳过
+        return
+      }
+      
+      // 只处理用户选择的申请时间值
+      if (!selectedTimeValues.includes(timeValue)) {
+        return
+      }
+      
+      if (!timeMap.has(timeValue)) {
+        timeMap.set(timeValue, new Map())
+      }
+      
+      const date = item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]
+      const timeData = timeMap.get(timeValue)
+      
+      if (!timeData.has(date)) {
+        timeData.set(date, {
+          date: date,
+          pv: 0,
+          uvSet: new Set()
+        })
+      }
+      
+      const dayData = timeData.get(date)
+      dayData.pv++
+      
+      if (item.weCustomerKey) {
+        dayData.uvSet.add(item.weCustomerKey)
+      }
+    })
+    
+    // 生成完整的日期范围（使用数据的时间范围）
+    const allDates = new Set()
+    timeMap.forEach(timeData => {
+      timeData.forEach(dayData => {
+        allDates.add(dayData.date)
+      })
+    })
+    
+    let sortedDates = []
+    if (allDates.size > 0) {
+      // 从原始数据中获取日期范围
+      const dataDates = data.map(item => item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0])
+      const uniqueDataDates = [...new Set(dataDates)].sort((a, b) => new Date(a) - new Date(b))
+      
+      if (uniqueDataDates.length > 0) {
+        const startDate = new Date(uniqueDataDates[0])
+        const endDate = new Date(uniqueDataDates[uniqueDataDates.length - 1])
+        
+        // 生成完整的日期范围
+        const currentDate = new Date(startDate)
+        while (currentDate <= endDate) {
+          sortedDates.push(currentDate.toISOString().split('T')[0])
+          currentDate.setDate(currentDate.getDate() + 1)
+        }
+        
+        console.log(`📅 申请时间分类生成的完整日期范围:`, sortedDates)
+        console.log(`📅 原始数据日期范围: ${uniqueDataDates[0]} 到 ${uniqueDataDates[uniqueDataDates.length - 1]}`)
+      } else {
+        sortedDates = Array.from(allDates).sort((a, b) => new Date(a) - new Date(b))
+      }
+    } else {
+      sortedDates = Array.from(allDates).sort((a, b) => new Date(a) - new Date(b))
+    }
+    
+    // 构建每个申请时间的数据
+    const conditionData = []
+    timeMap.forEach((timeDayData, timeValue) => {
+      const pvData = sortedDates.map(date => {
+        const dayData = timeDayData.get(date)
+        return dayData ? dayData.pv : 0
+      })
+      
+      conditionData.push({
+        name: timeValue,
+        data: pvData
+      })
+    })
+    
+    console.log(`📊 申请时间分类数据分组结果:`, conditionData)
+    
+    return {
+      categories: sortedDates,
+      conditionData: conditionData,
+      isMultipleConditions: true
+    }
+  }
+  
+  /**
+   * 检查条件是否匹配用户选择
+   */
+  isConditionMatch(conditionName, queryCondition, queryData) {
+    console.log(`🔍 检查条件匹配: "${conditionName}" vs "${queryCondition}"`)
+    console.log(`🔍 查询数据:`, queryData)
+    
+    // 如果用户选择的是多条件（如"多条件:全部、待复核"）
+    if (queryCondition && queryCondition.startsWith('多条件:')) {
+      // 检查当前条件是否在用户选择的条件列表中
+      if (queryData && queryData.allConditions && queryData.allConditions.length > 0) {
+        const selectedConditions = queryData.allConditions.map(c => c.content)
+        console.log(`🔍 选中的条件列表:`, selectedConditions)
+        console.log(`🔍 当前检查的条件:`, conditionName)
+        
+        // 直接匹配
+        if (selectedConditions.includes(conditionName)) {
+          console.log(`🔍 直接匹配成功`)
+          return true
+        }
+        
+        // 尝试JSON格式匹配
+        try {
+          const parsedCondition = JSON.parse(conditionName)
+          console.log(`🔍 解析后的条件:`, parsedCondition)
+          
+          // 根据用户选择的分类类型来检查对应的字段
+          const groupType = queryData?.groupType
+          console.log(`🔍 用户选择的分类类型:`, groupType)
+          
+          if (groupType === '状态' && parsedCondition.状态) {
+            const statusValue = parsedCondition.状态
+            console.log(`🔍 条件中的状态值:`, statusValue)
+            
+            // 检查状态值是否在用户选择的条件中
+            const isMatched = selectedConditions.some(selected => {
+              // 从 "状态::全部" 中提取 "全部"
+              const selectedValue = selected.split('::')[1]
+              console.log(`🔍 比较: "${statusValue}" vs "${selectedValue}"`)
+              return statusValue === selectedValue
+            })
+            
+            console.log(`🔍 JSON匹配结果:`, isMatched)
+            return isMatched
+          } else if (groupType === '申请时间' && parsedCondition.申请时间) {
+            const timeValue = parsedCondition.申请时间
+            console.log(`🔍 条件中的申请时间值:`, timeValue)
+            
+            // 检查申请时间值是否在用户选择的条件中
+            const isMatched = selectedConditions.some(selected => {
+              // 从 "申请时间::其他" 中提取 "其他"
+              const selectedValue = selected.split('::')[1]
+              console.log(`🔍 比较: "${timeValue}" vs "${selectedValue}"`)
+              return timeValue === selectedValue
+            })
+            
+            console.log(`🔍 JSON匹配结果:`, isMatched)
+            return isMatched
+          }
+        } catch (e) {
+          console.log(`🔍 不是JSON格式，跳过JSON匹配`)
+        }
+        
+        console.log(`🔍 所有匹配方式都失败`)
+        return false
+      }
+      return false
+    }
+    
+    // 如果用户选择的是"全部状态"，需要更精确的过滤
+    if (queryCondition === '全部状态') {
+      // 检查是否是JSON格式且包含状态字段
+      try {
+        const parsed = JSON.parse(conditionName)
+        if (parsed.状态 || parsed.status) {
+          // 如果用户选择了具体的状态值（如"全部"、"待复核"），需要进一步过滤
+          if (queryData && queryData.allConditions && queryData.allConditions.length > 0) {
+            // 检查当前条件是否在用户选择的条件列表中
+            const selectedConditions = queryData.allConditions.map(c => c.content)
+            return selectedConditions.includes(conditionName)
+          }
+          return true
+        }
+      } catch (e) {
+        // 不是JSON格式，检查是否包含状态关键词
+        const statusKeywords = ['状态', '待复核', '全部', '已复核', '拒绝', '通过']
+        const hasStatusKeyword = statusKeywords.some(keyword => conditionName.includes(keyword))
+        
+        // 如果用户选择了具体的条件，需要检查是否匹配
+        if (queryData && queryData.allConditions && queryData.allConditions.length > 0) {
+          const selectedConditions = queryData.allConditions.map(c => c.content)
+          return selectedConditions.includes(conditionName)
+        }
+        
+        return hasStatusKeyword
+      }
+      
+      return false
+    }
+    
+    // 如果用户选择的是"全部申请时间"，只显示申请时间相关的条件
+    if (queryCondition === '全部申请时间') {
+      const timeKeywords = ['申请时间', '今天', '昨天', '近7天', '近30天', '其他']
+      const hasTimeKeyword = timeKeywords.some(keyword => conditionName.includes(keyword))
+      
+      try {
+        const parsed = JSON.parse(conditionName)
+        if (parsed.申请时间 || parsed.applicationTime) {
+          // 如果用户选择了具体的申请时间值，需要进一步过滤
+          if (queryData && queryData.allConditions && queryData.allConditions.length > 0) {
+            const selectedConditions = queryData.allConditions.map(c => c.content)
+            return selectedConditions.includes(conditionName)
+          }
+          return true
+        }
+      } catch (e) {
+        // 不是JSON格式，继续检查关键词
+      }
+      
+      return hasTimeKeyword
+    }
+    
+    // 如果用户选择的是具体的条件类型，检查是否匹配
+    if (queryData && queryData.groupType) {
+      try {
+        const parsed = JSON.parse(conditionName)
+        return parsed.hasOwnProperty(queryData.groupType)
+      } catch (e) {
+        return conditionName.includes(queryData.groupType)
+      }
+    }
+    
+    // 默认显示所有条件
+    return true
+  }
+  
+  /**
+   * 处理单条件数据（按日期聚合）
+   */
+  processSingleConditionData(data) {
+    console.log('🔍 处理单条件数据，按日期聚合')
     
     // 按日期聚合查询条件使用数据
     const dateMap = new Map()
@@ -1918,21 +2504,57 @@ export class ChartGenerator {
       }
     })
     
-    // 转换为数组格式
-    const result = Array.from(dateMap.values())
-      .map(dayData => ({
-        date: dayData.date,
-        uv: dayData.uvSet.size,
-        pv: dayData.pv
-      }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
+    // 生成完整的日期范围（使用数据的时间范围）
+    const allDates = Array.from(dateMap.keys()).sort((a, b) => new Date(a) - new Date(b))
+    let sortedDates = []
+    let uvData = []
+    let pvData = []
     
-    console.log(`📊 查询条件分析数据聚合结果:`, result)
+    if (allDates.length > 0) {
+      // 从原始数据中获取日期范围
+      const dataDates = data.map(item => item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0])
+      const uniqueDataDates = [...new Set(dataDates)].sort((a, b) => new Date(a) - new Date(b))
+      
+      if (uniqueDataDates.length > 0) {
+        const startDate = new Date(uniqueDataDates[0])
+        const endDate = new Date(uniqueDataDates[uniqueDataDates.length - 1])
+        
+        // 生成完整的日期范围
+        const currentDate = new Date(startDate)
+        while (currentDate <= endDate) {
+          const dateStr = currentDate.toISOString().split('T')[0]
+          sortedDates.push(dateStr)
+          
+          // 获取该日期的数据，如果没有则为0
+          const dayData = dateMap.get(dateStr)
+          uvData.push(dayData ? dayData.uvSet.size : 0)
+          pvData.push(dayData ? dayData.pv : 0)
+          
+          currentDate.setDate(currentDate.getDate() + 1)
+        }
+        
+        console.log(`📅 单条件生成的完整日期范围:`, sortedDates)
+        console.log(`📅 原始数据日期范围: ${uniqueDataDates[0]} 到 ${uniqueDataDates[uniqueDataDates.length - 1]}`)
+      } else {
+        // 如果没有数据，返回空数组
+        sortedDates = []
+        uvData = []
+        pvData = []
+      }
+    } else {
+      // 如果没有数据，返回空数组
+      sortedDates = []
+      uvData = []
+      pvData = []
+    }
+    
+    console.log(`📊 单条件数据聚合结果:`, { categories: sortedDates, uvData, pvData })
     
     return {
-      categories: result.map(item => item.date),
-      uvData: result.map(item => item.uv),
-      pvData: result.map(item => item.pv)
+      categories: sortedDates,
+      uvData: uvData,
+      pvData: pvData,
+      isMultipleConditions: false
     }
   }
   

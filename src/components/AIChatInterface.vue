@@ -169,6 +169,7 @@
       :buttons="availableButtons"
       :selection-type="currentSelectionType"
       @select-button="handleButtonSelection"
+      @select-multiple-conditions="handleMultipleConditionsSelection"
     />
   </div>
 </template>
@@ -555,12 +556,12 @@ const onAnalysisTypeChange = (value) => {
       newActions = [
         { 
           text: '整体页面访问量', 
-          type: 'select_analysis', 
+          type: 'analyze', 
           params: { type: 'page_visits', scope: 'all', description: '分析所有页面的访问量、UV/PV趋势等' } 
         },
         { 
           text: '选择页面分析', 
-          type: 'select_analysis', 
+          type: 'show_page_list', 
           params: { type: 'page_visits', scope: 'specific', description: '分析特定页面的访问趋势' } 
         }
       ]
@@ -1850,6 +1851,33 @@ const handleShowPageList = async (params) => {
   }
 }
 
+const handleMultipleConditionsSelection = (selectedItems) => {
+  // 关闭按钮选择弹窗
+  buttonSelectionModalVisible.value = false
+  
+  // 构建多条件分析需求
+  const conditionNames = selectedItems.map(item => item.displayName).join('、')
+  const requirement = `#${selectedPageName.value} 页面的"${conditionNames}"查询条件分析`
+  
+  // 构建查询数据，包含所有选中的条件
+  const queryData = {
+    type: 'multiple_conditions',
+    conditions: selectedItems,
+    groupType: selectedItems[0]?.groupType || selectedItems[0]?.parentType,
+    allConditions: selectedItems
+  }
+  
+  emit('analyze-requirement', {
+    requirement,
+    type: 'query_condition_analysis',
+    pageName: selectedPageName.value,
+    queryCondition: `多条件:${conditionNames}`,
+    queryData: queryData
+  })
+  
+  addMessage(`✅ 开始分析页面 "${selectedPageName.value}" 的"${conditionNames}"查询条件使用情况。`, 'ai')
+}
+
 const handleSelectPageForButtons = async (params) => {
   const { pageName } = params
   
@@ -1942,19 +1970,19 @@ const handleButtonSelection = (button) => {
   // 根据选择类型进行不同处理
   if (currentSelectionType.value === 'queries') {
     // 查询条件分析
-    if (button.isAll) {
-      // 全部查询条件分析
-      const requirement = `#${selectedPageName.value} 页面的全部查询条件分析`
+    if (button.isSummary) {
+      // 汇总项分析（如"全部状态"、"全部申请时间"等）
+      const requirement = `#${selectedPageName.value} 页面的"${button.displayName}"查询条件分析`
       
       emit('analyze-requirement', {
         requirement,
         type: 'query_condition_analysis',
         pageName: selectedPageName.value,
-        queryCondition: 'all',
+        queryCondition: button.displayName,
         queryData: button
       })
       
-      addMessage(`✅ 开始分析页面 "${selectedPageName.value}" 的全部查询条件使用情况。`, 'ai')
+      addMessage(`✅ 开始分析页面 "${selectedPageName.value}" 的"${button.displayName}"查询条件使用情况。`, 'ai')
     } else {
       // 具体查询条件分析
       const requirement = `#${selectedPageName.value} 页面的"${button.displayName || button.content}"查询条件分析`
@@ -2333,12 +2361,12 @@ const showWelcomeMessage = () => {
         welcomeActions = [
           { 
             text: '整体页面访问量', 
-            type: 'select_analysis', 
+            type: 'analyze', 
             params: { type: 'page_visits', scope: 'all', description: '分析所有页面的访问量、UV/PV趋势等' } 
           },
           { 
             text: '选择页面分析', 
-            type: 'select_analysis', 
+            type: 'show_page_list', 
             params: { type: 'page_visits', scope: 'specific', description: '分析特定页面的访问趋势' } 
           }
         ]
