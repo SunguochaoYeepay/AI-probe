@@ -75,11 +75,6 @@
           </a-input>
         </a-col>
         
-        <a-col :span="4">
-          <a-button type="primary" @click="handleSearch">
-            <SearchOutlined /> 查询
-          </a-button>
-        </a-col>
       </a-row>
     </div>
 
@@ -136,11 +131,6 @@
             </span>
           </template>
           
-          <template v-else-if="column.key === 'status'">
-            <a-tag :color="record.status === 'active' ? 'green' : 'default'">
-              {{ getStatusText(record.status) }}
-            </a-tag>
-          </template>
           
           <template v-else-if="column.key === 'createdAt'">
             {{ formatDate(record.createdAt) }}
@@ -244,6 +234,24 @@ const queryConditionFilter = ref('')
 // 基础列配置
 const baseColumns = [
   {
+    title: '所属页面',
+    key: 'pageName',
+    width: 150,
+    filters: []
+  },
+  {
+    title: '点击按钮',
+    key: 'buttonName',
+    width: 150,
+    filters: []
+  },
+  {
+    title: '查询条件',
+    key: 'queryCondition',
+    width: 150,
+    filters: []
+  },
+  {
     title: '图表名称',
     key: 'name',
     width: 300,
@@ -259,15 +267,6 @@ const baseColumns = [
       { text: '查询条件分析', value: '查询条件分析' },
       { text: '转化分析', value: '转化分析' },
       { text: '全局概览', value: '全局概览' }
-    ]
-  },
-  {
-    title: '状态',
-    key: 'status',
-    width: 100,
-    filters: [
-      { text: '活跃', value: 'active' },
-      { text: '已停用', value: 'inactive' }
     ]
   },
   {
@@ -294,66 +293,20 @@ const baseColumns = [
 const tableColumns = computed(() => {
   const columns = [...baseColumns]
   
-  // 根据当前分类和类型插入不同的列，放在类型列之后
+  // 根据当前分类和类型过滤显示的列
   if (activeType.value === 'page-visits') {
-    // 页面访问量：显示页面名称
-    columns.splice(2, 0, {
-      title: '所属页面',
-      key: 'pageName',
-      width: 150,
-      filters: []
-    })
+    // 页面访问量：只显示页面名称，隐藏按钮和查询条件列
+    return columns.filter(col => !['buttonName', 'queryCondition'].includes(col.key))
   } else if (activeType.value === 'button-clicks') {
-    // 按钮点击：显示页面名称和按钮名称
-    columns.splice(2, 0, {
-      title: '所属页面',
-      key: 'pageName',
-      width: 150,
-      filters: []
-    })
-    columns.splice(3, 0, {
-      title: '点击按钮',
-      key: 'buttonName',
-      width: 150,
-      filters: []
-    })
+    // 按钮点击：显示页面名称和按钮名称，隐藏查询条件列
+    return columns.filter(col => col.key !== 'queryCondition')
   } else if (activeType.value === 'query-conditions') {
-    // 查询条件分析：显示页面名称和查询条件
-    columns.splice(2, 0, {
-      title: '所属页面',
-      key: 'pageName',
-      width: 150,
-      filters: []
-    })
-    columns.splice(3, 0, {
-      title: '查询条件',
-      key: 'queryCondition',
-      width: 150,
-      filters: []
-    })
+    // 查询条件分析：显示页面名称和查询条件，隐藏按钮列
+    return columns.filter(col => col.key !== 'buttonName')
   } else {
-    // 默认显示所有列，按页面名称、按钮、查询条件的顺序
-    columns.splice(2, 0, {
-      title: '所属页面',
-      key: 'pageName',
-      width: 150,
-      filters: []
-    })
-    columns.splice(3, 0, {
-      title: '点击按钮',
-      key: 'buttonName',
-      width: 150,
-      filters: []
-    })
-    columns.splice(4, 0, {
-      title: '查询条件',
-      key: 'queryCondition',
-      width: 150,
-      filters: []
-    })
+    // 默认显示所有列
+    return columns
   }
-  
-  return columns
 })
 
 // 分页配置
@@ -445,23 +398,19 @@ const handleMenuClick = (menuKey) => {
   // 可以在这里添加自定义逻辑
 }
 
-// 筛选相关方法
-const handleSearch = () => {
-  // 筛选逻辑在计算属性中处理
-}
 
 // 获取表格滚动宽度
 const getTableScrollWidth = () => {
-  let width = 1200 // 基础宽度
+  let width = 1400 // 基础宽度（包含所有列，移除状态列）
   
   if (activeType.value === 'page-visits') {
-    width = 1350 // 基础 + 页面列
+    width = 1100 // 基础宽度 - 按钮列 - 查询条件列
   } else if (activeType.value === 'button-clicks') {
-    width = 1500 // 基础 + 页面列 + 按钮列
+    width = 1250 // 基础宽度 - 查询条件列
   } else if (activeType.value === 'query-conditions') {
-    width = 1500 // 基础 + 页面列 + 查询条件列
+    width = 1250 // 基础宽度 - 按钮列
   } else {
-    width = 1650 // 基础 + 所有列
+    width = 1400 // 显示所有列
   }
   
   return width
@@ -525,9 +474,6 @@ const getCategoryText = (category) => {
   return category || '未知'
 }
 
-const getStatusText = (status) => {
-  return status === 'active' ? '活跃' : '已停用'
-}
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '-'

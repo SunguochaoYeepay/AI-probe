@@ -45,11 +45,6 @@
             row-key="id"
           >
             <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'status'">
-                <a-tag :color="record.status === 'active' ? 'green' : 'red'">
-                  {{ record.status === 'active' ? '活跃' : '已停用' }}
-                </a-tag>
-              </template>
               
               <template v-else-if="column.key === 'category'">
                 <a-tag :color="getCategoryColor(record.category)">
@@ -137,20 +132,8 @@ const stats = ref({
   userBehavior: 0
 })
 
-// 表格列配置 - 调整列顺序，将页面名称、按钮、查询条件放在类型之后
+// 表格列配置 - 调整列顺序，将点击按钮和查询条件放在第二、三列
 const columns = [
-  {
-    title: '图表名称',
-    dataIndex: 'name',
-    key: 'name',
-    width: 200
-  },
-  {
-    title: '类型',
-    dataIndex: 'category',
-    key: 'category',
-    width: 120
-  },
   {
     title: '所属页面',
     dataIndex: 'pageName',
@@ -170,10 +153,16 @@ const columns = [
     width: 150
   },
   {
-    title: '状态',
-    dataIndex: 'status',
-    key: 'status',
-    width: 100
+    title: '图表名称',
+    dataIndex: 'name',
+    key: 'name',
+    width: 200
+  },
+  {
+    title: '类型',
+    dataIndex: 'category',
+    key: 'category',
+    width: 120
   },
   {
     title: '最后更新',
