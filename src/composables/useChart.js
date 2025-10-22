@@ -392,7 +392,7 @@ export function useChart() {
               if (chartGenerator.value.chart && !chartGenerator.value.chart.isDisposed()) {
                 chartGenerator.value.chart.dispose()
               }
-              chartGenerator.value.generateChart(analysisWithDateRange, data, 'chart-container')
+              await chartGenerator.value.generateChart(analysisWithDateRange, data, 'chart-container')
               message.success('图表生成完成', 3)
             } catch (error) {
               console.error('重试生成图表失败:', error)
@@ -426,7 +426,7 @@ export function useChart() {
       try {
         // 生成图表
         console.log('🔧 开始生成图表')
-        chartGenerator.value.generateChart(analysisWithDateRange, data, 'chart-container')
+        await chartGenerator.value.generateChart(analysisWithDateRange, data, 'chart-container')
         console.log('✅ 图表生成成功')
         
         message.success(`分析完成（${data.length}条数据）`)

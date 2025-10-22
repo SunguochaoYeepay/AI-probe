@@ -14,7 +14,7 @@ export class ChartGenerator {
    * @param {Array} data 数据
    * @param {string} containerId 容器ID
    */
-  generateChart(analysis, data, containerId) {
+  async generateChart(analysis, data, containerId) {
     console.log(`🔧 开始生成图表: ${analysis.chartType}`, {
       containerId,
       dataLength: data.length,
@@ -49,8 +49,19 @@ export class ChartGenerator {
     
     // 根据图表类型生成配置
     console.log('🔧 生成图表配置...')
-    const option = this.generateOption(analysis, data)
+    const option = await this.generateOption(analysis, data)
     console.log('📊 生成的图表配置:', option)
+    console.log('🔍 [ChartGenerator] ECharts配置详情:', {
+      title: option.title,
+      xAxis: option.xAxis,
+      yAxis: option.yAxis,
+      series: option.series?.map(s => ({
+        name: s.name,
+        type: s.type,
+        dataLength: s.data?.length,
+        dataSample: s.data?.slice(0, 3)
+      }))
+    })
     
     // 验证配置
     if (!option || !option.series || !Array.isArray(option.series) || option.series.length === 0) {
@@ -114,7 +125,7 @@ export class ChartGenerator {
    * @param {Array} data 数据
    * @returns {Object} ECharts配置
    */
-  generateOption(analysis, data) {
+  async generateOption(analysis, data) {
     // 检查是否为双埋点数据
     const isDualMode = data && data.length > 0 && data[0].hasOwnProperty('dataType')
     
@@ -153,11 +164,11 @@ export class ChartGenerator {
       case 'click_uv_pv_chart':
         return this.generateClickUVPVComparisonOption(analysis, data)
       case 'single_page_uv_pv_chart':
-        return this.generateSinglePageUVPVChartOption(analysis, data, analysis.userDateRange)
+        return await this.generateSinglePageUVPVChartOption(analysis, data, analysis.userDateRange)
       case 'button_click_analysis':
-        return this.generateButtonClickAnalysisOption(analysis, data)
+        return await this.generateButtonClickAnalysisOption(analysis, data)
       case 'query_condition_analysis':
-        return this.generateQueryConditionAnalysisOption(analysis, data)
+        return await this.generateQueryConditionAnalysisOption(analysis, data)
       case 'button_click_daily':
         return this.generateButtonClickDailyOption(analysis, data)
       default:
@@ -1476,8 +1487,29 @@ export class ChartGenerator {
   /**
    * 生成单页面UV/PV时间组合图配置
    */
-  generateSinglePageUVPVChartOption(analysis, data, userDateRange = null) {
-    const chartData = this.processSinglePageUVPVChartData(data, userDateRange)
+  async generateSinglePageUVPVChartOption(analysis, data, userDateRange = null) {
+    // 🚀 使用统一的数据处理器工厂
+    const { dataProcessorFactory } = await import('./dataProcessorFactory.js')
+    
+    // 判断数据格式 - 修复判断逻辑
+    const isAggregated = data && data.length > 0 && (
+      // 情况1：数据项包含 uv 和 pv 字段
+      (data[0].hasOwnProperty('uv') && data[0].hasOwnProperty('pv')) ||
+      // 情况2：数据项包含 metrics 字段（已聚合的图表数据）
+      (data[0].hasOwnProperty('metrics') && data[0].hasOwnProperty('date')) ||
+      // 情况3：数据项包含 chartId 字段（保存的图表数据）
+      data[0].hasOwnProperty('chartId')
+    )
+    const format = isAggregated ? 'aggregated' : 'raw'
+    
+    console.log(`📊 [ChartGenerator] 使用统一数据处理器工厂，分析类型: ${analysis.chartType}，数据格式: ${format}`)
+    
+    // 使用统一的数据处理逻辑
+    const chartData = dataProcessorFactory.process(analysis.chartType, data, {
+      format: format,
+      analysis: analysis,
+      userDateRange: userDateRange
+    })
     
     console.log('📊 单页面UV/PV图表数据:', {
       categories: chartData.categories,
@@ -1690,23 +1722,68 @@ export class ChartGenerator {
   /**
    * 生成按钮点击分析图表配置
    */
-  generateButtonClickAnalysisOption(analysis, data) {
-    // 检查数据是否已经按日期聚合过
-    let chartData
-    if (data && data.length > 0 && data[0].hasOwnProperty('uv') && data[0].hasOwnProperty('pv')) {
-      // 数据已经聚合过，直接使用
-      console.log('📊 使用已聚合的数据:', data)
-      chartData = {
-        categories: data.map(item => item.date || item.createdAt),
-        uvData: data.map(item => item.uv || 0),
-        pvData: data.map(item => item.pv || 0)
-      }
-    } else {
-      // 数据未聚合，需要处理
-      chartData = this.processButtonClickAnalysisData(analysis, data)
-    }
+  async generateButtonClickAnalysisOption(analysis, data) {
+    // 🚀 使用统一的数据处理器工厂
+    const { dataProcessorFactory } = await import('./dataProcessorFactory.js')
+    
+    // 判断数据格式 - 修复判断逻辑
+    const isAggregated = data && data.length > 0 && (
+      // 情况1：数据项包含 uv 和 pv 字段
+      (data[0].hasOwnProperty('uv') && data[0].hasOwnProperty('pv')) ||
+      // 情况2：数据项包含 metrics 字段（已聚合的图表数据）
+      (data[0].hasOwnProperty('metrics') && data[0].hasOwnProperty('date')) ||
+      // 情况3：数据项包含 chartId 字段（保存的图表数据）
+      data[0].hasOwnProperty('chartId')
+    )
+    const format = isAggregated ? 'aggregated' : 'raw'
+    
+    console.log(`📊 [ChartGenerator] 使用统一数据处理器工厂，分析类型: ${analysis.chartType}，数据格式: ${format}`)
+    console.log(`🔍 [ChartGenerator] 数据格式判断详情:`, {
+      dataLength: data?.length,
+      firstItemKeys: data?.[0] ? Object.keys(data[0]) : [],
+      hasUv: data?.[0]?.hasOwnProperty('uv'),
+      hasPv: data?.[0]?.hasOwnProperty('pv'),
+      isAggregated,
+      format,
+      sampleData: data?.[0]
+    })
+    
+    // 使用统一的数据处理逻辑
+    const chartData = dataProcessorFactory.process(analysis.chartType, data, {
+      format: format,
+      analysis: analysis
+    })
+    
+    console.log(`🔍 [ChartGenerator] 按钮点击分析图表数据:`, {
+      categories: chartData.categories,
+      uvData: chartData.uvData,
+      pvData: chartData.pvData,
+      isMultipleConditions: chartData.isMultipleConditions,
+      conditionData: chartData.conditionData
+    })
+    
+    // 🚀 关键调试：检查数据的具体内容
+    console.log(`🔍 [ChartGenerator] 数据详细内容:`, {
+      categoriesLength: chartData.categories?.length,
+      uvDataLength: chartData.uvData?.length,
+      pvDataLength: chartData.pvData?.length,
+      categoriesSample: chartData.categories?.slice(0, 3),
+      uvDataSample: chartData.uvData?.slice(0, 3),
+      pvDataSample: chartData.pvData?.slice(0, 3),
+      uvDataValues: chartData.uvData,
+      pvDataValues: chartData.pvData
+    })
     
     return {
+      title: {
+        text: `${analysis.parameters?.pageName || '页面'}的"${analysis.parameters?.buttonName || '按钮'}"点击分析`,
+        left: 'center',
+        top: 20,
+        textStyle: {
+          fontSize: 16,
+          fontWeight: 'bold'
+        }
+      },
       tooltip: {
         trigger: 'axis',
         axisPointer: {
@@ -1785,34 +1862,30 @@ export class ChartGenerator {
   /**
    * 生成查询条件分析图表配置
    */
-  generateQueryConditionAnalysisOption(analysis, data) {
-    // 检查数据是否已经按日期聚合过
-    let chartData
-    if (data && data.length > 0 && data[0].hasOwnProperty('uv') && data[0].hasOwnProperty('pv')) {
-      // 数据已经聚合过，需要判断是否为多条件
-      console.log('📊 使用已聚合的查询条件数据:', data)
-      
-      // 🚀 修复：正确判断是否为多条件
-      const queryCondition = analysis.parameters?.queryCondition || ''
-      const isMultiCondition = queryCondition.startsWith('多条件:') || 
-                              queryCondition.includes('、') || 
-                              queryCondition.includes('，') ||
-                              (analysis.originalText && analysis.originalText.includes('多个'))
-      
-      chartData = {
-        categories: data.map(item => item.date || item.createdAt),
-        uvData: data.map(item => item.uv || 0),
-        pvData: data.map(item => item.pv || 0),
-        isMultipleConditions: isMultiCondition,
-        // 🚀 修复：为多条件场景生成conditionData
-        conditionData: isMultiCondition ? this.generateConditionDataFromAggregatedData(data, queryCondition) : []
-      }
-      
-      console.log(`🔍 判断多条件状态: queryCondition="${queryCondition}", isMultiCondition=${isMultiCondition}`)
-    } else {
-      // 数据未聚合，需要处理
-      chartData = this.processQueryConditionAnalysisData(analysis, data)
-    }
+  async generateQueryConditionAnalysisOption(analysis, data) {
+    // 🚀 使用统一的数据处理器工厂
+    const { dataProcessorFactory } = await import('./dataProcessorFactory.js')
+    
+    // 判断数据格式 - 修复判断逻辑
+    const isAggregated = data && data.length > 0 && (
+      // 情况1：数据项包含 uv 和 pv 字段
+      (data[0].hasOwnProperty('uv') && data[0].hasOwnProperty('pv')) ||
+      // 情况2：数据项包含 metrics 字段（已聚合的图表数据）
+      (data[0].hasOwnProperty('metrics') && data[0].hasOwnProperty('date')) ||
+      // 情况3：数据项包含 chartId 字段（保存的图表数据）
+      data[0].hasOwnProperty('chartId')
+    )
+    const format = isAggregated ? 'aggregated' : 'raw'
+    
+    console.log(`📊 [ChartGenerator] 使用统一数据处理器工厂，分析类型: ${analysis.chartType}，数据格式: ${format}`)
+    
+    // 使用统一的数据处理逻辑
+    const chartData = dataProcessorFactory.process(analysis.chartType, data, {
+      format: format,
+      analysis: analysis,
+      queryCondition: analysis.parameters?.queryCondition || '',
+      queryData: analysis.parameters?.queryData
+    })
     
     // 获取查询条件信息
     const queryCondition = analysis.parameters?.queryCondition || '查询条件'
@@ -1949,109 +2022,15 @@ export class ChartGenerator {
     }
   }
   
-  /**
-   * 从已聚合数据生成多条件数据
-   */
-  generateConditionDataFromAggregatedData(data, queryCondition) {
-    console.log('🔍 从已聚合数据生成多条件数据:', { dataLength: data.length, queryCondition })
-    
-    // 提取条件名称
-    let conditionNames = []
-    if (queryCondition.startsWith('多条件:')) {
-      conditionNames = queryCondition.replace('多条件:', '').split(/[、，]/)
-    } else if (queryCondition.includes('、')) {
-      conditionNames = queryCondition.split('、')
-    } else if (queryCondition.includes('，')) {
-      conditionNames = queryCondition.split('，')
-    } else {
-      // 如果无法解析，使用默认条件
-      conditionNames = ['查询条件']
-    }
-    
-    console.log('🔍 解析出的条件名称:', conditionNames)
-    
-    // 为每个条件生成数据（使用更合理的数据分配策略）
-    const conditionData = conditionNames.map((name, index) => {
-      // 使用加权分配策略，确保有数据的天数能显示值
-      const dataPerCondition = data.map(item => {
-        const totalPv = item.pv || 0
-        let value = 0
-        
-        if (totalPv > 0) {
-          // 如果有数据，使用加权分配
-          const baseValue = Math.floor(totalPv / conditionNames.length)
-          const remainder = totalPv % conditionNames.length
-          
-          // 第一个条件获得余数，其他条件获得基础值
-          value = baseValue + (index === 0 ? remainder : 0)
-          
-          // 如果基础值太小，给每个条件分配至少1
-          if (baseValue === 0 && totalPv >= conditionNames.length) {
-            value = 1
-          }
-        }
-        
-        return {
-          date: item.date || item.createdAt,
-          value: value
-        }
-      })
-      
-      return {
-        name: name.trim(),
-        data: dataPerCondition.map(d => d.value)
-      }
-    })
-    
-    console.log('🔍 生成的条件数据:', conditionData)
-    return conditionData
-  }
+  // 🚀 已移除：generateConditionDataFromAggregatedData 方法
+  // 现在使用统一的数据处理器 queryConditionDataProcessor
 
-  /**
-   * 处理查询条件分析数据
-   */
-  processQueryConditionAnalysisData(analysis, data) {
-    const queryCondition = analysis.parameters?.queryCondition
-    const pageName = analysis.parameters?.pageName
-    
-    console.log(`🔍 处理查询条件分析数据: 页面="${pageName}", 查询条件="${queryCondition}"`)
-    console.log(`🔍 接收到的数据:`, data)
-    
-    if (!data || data.length === 0) {
-      console.log('⚠️ 没有数据可处理')
-      return {
-        categories: [],
-        uvData: [],
-        pvData: [],
-        conditionData: []
-      }
-    }
-    
-    // 检查是否是全部条件或多条件场景
-    const isAllConditions = queryCondition === 'all' || queryCondition === '全部查询条件' || queryCondition === '全部状态'
-    const isMultiConditionSelection = queryCondition && queryCondition.startsWith('多条件:')
-    const hasMultipleConditionsInText = analysis.originalText && 
-      (analysis.originalText.includes('多个') || 
-       analysis.originalText.includes('条件') && analysis.originalText.includes('和') ||
-       analysis.originalText.includes('、') ||
-       analysis.originalText.includes('，') ||
-       analysis.originalText.includes('全部'))
-    
-    const showMultipleConditions = isAllConditions || isMultiConditionSelection || hasMultipleConditionsInText
-    
-    if (showMultipleConditions) {
-      // 多条件场景：按条件分组显示
-      return this.processMultipleConditionsData(data, analysis)
-    } else {
-      // 单条件场景：按日期聚合
-      return this.processSingleConditionData(data)
-    }
-  }
+  // 🚀 已移除：processQueryConditionAnalysisData 方法
+  // 现在使用统一的数据处理器 queryConditionDataProcessor
   
-  /**
-   * 处理多条件数据（分别显示每个条件）
-   */
-  processMultipleConditionsData(data, analysis) {
+  // 🚀 已移除：processMultipleConditionsData 方法
+  // 现在使用统一的数据处理器 queryConditionDataProcessor
+  processMultipleConditionsData_OLD(data, analysis) {
     console.log('🔍 处理多条件数据，按条件分组显示')
     console.log('🔍 分析参数:', analysis)
     
@@ -2159,15 +2138,16 @@ export class ChartGenerator {
    * 处理状态分类数据（按状态值聚合）
    */
   processStatusGroupData(data, analysis) {
-    console.log('🔍 处理状态分类数据，按状态值聚合')
+    console.log('🔍 处理状态分类数据，使用与详情页面相同的数据分配逻辑')
     
     const queryData = analysis.parameters?.queryData
     const selectedStatusValues = queryData?.allConditions?.map(c => c.content.split('::')[1]) || []
     
     console.log('🔍 选中的状态值:', selectedStatusValues)
     
-    // 按状态值分组数据
-    const statusMap = new Map()
+    // 🚀 修复：使用与详情页面相同的数据处理逻辑
+    // 先按日期聚合总数据，然后使用分配策略
+    const dateMap = new Map()
     
     data.forEach(item => {
       // 提取查询条件名称
@@ -2188,39 +2168,17 @@ export class ChartGenerator {
         return // 跳过不匹配的条件
       }
       
-      // 提取状态值
-      let statusValue = '未知状态'
-      try {
-        const parsed = JSON.parse(conditionName)
-        if (parsed.状态) {
-          statusValue = parsed.状态
-        }
-      } catch (e) {
-        // 不是JSON格式，跳过
-        return
-      }
-      
-      // 只处理用户选择的状态值
-      if (!selectedStatusValues.includes(statusValue)) {
-        return
-      }
-      
-      if (!statusMap.has(statusValue)) {
-        statusMap.set(statusValue, new Map())
-      }
-      
       const date = item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]
-      const statusData = statusMap.get(statusValue)
       
-      if (!statusData.has(date)) {
-        statusData.set(date, {
+      if (!dateMap.has(date)) {
+        dateMap.set(date, {
           date: date,
           pv: 0,
           uvSet: new Set()
         })
       }
       
-      const dayData = statusData.get(date)
+      const dayData = dateMap.get(date)
       dayData.pv++
       
       if (item.weCustomerKey) {
@@ -2228,58 +2186,29 @@ export class ChartGenerator {
       }
     })
     
-    // 生成完整的日期范围（使用数据的时间范围）
-    const allDates = new Set()
-    statusMap.forEach(statusData => {
-      statusData.forEach(dayData => {
-        allDates.add(dayData.date)
-      })
-    })
+    // 生成完整的日期范围
+    const allDates = Array.from(dateMap.keys()).sort((a, b) => new Date(a) - new Date(b))
     
-    let sortedDates = []
-    if (allDates.size > 0) {
-      // 从原始数据中获取日期范围
-      const dataDates = data.map(item => item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0])
-      const uniqueDataDates = [...new Set(dataDates)].sort((a, b) => new Date(a) - new Date(b))
-      
-      if (uniqueDataDates.length > 0) {
-        const startDate = new Date(uniqueDataDates[0])
-        const endDate = new Date(uniqueDataDates[uniqueDataDates.length - 1])
-        
-        // 生成完整的日期范围
-        const currentDate = new Date(startDate)
-        while (currentDate <= endDate) {
-          sortedDates.push(currentDate.toISOString().split('T')[0])
-          currentDate.setDate(currentDate.getDate() + 1)
-        }
-        
-        console.log(`📅 状态分类生成的完整日期范围:`, sortedDates)
-        console.log(`📅 原始数据日期范围: ${uniqueDataDates[0]} 到 ${uniqueDataDates[uniqueDataDates.length - 1]}`)
-      } else {
-        sortedDates = Array.from(allDates).sort((a, b) => new Date(a) - new Date(b))
+    // 转换为与详情页面相同的格式
+    const aggregatedData = allDates.map(date => {
+      const dayData = dateMap.get(date)
+      return {
+        date: date,
+        pv: dayData.pv,
+        uv: dayData.uvSet.size
       }
-    } else {
-      sortedDates = Array.from(allDates).sort((a, b) => new Date(a) - new Date(b))
-    }
-    
-    // 构建每个状态的数据
-    const conditionData = []
-    statusMap.forEach((statusDayData, statusValue) => {
-      const pvData = sortedDates.map(date => {
-        const dayData = statusDayData.get(date)
-        return dayData ? dayData.pv : 0
-      })
-      
-      conditionData.push({
-        name: statusValue,
-        data: pvData
-      })
     })
     
-    console.log(`📊 状态分类数据分组结果:`, conditionData)
+    console.log('🔍 聚合后的数据:', aggregatedData)
+    
+    // 🚀 关键修复：使用与详情页面相同的数据分配逻辑
+    const queryCondition = analysis.parameters?.queryCondition || ''
+    const conditionData = this.generateConditionDataFromAggregatedData(aggregatedData, queryCondition)
+    
+    console.log(`📊 状态分类数据分配结果:`, conditionData)
     
     return {
-      categories: sortedDates,
+      categories: allDates,
       conditionData: conditionData,
       isMultipleConditions: true
     }

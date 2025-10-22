@@ -70,7 +70,7 @@ import { useDataFetch } from '@/composables/useDataFetch'
 import { chartDB } from '@/utils/indexedDBManager'
 import { useChart } from '@/composables/useChart'
 import { useChartManager } from '@/composables/useChartManager'
-import { useDataConsistency } from '@/composables/useDataConsistency'
+// import { useDataConsistency } from '@/composables/useDataConsistency'
 import { aggregationService } from '@/utils/aggregationService'
 import { dataPreloadService } from '@/services/dataPreloadService'
 import AIChatInterface from '@/components/AIChatInterface.vue'
@@ -85,13 +85,16 @@ const router = useRouter()
 const { availablePages, fetchMultiDayData, loadAvailablePages, validateConnection, clearCache } = useDataFetch()
 const { chartGenerator, initChartGenerator, generateChart, extractPageNames } = useChart()
 const { saveChart: saveChartToManager } = useChartManager()
-const { 
-  healthStatus, 
-  healthStatusColor, 
-  quickHealthCheck, 
-  forceRefreshData, 
-  startAutoCheck 
-} = useDataConsistency()
+// const { 
+//   healthStatus, 
+//   healthStatusColor, 
+//   quickHealthCheck, 
+//   forceRefreshData, 
+//   startAutoCheck 
+// } = useDataConsistency()
+
+// 🚀 临时禁用自动检查，避免阻塞保存过程
+// startAutoCheck()
 
 // 响应式数据
 const currentRequirement = ref('')
@@ -142,10 +145,10 @@ let requirementParser = null
 // 生命周期
 onMounted(() => {
   initializeSystem()
-  // 启动自动缓存健康检查
-  setTimeout(() => {
-    startAutoCheck()
-  }, 2000)
+  // 🚀 临时禁用自动缓存健康检查，避免阻塞保存过程
+  // setTimeout(() => {
+  //   startAutoCheck()
+  // }, 2000)
 })
 
 // 方法
@@ -943,6 +946,14 @@ const saveChartToLibrary = async () => {
     const chartData = store.state.chartConfig.data
     const effectiveAnalysis = analysisResult.value || store.state.chartConfig.analysis || {}
     const chartType = effectiveAnalysis.chartType
+    
+    // 🚀 修复：确保 chartType 正确获取
+    console.log('🔍 chartType 来源检查:', {
+      fromAnalysisResult: analysisResult.value?.chartType,
+      fromChartConfig: store.state.chartConfig?.analysis?.chartType,
+      finalChartType: chartType,
+      effectiveAnalysis: effectiveAnalysis
+    })
     console.log('➡️ [Home] 输入参数: ', {
       chartType,
       analysisDescription: effectiveAnalysis?.description,
@@ -1001,6 +1012,10 @@ const saveChartToLibrary = async () => {
       }
     }
     
+    // 🚀 修复：添加时间戳避免重复
+    const timestamp = dayjs().format('MM-DD HH:mm')
+    chartName = `${chartName} (${timestamp})`
+    
     // 🔍 检查图表名称是否已存在
     console.log('🔍 [Home] 检查图表名称重复性:', chartName)
     const existingCharts = await chartDB.getAllCharts()
@@ -1048,6 +1063,13 @@ const saveChartToLibrary = async () => {
     }
     
     // 🚀 新增：保存查询条件分析的原始参数
+    console.log('🔍 保存参数检查:', {
+      chartType,
+      hasQueryConditionParams: !!store.state.queryConditionAnalysisParams.pageName,
+      queryConditionParams: store.state.queryConditionAnalysisParams,
+      storeState: store.state
+    })
+    
     if (chartType === 'query_condition_analysis' && store.state.queryConditionAnalysisParams.pageName) {
       chartConfig.queryConditionParams = {
         pageName: store.state.queryConditionAnalysisParams.pageName,
@@ -1055,6 +1077,11 @@ const saveChartToLibrary = async () => {
         queryData: store.state.queryConditionAnalysisParams.queryData
       }
       console.log('💾 保存查询条件分析参数:', chartConfig.queryConditionParams)
+    } else {
+      console.log('⚠️ 查询条件分析参数保存条件不满足:', {
+        chartTypeMatch: chartType === 'query_condition_analysis',
+        hasPageName: !!store.state.queryConditionAnalysisParams.pageName
+      })
     }
     
     // 🚀 新增：保存按钮点击分析的原始参数
@@ -1067,12 +1094,21 @@ const saveChartToLibrary = async () => {
       console.log('💾 保存按钮点击分析参数:', chartConfig.buttonParams)
     }
     
+    // 🚀 新增：保存页面访问分析的原始参数
+    if (chartType === 'single_page_uv_pv_chart' && effectiveAnalysis.parameters?.pageName) {
+      chartConfig.pageAccessParams = {
+        pageName: effectiveAnalysis.parameters.pageName
+      }
+      console.log('💾 保存页面访问分析参数:', chartConfig.pageAccessParams)
+    }
+    
     // 按日期聚合数据（只处理最近的数据）
     const initialData = {}
     
-    // 检查是否为按钮点击分析（数据格式可能不同）
+    // 检查是否为按钮点击分析或查询条件分析（数据格式可能不同）
     const isButtonClickAnalysis = chartType === 'button_click_analysis' || 
                                  chartType === 'button_click_daily'
+    const isQueryConditionAnalysis = chartType === 'query_condition_analysis'
     
     if (isButtonClickAnalysis) {
       // 按钮点击分析：数据已经是按日期聚合的格式
@@ -1164,9 +1200,147 @@ const saveChartToLibrary = async () => {
         }
         console.log('🧩 [Home] 按钮点击数据聚合完成: 处理天数=', Object.keys(initialData).length)
       }
+    } else if (isQueryConditionAnalysis) {
+      // 查询条件分析：数据已经是按日期聚合的格式
+      console.log('🔍 [Home] 检测到查询条件分析，使用特殊处理逻辑')
+      
+      // 检查数据格式：如果数据包含categories和uvData/pvData，说明已经是图表格式
+      if (chartData && typeof chartData === 'object' && !Array.isArray(chartData) && chartData.categories) {
+        console.log('📊 [Home] 查询条件数据已经是图表格式，直接转换', {
+          categoriesLen: chartData.categories?.length,
+          uvLen: chartData.uvData?.length,
+          pvLen: chartData.pvData?.length
+        })
+        
+        // 将图表格式数据转换为按日期的聚合数据（只处理最近的数据）
+        chartData.categories.forEach((date, index) => {
+          // 🚀 优化：只保存最近的数据
+          if (recentDates.includes(date)) {
+            initialData[date] = {
+              metrics: {
+                uv: chartData.uvData[index] || 0,
+                pv: chartData.pvData[index] || 0
+              },
+              dimensions: {},
+              metadata: {
+                rawRecordCount: 0,
+                filteredRecordCount: 0,
+                processedAt: new Date().toISOString(),
+                dataQuality: 'good'
+              }
+            }
+          }
+        })
+        console.log('🧩 [Home] 查询条件数据转换完成: 聚合天数=', Object.keys(initialData).length)
+      } else {
+        // 查询条件分析：直接从原始数据聚合UV/PV（只处理最近的数据）
+        console.log('🔧 [Home] 查询条件分析：直接从原始数据聚合UV/PV')
+        for (const date of recentDates) {
+          const dayData = chartData.filter(d => 
+            dayjs(d.createdAt).format('YYYY-MM-DD') === date
+          )
+          
+          if (dayData.length > 0) {
+            // 过滤出指定页面和查询条件的数据
+            console.log(`🔍 [Home] 日期 ${date} 的查询条件数据过滤:`)
+            console.log(`  - 总数据量: ${dayData.length}`)
+            console.log(`  - 点击数据量: ${dayData.filter(item => item.type === 'click').length}`)
+            console.log(`  - 页面名称匹配: ${dayData.filter(item => item.pageName === effectiveAnalysis.parameters?.pageName).length}`)
+            console.log(`  - 查询条件匹配: ${dayData.filter(item => item.content === effectiveAnalysis.parameters?.queryCondition).length}`)
+            
+            // 🚀 修复：查询条件匹配逻辑
+            const queryCondition = effectiveAnalysis.parameters?.queryCondition || ''
+            console.log(`  - 查询条件参数: "${queryCondition}"`)
+            
+            const queryConditionData = dayData.filter(item => {
+              if (item.type !== 'click' || item.pageName !== effectiveAnalysis.parameters?.pageName) {
+                return false
+              }
+              
+              // 🚀 修复：处理多条件情况
+              if (queryCondition.startsWith('多条件:')) {
+                // 提取多条件中的具体条件
+                const conditionsStr = queryCondition.replace('多条件:', '')
+                const conditions = conditionsStr.split(/[、，]/).map(c => c.trim())
+                console.log(`  - 解析出的条件列表: [${conditions.join(', ')}]`)
+                console.log(`  - 当前数据项content: "${item.content}"`)
+                
+                // 首先尝试精确匹配
+                let isMatch = conditions.some(condition => item.content === condition)
+                
+                // 如果没有精确匹配，尝试通用查询匹配
+                if (!isMatch && item.content === '查询') {
+                  console.log(`  - 🔄 使用通用查询匹配: "${item.content}"`)
+                  isMatch = true
+                }
+                
+                if (isMatch) {
+                  console.log(`  - ✅ 匹配成功: "${item.content}"`)
+                }
+                return isMatch
+              } else if (queryCondition.includes('、') || queryCondition.includes('，')) {
+                // 兼容其他多条件格式
+                const conditions = queryCondition.split(/[、，]/).map(c => c.trim())
+                let isMatch = conditions.some(condition => item.content === condition)
+                
+                // 如果没有精确匹配，尝试通用查询匹配
+                if (!isMatch && item.content === '查询') {
+                  isMatch = true
+                }
+                
+                return isMatch
+              } else {
+                // 单条件直接匹配
+                let isMatch = item.content === queryCondition
+                
+                // 如果没有精确匹配，尝试通用查询匹配
+                if (!isMatch && item.content === '查询') {
+                  isMatch = true
+                }
+                
+                return isMatch
+              }
+            })
+            
+            console.log(`  - 最终匹配的查询条件数据: ${queryConditionData.length} 条`)
+            if (queryConditionData.length > 0) {
+              console.log(`  - 样本数据:`, queryConditionData.slice(0, 2))
+            }
+            
+            // 计算UV和PV
+            let uv = 0
+            let pv = 0
+            const uvSet = new Set()
+            
+            queryConditionData.forEach(item => {
+              pv++ // 每次点击都计数
+              if (item.weCustomerKey) {
+                uvSet.add(item.weCustomerKey) // 按用户去重
+              }
+            })
+            
+            uv = uvSet.size
+            
+            initialData[date] = {
+              metrics: {
+                uv: uv,
+                pv: pv
+              },
+              dimensions: {},
+              metadata: {
+                rawRecordCount: dayData.length,
+                filteredRecordCount: queryConditionData.length,
+                processedAt: new Date().toISOString(),
+                dataQuality: queryConditionData.length > 0 ? 'good' : 'no_data'
+              }
+            }
+          }
+        }
+        console.log('🧩 [Home] 查询条件数据聚合完成: 处理天数=', Object.keys(initialData).length)
+      }
     } else {
       // 其他图表类型：使用标准聚合服务处理数据（只处理最近的数据）
-      console.log('📈 [Home] 非按钮点击图表，使用标准聚合')
+      console.log('📈 [Home] 非按钮点击/查询条件图表，使用标准聚合')
       for (const date of recentDates) {
         const dayData = chartData.filter(d => 
           dayjs(d.createdAt).format('YYYY-MM-DD') === date

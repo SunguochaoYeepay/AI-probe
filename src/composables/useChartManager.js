@@ -116,7 +116,11 @@ export function useChartManager() {
           dimensions: chartConfig.dimensions || ['date'],
           metrics: chartConfig.metrics || ['uv', 'pv'],
           dateRangeStrategy: chartConfig.dateRangeStrategy || 'last_30_days',
-          customDateRange: chartConfig.customDateRange || null
+          customDateRange: chartConfig.customDateRange || null,
+          // 🚀 修复：保存查询条件分析参数
+          queryConditionParams: chartConfig.queryConditionParams || null,
+          // 🚀 修复：保存按钮点击分析参数
+          buttonParams: chartConfig.buttonParams || null
         },
         updateStrategy: {
           enabled: true,

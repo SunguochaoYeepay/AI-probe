@@ -328,7 +328,7 @@ const renderChart = async () => {
   
   try {
     // 准备数据（转换格式）
-    const transformedData = transformChartData(chartData.value, chart.value.config, chart.value)
+    const transformedData = await transformChartData(chartData.value, chart.value.config, chart.value)
     
     console.log('🎯 准备渲染图表:', {
       chartType: chart.value.config.chartType,
@@ -348,6 +348,7 @@ const renderChart = async () => {
     if (chart.value.config.chartType === 'query_condition_analysis') {
       console.log('🔍 查询条件分析 - 完整图表对象:', chart.value)
       console.log('🔍 查询条件分析 - 图表配置:', chart.value.config)
+      console.log('🔍 图表配置完整结构:', JSON.stringify(chart.value.config, null, 2))
       
       // 🚀 优先使用保存的原始参数
       if (chart.value.config.queryConditionParams) {
@@ -448,23 +449,14 @@ const renderChart = async () => {
     // 使用修复后的ChartGenerator
     const chartGenerator = new ChartGenerator()
     
-    // 对于按钮点击分析，数据已经在transformChartData中处理过了，直接使用
-    if (analysisConfig.chartType === 'button_click_analysis' || analysisConfig.chartType === 'button_click_daily') {
-      // 数据已经按日期聚合，直接生成图表配置
-      const option = chartGenerator.generateButtonClickAnalysisOption(analysisConfig, transformedData)
-      
-      // 初始化图表
-      chartInstance.value = echarts.init(container, null, {
-        renderer: 'canvas',
-        useDirtyRect: false
-      })
-      
-      // 设置配置并渲染
-      chartInstance.value.setOption(option, true)
-    } else {
-      // 其他图表类型使用标准流程
-      chartInstance.value = chartGenerator.generateChart(analysisConfig, transformedData, 'chart-container')
-    }
+    // 统一使用generateChart方法处理所有图表类型
+    console.log('🔧 [ChartDetail] 调用generateChart:', {
+      analysisConfig,
+      dataLength: chartData.value?.length,
+      containerId: 'chart-container'
+    })
+    chartInstance.value = await chartGenerator.generateChart(analysisConfig, chartData.value, 'chart-container')
+    console.log('✅ [ChartDetail] generateChart调用完成')
     
     console.log('✅ 图表渲染成功')
     
@@ -477,10 +469,7 @@ const renderChart = async () => {
   window.addEventListener('resize', handleResize)
 }
 
-const transformChartData = (data, config, chartInfo = null) => {
-  // 🚀 关键修复：生成完整的时间轴，确保显示所有天数
-  const transformed = []
-  
+const transformChartData = async (data, config, chartInfo = null) => {
   console.log('🔄 转换图表数据:', { 
     dataCount: data.length, 
     config: config,
@@ -488,9 +477,226 @@ const transformChartData = (data, config, chartInfo = null) => {
     sampleData: data.slice(0, 2)
   })
   
+  // 🚀 使用统一的数据处理器
+  try {
+    const { dataProcessorFactory } = await import('@/utils/dataProcessorFactory.js')
+    
+    // 判断数据格式 - 修复判断逻辑
+    const isAggregated = data && data.length > 0 && (
+      // 情况1：数据项包含 uv 和 pv 字段
+      (data[0].hasOwnProperty('uv') && data[0].hasOwnProperty('pv')) ||
+      // 情况2：数据项包含 metrics 字段（已聚合的图表数据）
+      (data[0].hasOwnProperty('metrics') && data[0].hasOwnProperty('date')) ||
+      // 情况3：数据项包含 chartId 字段（保存的图表数据）
+      data[0].hasOwnProperty('chartId')
+    )
+    const format = isAggregated ? 'aggregated' : 'raw'
+    
+    console.log('🔍 [ChartDetail] 数据格式判断:', {
+      dataLength: data.length,
+      firstItemKeys: data.length > 0 ? Object.keys(data[0]) : [],
+      isAggregated: isAggregated,
+      format: format,
+      sampleItem: data.length > 0 ? data[0] : null
+    })
+    
+    console.log(`📊 [ChartDetail] 使用统一数据处理器工厂，分析类型: ${config.chartType}，数据格式: ${format}`)
+    
+    // 🚀 修复：构建正确的分析参数
+    let analysisParameters = {}
+    
+    if (config.queryConditionParams) {
+      // 查询条件分析
+      analysisParameters = {
+        pageName: config.queryConditionParams.pageName,
+        queryCondition: config.queryConditionParams.queryCondition,
+        queryData: config.queryConditionParams.queryData
+      }
+    } else if (config.buttonParams) {
+      // 按钮点击分析
+      analysisParameters = {
+        pageName: config.buttonParams.pageName,
+        buttonName: config.buttonParams.buttonName,
+        buttonData: config.buttonParams.buttonData
+      }
+    } else {
+      // 页面访问分析 - 优先从保存的参数中获取页面名称
+      let pageName = null
+      
+      // 🚀 修复：优先从保存的参数中获取页面名称
+      if (config.pageAccessParams?.pageName) {
+        pageName = config.pageAccessParams.pageName
+        console.log('🔍 [ChartDetail] 从保存的参数中获取页面名称:', pageName)
+      } else {
+        // 降级：从图表描述中提取页面名称
+        const description = chartInfo?.description || config.description || ''
+        console.log('🔍 [ChartDetail] 从描述中提取页面名称:', description)
+        
+        if (description.includes('分析页面"')) {
+          const match = description.match(/分析页面"([^"]+)"/)
+          if (match) {
+            pageName = match[1]
+          }
+        } else if (description.includes('页面"')) {
+          const match = description.match(/页面"([^"]+)"/)
+          if (match) {
+            pageName = match[1]
+          }
+        }
+        
+        console.log('🔍 [ChartDetail] 从描述中提取的页面名称:', pageName)
+      }
+      
+      analysisParameters = {
+        pageName: pageName
+      }
+      
+      console.log('🔍 [ChartDetail] 最终使用的页面名称:', pageName)
+    }
+    
+    // 🚀 关键修复：在详情时也进行页面数据过滤，与创建时保持一致
+    let filteredData = data
+    if (analysisParameters.pageName && config.chartType === 'single_page_uv_pv_chart' && format === 'raw') {
+      console.log('🔍 [ChartDetail] 开始页面数据过滤，目标页面:', analysisParameters.pageName)
+      
+      // 使用与创建时相同的智能匹配逻辑
+      const smartMatch = (target, source) => {
+        if (!source) return false
+        
+        // 1. 精确匹配
+        if (target === source) return true
+        
+        // 2. 去除常见后缀后的精确匹配
+        const cleanTarget = target.replace(/(的访问|访问|页面|page)$/gi, '').trim()
+        const cleanSource = source.replace(/(的访问|访问|页面|page)$/gi, '').trim()
+        if (cleanTarget === cleanSource) return true
+        
+        // 3. 去除横线字符后的精确匹配
+        const normalizedTarget = target.replace(/[—_\-]/g, '')
+        const normalizedSource = source.replace(/[—_\-]/g, '')
+        if (normalizedTarget === normalizedSource) return true
+        
+        // 4. 简单的包含匹配
+        if (source.includes(target) || target.includes(source)) {
+          return true
+        }
+        
+        // 5. 关键词匹配
+        const targetKeywords = target.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
+        const sourceKeywords = source.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
+        
+        let matchCount = 0
+        for (const targetKeyword of targetKeywords) {
+          if (sourceKeywords.some(sourceKeyword => 
+            sourceKeyword.includes(targetKeyword) || targetKeyword.includes(sourceKeyword)
+          )) {
+            matchCount++
+          }
+        }
+        
+        if (targetKeywords.length > 0 && matchCount === targetKeywords.length) {
+          return true
+        }
+        
+        return matchCount > 0
+      }
+      
+      // 🚀 修复：增强调试日志，显示实际的数据结构
+      const sampleData = data.slice(0, 3).map(item => ({
+        pageName: item.pageName,
+        url: item.url,
+        path: item.path,
+        title: item.title,
+        content: item.content,
+        allKeys: Object.keys(item)
+      }))
+      
+      console.log('🔍 [ChartDetail] 页面过滤调试信息:')
+      console.log('  目标页面:', analysisParameters.pageName)
+      console.log('  原始数据样本:', sampleData)
+      
+      // 详细显示每个数据项的匹配过程
+      data.slice(0, 3).forEach((item, index) => {
+        const itemPageName = item.pageName || item.url || item.path || item.title
+        const matchResult = smartMatch(analysisParameters.pageName, itemPageName)
+        console.log(`  数据项 ${index} 匹配检查:`, {
+          itemPageName: itemPageName,
+          targetPageName: analysisParameters.pageName,
+          matchResult: matchResult,
+          itemKeys: Object.keys(item)
+        })
+        
+        // 🚀 关键：显示完整的数据项内容
+        console.log(`  数据项 ${index} 完整内容:`, item)
+      })
+      
+      // 过滤数据
+      filteredData = data.filter(item => {
+        const itemPageName = item.pageName || item.url || item.path || item.title
+        return smartMatch(analysisParameters.pageName, itemPageName)
+      })
+      
+      console.log('🔍 [ChartDetail] 页面数据过滤结果:', {
+        原始数据: data.length,
+        过滤后数据: filteredData.length,
+        目标页面: analysisParameters.pageName
+      })
+      
+      // 如果过滤后没有数据，使用原始数据
+      if (filteredData.length === 0) {
+        console.warn('⚠️ [ChartDetail] 页面过滤后无数据，使用原始数据')
+        filteredData = data
+      }
+    }
+    
+    // 使用统一的数据处理逻辑
+    const result = dataProcessorFactory.process(config.chartType, filteredData, {
+      format: format,
+      analysis: {
+        chartType: config.chartType,
+        parameters: analysisParameters
+      },
+      queryCondition: config.queryConditionParams?.queryCondition || '',
+      queryData: config.queryConditionParams?.queryData
+    })
+    
+    console.log('✅ [ChartDetail] 统一数据处理完成:', result)
+    
+    // 转换为 ChartDetail 期望的格式
+    const transformed = result.categories.map((date, index) => ({
+      createdAt: date,
+      date: date,
+      uv: result.uvData[index] || 0,
+      pv: result.pvData[index] || 0
+    }))
+    
+    console.log('✅ 转换后的数据:', { count: transformed.length, sample: transformed.slice(0, 2) })
+    return transformed
+    
+  } catch (error) {
+    console.error('❌ [ChartDetail] 统一数据处理失败，使用旧逻辑:', error)
+    
+    // 降级到旧的数据处理逻辑
+    return transformChartDataLegacy(data, config, chartInfo)
+  }
+}
+
+const transformChartDataLegacy = (data, config, chartInfo = null) => {
+  // 🚀 关键修复：生成完整的时间轴，确保显示所有天数
+  const transformed = []
+  
+  console.log('🔄 [ChartDetail] 使用旧的数据处理逻辑')
+  
   // 生成完整的时间轴
   let fullDateRange = []
-  if (dateRange.value && dateRange.value.startDate && dateRange.value.endDate) {
+  
+  // 🚀 修复：对于查询条件分析，优先使用保存的数据日期范围，避免填充过多0值
+  if (config.chartType === 'query_condition_analysis' && data.length > 0) {
+    // 查询条件分析：只使用有数据的日期，不填充0值
+    const dates = data.map(item => item.date).sort()
+    fullDateRange = dates
+    console.log(`📅 查询条件分析：使用实际数据日期范围: ${fullDateRange.length}天，从 ${fullDateRange[0]} 到 ${fullDateRange[fullDateRange.length - 1]}`)
+  } else if (dateRange.value && dateRange.value.startDate && dateRange.value.endDate) {
     const startDate = dayjs(dateRange.value.startDate)
     const endDate = dayjs(dateRange.value.endDate)
     
@@ -532,17 +738,19 @@ const transformChartData = (data, config, chartInfo = null) => {
       
       if (dimensions && dimensions.byPage) {
         dimensions.byPage.forEach(page => {
-          transformed.push({
-            createdAt: itemDate,
-            pageName: page.page,
-            weCustomerKey: `dummy_${page.uv}`,
-            ...metrics,
-            ...page
-          })
+        transformed.push({
+          createdAt: itemDate,
+          date: itemDate,  // 🚀 修复：添加date字段
+          pageName: page.page,
+          weCustomerKey: `dummy_${page.uv}`,
+          ...metrics,
+          ...page
+        })
         })
       } else {
         const transformedItem = {
-          createdAt: itemDate
+          createdAt: itemDate,
+          date: itemDate  // 🚀 修复：添加date字段
         }
         
         // 处理查询条件分析
@@ -652,6 +860,7 @@ const transformChartData = (data, config, chartInfo = null) => {
       // 无数据的天，生成默认数据点（值为0）
       const transformedItem = {
         createdAt: date,
+        date: date,  // 🚀 修复：添加date字段
         uv: 0,
         pv: 0
       }
