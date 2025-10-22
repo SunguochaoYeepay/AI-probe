@@ -71,7 +71,7 @@
         :loading="loading"
         :pagination="paginationConfig"
         row-key="id"
-        :scroll="{ x: 1200 }"
+        :scroll="{ x: 1350 }"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
@@ -89,6 +89,12 @@
             <a-tag :color="getCategoryColor(record.category)">
               {{ getCategoryText(record.category) }}
             </a-tag>
+          </template>
+          
+          <template v-else-if="column.key === 'pageName'">
+            <span class="page-name">
+              {{ getPageName(record) }}
+            </span>
           </template>
           
           <template v-else-if="column.key === 'status'">
@@ -211,6 +217,12 @@ const tableColumns = [
       { text: '转化分析', value: '转化分析' },
       { text: '全局概览', value: '全局概览' }
     ]
+  },
+  {
+    title: '所属页面',
+    key: 'pageName',
+    width: 150,
+    filters: []
   },
   {
     title: '状态',
@@ -366,6 +378,62 @@ const getLastUpdateTime = (chart) => {
     return dayjs(chart.lastDataUpdate).format('YYYY-MM-DD HH:mm')
   }
   return '-'
+}
+
+// 提取页面名称
+const getPageName = (chart) => {
+  const config = chart.config || {}
+  
+  // 1. 优先从保存的参数中获取页面名称
+  if (config.queryConditionParams?.pageName) {
+    return config.queryConditionParams.pageName
+  }
+  
+  if (config.buttonParams?.pageName) {
+    return config.buttonParams.pageName
+  }
+  
+  if (config.pageAccessParams?.pageName) {
+    return config.pageAccessParams.pageName
+  }
+  
+  // 2. 从图表描述中提取页面名称
+  const description = chart.description || chart.name || ''
+  
+  // 匹配 "分析页面'XXX'的..." 格式
+  const pageMatch = description.match(/分析页面["'](.+?)["']/)
+  if (pageMatch) {
+    return pageMatch[1]
+  }
+  
+  // 匹配 "页面'XXX'的..." 格式
+  const pageMatch2 = description.match(/页面["'](.+?)["']/)
+  if (pageMatch2) {
+    return pageMatch2[1]
+  }
+  
+  // 匹配 "#XXX 页面的..." 格式
+  if (description.startsWith('#')) {
+    const pageMatch3 = description.match(/#(.+?)\s+页面的/)
+    if (pageMatch3) {
+      return pageMatch3[1]
+    }
+  }
+  
+  // 3. 根据图表类型返回默认值
+  switch (config.chartType) {
+    case 'single_page_uv_pv_chart':
+      return '单页面分析'
+    case 'button_click_analysis':
+    case 'button_click_daily':
+      return '按钮点击分析'
+    case 'query_condition_analysis':
+      return '查询条件分析'
+    case 'uv_pv_chart':
+      return '整站分析'
+    default:
+      return '-'
+  }
 }
 
 // 生成显示用的图表名称
