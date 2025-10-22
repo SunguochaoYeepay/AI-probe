@@ -35,6 +35,7 @@ export function useChartManager() {
       all: savedCharts.value,
       page: savedCharts.value.filter(c => c.category === '页面分析'),
       behavior: savedCharts.value.filter(c => c.category === '用户行为'),
+      query: savedCharts.value.filter(c => c.category === '查询条件分析'),
       conversion: savedCharts.value.filter(c => c.category === '转化分析'),
       overview: savedCharts.value.filter(c => c.category === '全局概览')
     }

@@ -207,6 +207,7 @@ const tableColumns = [
     filters: [
       { text: '页面分析', value: '页面分析' },
       { text: '用户行为', value: '用户行为' },
+      { text: '查询条件分析', value: '查询条件分析' },
       { text: '转化分析', value: '转化分析' },
       { text: '全局概览', value: '全局概览' }
     ]
@@ -339,6 +340,7 @@ const getCategoryColor = (category) => {
   const colors = {
     '页面分析': 'blue',
     '用户行为': 'green',
+    '查询条件分析': 'cyan',
     '转化分析': 'orange',
     '全局概览': 'purple'
   }
@@ -425,10 +427,11 @@ const getDisplayChartName = (record) => {
 onMounted(async () => {
   await init()
   stats.value = await getStats()
-  // 从路由查询参数同步分类，例如 ?category=page-analysis|click-analysis|conversion|overview|all
+  // 从路由查询参数同步分类，例如 ?category=page-analysis|click-analysis|query-analysis|conversion|overview|all
   const categoryMap = {
     'page-analysis': 'page',
     'click-analysis': 'behavior',
+    'query-analysis': 'query',
     'conversion': 'conversion',
     'overview': 'overview',
     'all': 'all'
@@ -444,6 +447,7 @@ watch(() => route.query.category, (val) => {
   const categoryMap = {
     'page-analysis': 'page',
     'click-analysis': 'behavior',
+    'query-analysis': 'query',
     'conversion': 'conversion',
     'overview': 'overview',
     'all': 'all'
