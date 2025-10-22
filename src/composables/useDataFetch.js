@@ -44,7 +44,7 @@ export function useDataFetch() {
     // 根据分析类型选择对应的埋点
     const analysisType = analysis?.type || analysis?.intent
     
-    if (analysisType === 'button_click_analysis' || analysisType === 'user_click') {
+    if (analysisType === 'button_click_analysis' || analysisType === 'user_click' || analysisType === 'query_condition_analysis') {
       // 按钮点击分析，优先使用点击埋点
       if (projectConfig.clickBuryPointId) {
         selectedPointId = projectConfig.clickBuryPointId
@@ -520,7 +520,10 @@ export function useDataFetch() {
     const isButtonClickAnalysis = analysisResult?.chartType?.includes('button_click_analysis') || 
                                  analysisResult?.intent === 'button_click_analysis'
     
-    if (isButtonClickAnalysis) {
+    const analysisType = analysisResult?.type || analysisResult?.intent
+    const isQueryConditionAnalysis = analysisType === 'query_condition_analysis'
+    
+    if (isButtonClickAnalysis || isQueryConditionAnalysis) {
       // 按钮点击分析，优先使用点击埋点
       if (projectConfig.clickBuryPointId) {
         selectedPointIds = [projectConfig.clickBuryPointId]

@@ -61,6 +61,13 @@ export default createStore({
       pageName: null,
       buttonName: null,
       buttonData: null
+    },
+    
+    // 查询条件分析参数
+    queryConditionAnalysisParams: {
+      pageName: null,
+      queryCondition: null,
+      queryData: null
     }
   },
   
@@ -115,6 +122,10 @@ export default createStore({
     
     SET_BUTTON_ANALYSIS_PARAMS(state, params) {
       state.buttonAnalysisParams = { ...state.buttonAnalysisParams, ...params }
+    },
+    
+    SET_QUERY_CONDITION_ANALYSIS_PARAMS(state, params) {
+      state.queryConditionAnalysisParams = { ...state.queryConditionAnalysisParams, ...params }
     }
   },
   
@@ -153,6 +164,10 @@ export default createStore({
     
     updateButtonAnalysisParams({ commit }, params) {
       commit('SET_BUTTON_ANALYSIS_PARAMS', params)
+    },
+    
+    updateQueryConditionAnalysisParams({ commit }, params) {
+      commit('SET_QUERY_CONDITION_ANALYSIS_PARAMS', params)
     }
   },
   

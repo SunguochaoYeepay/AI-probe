@@ -156,6 +156,8 @@ export class ChartGenerator {
         return this.generateSinglePageUVPVChartOption(analysis, data, analysis.userDateRange)
       case 'button_click_analysis':
         return this.generateButtonClickAnalysisOption(analysis, data)
+      case 'query_condition_analysis':
+        return this.generateQueryConditionAnalysisOption(analysis, data)
       case 'button_click_daily':
         return this.generateButtonClickDailyOption(analysis, data)
       default:
@@ -1777,6 +1779,160 @@ export class ChartGenerator {
           }
         }
       ]
+    }
+  }
+  
+  /**
+   * 生成查询条件分析图表配置
+   */
+  generateQueryConditionAnalysisOption(analysis, data) {
+    // 检查数据是否已经按日期聚合过
+    let chartData
+    if (data && data.length > 0 && data[0].hasOwnProperty('uv') && data[0].hasOwnProperty('pv')) {
+      // 数据已经聚合过，直接使用
+      console.log('📊 使用已聚合的查询条件数据:', data)
+      chartData = {
+        categories: data.map(item => item.date || item.createdAt),
+        uvData: data.map(item => item.uv || 0),
+        pvData: data.map(item => item.pv || 0)
+      }
+    } else {
+      // 数据未聚合，需要处理
+      chartData = this.processQueryConditionAnalysisData(analysis, data)
+    }
+    
+    return {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow'
+        },
+        formatter: function(params) {
+          let result = `<strong>${params[0].axisValue}</strong><br/>`
+          params.forEach(param => {
+            result += `${param.seriesName}: ${param.value}<br/>`
+          })
+          return result
+        }
+      },
+      legend: {
+        data: ['UV (独立用户)', 'PV (使用次数)'],
+        top: 30
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        top: '15%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: chartData.categories,
+        axisLabel: {
+          rotate: 45,
+          interval: 0
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: '使用次数'
+      },
+      series: [
+        {
+          name: 'UV (独立用户)',
+          type: 'bar',
+          data: chartData.uvData,
+          itemStyle: {
+            color: '#5470c6'
+          },
+          emphasis: {
+            itemStyle: {
+              color: '#73d13d'
+            }
+          },
+          label: {
+            show: true,
+            position: 'top',
+            formatter: '{c}'
+          }
+        },
+        {
+          name: 'PV (使用次数)',
+          type: 'line',
+          data: chartData.pvData,
+          itemStyle: {
+            color: '#91cc75'
+          },
+          lineStyle: { width: 3 },
+          symbol: 'circle',
+          symbolSize: 8,
+          label: {
+            show: true,
+            position: 'top',
+            formatter: '{c}'
+          }
+        }
+      ]
+    }
+  }
+  
+  /**
+   * 处理查询条件分析数据
+   */
+  processQueryConditionAnalysisData(analysis, data) {
+    const queryCondition = analysis.parameters?.queryCondition
+    const pageName = analysis.parameters?.pageName
+    
+    console.log(`🔍 处理查询条件分析数据: 页面="${pageName}", 查询条件="${queryCondition}"`)
+    console.log(`🔍 接收到的数据:`, data)
+    
+    if (!data || data.length === 0) {
+      console.log('⚠️ 没有数据可处理')
+      return {
+        categories: [],
+        uvData: [],
+        pvData: []
+      }
+    }
+    
+    // 按日期聚合查询条件使用数据
+    const dateMap = new Map()
+    
+    data.forEach(item => {
+      const date = item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0]
+      
+      if (!dateMap.has(date)) {
+        dateMap.set(date, {
+          date: date,
+          uvSet: new Set(),
+          pv: 0
+        })
+      }
+      
+      const dayData = dateMap.get(date)
+      dayData.pv++
+      
+      if (item.weCustomerKey) {
+        dayData.uvSet.add(item.weCustomerKey)
+      }
+    })
+    
+    // 转换为数组格式
+    const result = Array.from(dateMap.values())
+      .map(dayData => ({
+        date: dayData.date,
+        uv: dayData.uvSet.size,
+        pv: dayData.pv
+      }))
+      .sort((a, b) => new Date(a.date) - new Date(b.date))
+    
+    console.log(`📊 查询条件分析数据聚合结果:`, result)
+    
+    return {
+      categories: result.map(item => item.date),
+      uvData: result.map(item => item.uv),
+      pvData: result.map(item => item.pv)
     }
   }
   

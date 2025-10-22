@@ -94,6 +94,12 @@
           </template>
           <span>按钮点击</span>
         </a-menu-item>
+        <a-menu-item key="query-conditions">
+          <template #icon>
+            <SearchOutlined />
+          </template>
+          <span>查询条件分析</span>
+        </a-menu-item>
       </a-sub-menu>
 
       <!-- 用户行为 -->

@@ -213,6 +213,24 @@ const handleChatAnalysis = async (params) => {
     return
   }
   
+  // 处理查询条件分析的特殊情况
+  if (params.type === 'query_condition_analysis') {
+    // 直接设置需求文本，包含页面和查询条件信息
+    currentRequirement.value = params.requirement
+    // 保存查询条件分析的特殊参数到全局状态，供后续使用
+    if (params.pageName) {
+      store.dispatch('updateQueryConditionAnalysisParams', {
+        pageName: params.pageName,
+        queryCondition: params.queryCondition,
+        queryData: params.queryData,
+        type: params.type // 保存原始类型
+      })
+    }
+    // 直接调用查询条件分析，跳过常规的需求解析流程
+    await analyzeQueryConditionRequirement()
+    return
+  }
+  
   if (params.type && (params.scope === 'specific' || params.scope === 'all')) {
     // 如果传递了分析类型参数，构建对应的需求并分析
     let requirementText = ''
@@ -363,6 +381,109 @@ const analyzeButtonClickRequirement = async () => {
       })
     } else {
       message.error('按钮点击分析失败，请重试')
+    }
+    
+    // 错误时也要清除loading状态
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: false,
+      currentStep: '生成失败',
+      progress: 0
+    })
+    
+    analyzing.value = false
+  }
+}
+
+// 专门处理查询条件分析需求
+const analyzeQueryConditionRequirement = async () => {
+  if (!currentRequirement.value.trim()) {
+    message.warning('请输入分析需求')
+    return
+  }
+  
+  analyzing.value = true
+  
+  // 开始图表生成loading状态
+  store.dispatch('updateChartGenerationStatus', {
+    isGenerating: true,
+    currentStep: '正在分析查询条件需求...',
+    progress: 10
+  })
+  
+  try {
+    // 构建查询条件分析的固定配置
+    const pageName = store.state.queryConditionAnalysisParams.pageName
+    const queryCondition = store.state.queryConditionAnalysisParams.queryCondition
+    
+    const analysis = {
+      intent: 'query_condition_analysis',
+      chartType: 'query_condition_analysis',
+      description: `分析页面"${pageName}"的"${queryCondition}"查询条件使用情况`,
+      confidence: 0.95,
+      dataFields: [],
+      dimensions: [],
+      metrics: [],
+      buryPointType: 'click', // 查询条件分析使用点击埋点
+      originalText: currentRequirement.value,
+      source: 'query_condition_selection',
+      parameters: {
+        pageName: pageName,
+        queryCondition: queryCondition
+      }
+    }
+    
+    console.log('查询条件分析配置:', analysis)
+    
+    // 更新生成状态 - 需求分析完成
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: true,
+      currentStep: '需求分析完成，开始获取数据...',
+      progress: 30
+    })
+    
+    // 获取数据
+    const result = await fetchMultiDayData(analysisMode.value, dateRange.value, analysis)
+    
+    // 检查是否使用了缓存数据
+    if (result.totalRequests === 0) {
+      console.log('✅ 成功使用预加载缓存数据，无API调用')
+      message.success('使用缓存数据，分析完成')
+    } else {
+      console.log(`⚠️ 调用了 ${result.totalRequests} 个API请求`)
+      message.warning(`调用了 ${result.totalRequests} 个API请求，建议先完成数据预加载`)
+    }
+    
+    // 更新生成状态 - 开始生成图表
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: true,
+      currentStep: '正在生成图表...',
+      progress: 80
+    })
+    
+    await generateChart(analysis, result.data, dateRange.value)
+    
+    // 完成生成
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: false,
+      currentStep: '图表生成完成',
+      progress: 100
+    })
+    
+  } catch (error) {
+    console.error('查询条件分析失败:', error)
+    
+    // 检查是否是页面不存在的错误
+    if (error.message && error.message.includes('未找到页面')) {
+      // 显示详细的页面不存在错误信息
+      message.error({
+        content: error.message,
+        duration: 10, // 显示更长时间让用户看到页面列表
+        style: {
+          whiteSpace: 'pre-line' // 支持换行显示
+        }
+      })
+    } else {
+      message.error('查询条件分析失败，请重试')
     }
     
     // 错误时也要清除loading状态

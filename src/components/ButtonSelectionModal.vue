@@ -1,58 +1,77 @@
 <template>
-  <a-modal
+  <a-drawer
     v-model:open="visible"
-    :title="`选择按钮 - ${pageName}`"
-    width="700px"
-    :footer="null"
-    @cancel="handleCancel"
+    :title="selectionType === 'queries' ? `选择查询条件 - ${pageName}` : `选择按钮 - ${pageName}`"
+    width="800px"
+    placement="right"
+    @close="handleCancel"
   >
-    <div class="button-selection-content">
+    <div class="selection-content">
       <p style="margin-bottom: 16px; color: #666;">
-        该页面共有 {{ buttons.length }} 个按钮，请选择您要分析的按钮：
+        该页面共有 {{ buttons.length }} 个{{ selectionType === 'queries' ? '查询条件' : '按钮' }}，请选择您要分析的{{ selectionType === 'queries' ? '查询条件' : '按钮' }}：
       </p>
       
-      <div class="button-list-modal">
-        <!-- 全部按钮点击量选项 -->
-        <div 
-          class="button-item all-buttons-option"
-          @click="selectAllButtons"
-        >
-          <div class="button-info">
-            <div class="button-name">📊 全部按钮点击量</div>
-            <div class="button-stats">
-              <a-tag color="orange">按天展示该页面所有按钮的点击量</a-tag>
+      <!-- 表格展示 -->
+      <a-table
+        :columns="tableColumns"
+        :data-source="tableData"
+        :pagination="false"
+        :scroll="{ y: 500 }"
+        row-key="key"
+        size="small"
+        :expand-row-by-click="false"
+        :default-expand-all-rows="true"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'name'">
+            <div class="condition-name">
+              <template v-if="selectionType === 'queries'">
+                <template v-if="record.isSummary">
+                  <!-- 父节点显示 -->
+                  <div class="group-summary-title">
+                    <span class="group-type">{{ record.groupType }}</span>
+                  </div>
+                </template>
+                <template v-else>
+                  <!-- 子节点显示 -->
+                  <div class="group-item-content">
+                    <span class="group-indent">-</span>
+                    <span class="item-name">{{ record.displayName }}</span>
+                  </div>
+                </template>
+              </template>
+              <template v-else>
+                {{ record.content }}
+              </template>
             </div>
-          </div>
-          <div class="button-action">
-            <a-button type="primary" size="small">选择分析</a-button>
-          </div>
-        </div>
-        
-        <!-- 按钮列表 -->
-        <div 
-          v-for="button in buttons" 
-          :key="button.content"
-          class="button-item"
-          @click="selectButton(button)"
-        >
-          <div class="button-info">
-            <div class="button-name">{{ button.content }}</div>
-            <div class="button-stats">
-              <a-tag color="blue">PV: {{ button.pv }}</a-tag>
-              <a-tag color="green">UV: {{ button.uv }}</a-tag>
+          </template>
+          
+          <template v-else-if="column.key === 'type'">
+            <a-tag color="blue">
+              {{ selectionType === 'queries' ? '查询条件' : '按钮' }}
+            </a-tag>
+          </template>
+          
+          <template v-else-if="column.key === 'stats'">
+            <div class="stats-tags">
+              <a-tag color="blue">PV: {{ record.pv }}</a-tag>
+              <a-tag color="green">UV: {{ record.uv }}</a-tag>
             </div>
-          </div>
-          <div class="button-action">
-            <a-button type="primary" size="small">选择分析</a-button>
-          </div>
-        </div>
-      </div>
+          </template>
+          
+          <template v-else-if="column.key === 'action'">
+            <a-button type="primary" size="small" @click="selectButton(record)">
+              选择分析
+            </a-button>
+          </template>
+        </template>
+      </a-table>
       
-      <div v-if="buttons.length === 0" class="no-buttons">
-        <a-empty description="该页面暂无按钮点击数据" />
+      <div v-if="buttons.length === 0" class="no-data">
+        <a-empty :description="selectionType === 'queries' ? '该页面暂无查询条件数据' : '该页面暂无按钮点击数据'" />
       </div>
     </div>
-  </a-modal>
+  </a-drawer>
 </template>
 
 <script setup>
@@ -71,6 +90,11 @@ const props = defineProps({
   buttons: {
     type: Array,
     default: () => []
+  },
+  selectionType: {
+    type: String,
+    default: 'buttons', // 'buttons' 或 'queries'
+    validator: (value) => ['buttons', 'queries'].includes(value)
   }
 })
 
@@ -86,18 +110,146 @@ const visible = computed({
   set: (value) => emit('update:open', value)
 })
 
+// 表格列配置
+const tableColumns = computed(() => {
+  if (props.selectionType === 'queries') {
+    return [
+      {
+        title: '查询条件',
+        key: 'name',
+        width: '45%',
+        ellipsis: true
+      },
+      {
+        title: '类型',
+        key: 'type',
+        width: '15%',
+        align: 'center'
+      },
+      {
+        title: '统计',
+        key: 'stats',
+        width: '25%',
+        align: 'left'
+      },
+      {
+        title: '操作',
+        key: 'action',
+        width: '15%',
+        align: 'center'
+      }
+    ]
+  } else {
+    return [
+      {
+        title: '按钮名称',
+        key: 'name',
+        width: '45%',
+        ellipsis: true
+      },
+      {
+        title: '类型',
+        key: 'type',
+        width: '15%',
+        align: 'center'
+      },
+      {
+        title: '统计',
+        key: 'stats',
+        width: '25%',
+        align: 'left'
+      },
+      {
+        title: '操作',
+        key: 'action',
+        width: '15%',
+        align: 'center'
+      }
+    ]
+  }
+})
+
+// 表格数据
+const tableData = computed(() => {
+  if (props.selectionType === 'queries') {
+    // 查询条件：构建树形结构
+    const treeData = []
+    const groupMap = new Map()
+    
+    // 按组分类
+    props.buttons.forEach((button, index) => {
+      if (button.isSummary) {
+        // 汇总项作为父节点
+        const parentKey = `group_${button.groupType}`
+        if (!groupMap.has(parentKey)) {
+          groupMap.set(parentKey, {
+            key: parentKey,
+            content: `${button.groupType}:全部${button.groupType}`,
+            displayName: `全部${button.groupType}`,
+            groupType: button.groupType,
+            pv: button.pv,
+            uv: button.uv,
+            isSummary: true,
+            children: []
+          })
+        }
+      } else {
+        // 子项
+        const parentKey = `group_${button.parentType || button.groupType}`
+        if (groupMap.has(parentKey)) {
+          groupMap.get(parentKey).children.push({
+            key: button.content || `item_${index}`,
+            content: button.content,
+            displayName: button.displayName,
+            groupType: button.groupType,
+            parentType: button.parentType,
+            pv: button.pv,
+            uv: button.uv,
+            isSummary: false
+          })
+        } else {
+          // 如果没有对应的父节点，创建一个
+          groupMap.set(parentKey, {
+            key: parentKey,
+            content: `${button.parentType || button.groupType}:全部${button.parentType || button.groupType}`,
+            displayName: `全部${button.parentType || button.groupType}`,
+            groupType: button.parentType || button.groupType,
+            pv: 0,
+            uv: 0,
+            isSummary: true,
+            children: [{
+              key: button.content || `item_${index}`,
+              content: button.content,
+              displayName: button.displayName,
+              groupType: button.groupType,
+              parentType: button.parentType,
+              pv: button.pv,
+              uv: button.uv,
+              isSummary: false
+            }]
+          })
+        }
+      }
+    })
+    
+    // 转换为数组
+    groupMap.forEach(group => {
+      treeData.push(group)
+    })
+    
+    return treeData
+  } else {
+    // 按钮：保持原有结构，但移除"全部"选项
+    return props.buttons.map((button, index) => ({
+      key: button.content || `item_${index}`,
+      ...button
+    }))
+  }
+})
+
 // Methods
 const selectButton = (button) => {
   emit('select-button', button)
-}
-
-const selectAllButtons = () => {
-  // 发送全部按钮点击量分析请求
-  emit('select-button', { 
-    content: '全部按钮点击量', 
-    type: 'all_buttons',
-    pageName: props.pageName 
-  })
 }
 
 const handleCancel = () => {
@@ -106,87 +258,82 @@ const handleCancel = () => {
 </script>
 
 <style scoped>
-.button-selection-content {
-  max-height: 500px;
-}
-
-.button-list-modal {
-  max-height: 400px;
-  overflow-y: auto;
-  border: 1px solid #f0f0f0;
-  border-radius: 6px;
-}
-
-.button-item {
+.selection-content {
+  height: 100%;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
-  cursor: pointer;
-  transition: all 0.2s;
+  flex-direction: column;
 }
 
-.button-item:last-child {
-  border-bottom: none;
+.condition-name {
+  font-size: 14px;
 }
 
-.button-item:hover {
-  background-color: #f5f5f5;
-}
-
-.button-info {
-  flex: 1;
-}
-
-.button-name {
-  font-size: 16px;
-  font-weight: 500;
-  color: #333;
-  margin-bottom: 8px;
-}
-
-.button-stats {
+.stats-tags {
   display: flex;
-  gap: 8px;
+  gap: 4px;
+  justify-content: flex-start;
 }
 
-.button-action {
-  margin-left: 16px;
-}
-
-.no-buttons {
+.no-data {
   text-align: center;
   padding: 40px 0;
 }
 
-.all-buttons-option {
+/* 查询条件分组样式 */
+.group-summary-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1890ff;
+  margin-bottom: 2px;
+}
+
+.group-type {
+  color: #1890ff;
+  font-weight: 600;
+}
+
+.group-item-content {
+  font-size: 13px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  margin-left: 16px;
+}
+
+.group-indent {
+  color: #999;
+  margin-right: 8px;
+  font-weight: bold;
+}
+
+.item-name {
+  color: #333;
+}
+
+/* 树形表格样式 */
+:deep(.ant-table-tbody > tr.ant-table-row-level-0 > td) {
   background-color: #f6ffed;
-  border: 1px solid #b7eb8f;
-  border-radius: 6px;
-  margin-bottom: 8px;
+  border-bottom: 1px solid #b7eb8f;
 }
 
-.all-buttons-option:hover {
+:deep(.ant-table-tbody > tr.ant-table-row-level-1 > td) {
+  background-color: #fafafa;
+}
+
+:deep(.ant-table-tbody > tr.ant-table-row-level-0:hover > td) {
   background-color: #f0f9ff;
-  border-color: #91d5ff;
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .button-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-  
-  .button-action {
-    margin-left: 0;
-    width: 100%;
-  }
-  
-  .button-action .ant-btn {
-    width: 100%;
-  }
+:deep(.ant-table-tbody > tr.ant-table-row-level-1:hover > td) {
+  background-color: #f5f5f5;
+}
+
+/* 表格行样式 */
+:deep(.ant-table-tbody > tr > td) {
+  padding: 8px 12px;
+}
+
+:deep(.ant-table-tbody > tr:hover > td) {
+  background-color: #f5f5f5;
 }
 </style>

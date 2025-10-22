@@ -14,6 +14,7 @@
         >
           <a-select-option value="page_analysis">页面分析</a-select-option>
           <a-select-option value="click_analysis">点击分析</a-select-option>
+          <a-select-option value="query_analysis">查询条件分析</a-select-option>
           <a-select-option value="behavior_analysis">行为分析</a-select-option>
         </a-select>
       </div>
@@ -166,6 +167,7 @@
       v-model:open="buttonSelectionModalVisible"
       :page-name="selectedPageName"
       :buttons="availableButtons"
+      :selection-type="currentSelectionType"
       @select-button="handleButtonSelection"
     />
   </div>
@@ -186,7 +188,7 @@ import dayjs from 'dayjs'
 import { useStore } from 'vuex'
 import { dataPreloadService } from '@/services/dataPreloadService'
 import { useDataFetch } from '@/composables/useDataFetch'
-import { extractButtonsFromMultiDayData } from '@/utils/buttonExtractor'
+import { extractButtonsFromMultiDayData, extractQueryConditionsFromMultiDayData, groupQueryConditions } from '@/utils/buttonExtractor'
 import ButtonSelectionModal from '@/components/ButtonSelectionModal.vue'
 
 // Props
@@ -224,6 +226,7 @@ const selectedAnalysisType = ref('page_analysis') // 默认为页面分析
 const buttonSelectionModalVisible = ref(false)
 const selectedPageName = ref('')
 const availableButtons = ref([])
+const currentSelectionType = ref('buttons') // 'buttons' 或 'queries'
 
 // 快捷建议
 const quickSuggestions = ref([
@@ -311,6 +314,14 @@ const allBuryPoints = computed(() => {
             const behaviorPoint = getBuryPointInfo(behaviorId)
             configuredPoints.push({ ...behaviorPoint, type: '行为分析' })
           })
+        }
+        break
+        
+      case 'query_analysis':
+        // 查询条件分析使用点击埋点，因为查询条件数据通常通过点击事件记录
+        if (projectConfig.clickBuryPointId) {
+          const clickPoint = getBuryPointInfo(projectConfig.clickBuryPointId)
+          configuredPoints.push({ ...clickPoint, type: '点击' })
         }
         break
         
@@ -566,6 +577,21 @@ const onAnalysisTypeChange = (value) => {
           text: '选择分析页面', 
           type: 'show_page_list', 
           params: { type: 'user_click', scope: 'page' } 
+        }
+      ]
+      break
+      
+    case 'query_analysis':
+      // 查询条件分析直接跳转到页面选择，不需要中间选项
+      typeChangeMessage = `🔍 查询条件分析模式
+
+请选择您要分析查询条件的页面：`
+      
+      newActions = [
+        { 
+          text: '选择分析页面', 
+          type: 'show_page_list', 
+          params: { type: 'query_condition', scope: 'page' } 
         }
       ]
       break
@@ -1416,6 +1442,9 @@ const handleAction = async (action) => {
   } else if (action.type === 'select_page_for_buttons') {
     // 选择页面进行按钮分析
     await handleSelectPageForButtons(action.params)
+  } else if (action.type === 'select_page_for_queries') {
+    // 选择页面进行查询条件分析
+    await handleSelectPageForQueries(action.params)
   } else if (action.type === 'show_all_pages') {
     // 显示所有页面列表
     await handleShowAllPages(action.params)
@@ -1725,6 +1754,35 @@ const handleShowPageList = async (params) => {
             params: { type: 'user_click', scope: 'specific', pageName: page }
           }))
         ]
+      } else if (type === 'query_condition') {
+        // 查询条件分析 - 使用"查询"关键词过滤页面
+        const queryPages = availablePages.filter(page => 
+          page.toLowerCase().includes('查询') || 
+          page.toLowerCase().includes('query') ||
+          page.toLowerCase().includes('search')
+        )
+        
+        content = `📄 可用页面列表 - 查询条件分析
+
+我找到了 ${queryPages.length} 个包含查询功能的页面，请选择您要分析查询条件的页面：`
+
+        const quickPages = queryPages.slice(0, 10)
+        actions = [
+          ...quickPages.map(page => ({
+            text: page.length > 20 ? page.substring(0, 17) + '...' : page,
+            type: 'select_page_for_queries',
+            params: { type: 'query_condition', scope: 'specific', pageName: page }
+          }))
+        ]
+        
+        // 如果过滤后的页面超过10个，添加查看更多选项
+        if (queryPages.length > 10) {
+          actions.push({
+            text: `查看更多查询页面 (${queryPages.length - 10}个)`,
+            type: 'show_all_pages',
+            params: { type: 'query_condition', scope: 'specific', allPages: queryPages }
+          })
+        }
       } else {
         // 页面访问分析
         content = `📄 可用页面列表
@@ -1821,6 +1879,7 @@ const handleSelectPageForButtons = async (params) => {
     // 设置按钮选择弹窗数据
     selectedPageName.value = pageName
     availableButtons.value = buttons
+    currentSelectionType.value = 'buttons'
     buttonSelectionModalVisible.value = true
     
     // 添加确认消息
@@ -1832,40 +1891,116 @@ const handleSelectPageForButtons = async (params) => {
   }
 }
 
+const handleSelectPageForQueries = async (params) => {
+  const { pageName } = params
+  
+  try {
+    // 显示加载状态
+    addMessage(`正在加载页面 "${pageName}" 的查询条件数据...`, 'ai')
+    
+    // 获取当前埋点配置
+    const currentPointId = store.state.apiConfig?.selectedPointId
+    
+    // 获取缓存数据
+    const cachedData = await dataPreloadService.getMultiDayCachedData(dateRange.value, currentPointId)
+    
+    if (!cachedData || cachedData.length === 0) {
+      addMessage(`❌ 未找到页面 "${pageName}" 的数据，请检查数据预加载状态。`, 'ai')
+      return
+    }
+    
+    // 提取查询条件信息
+    const queries = extractQueryConditionsFromMultiDayData(cachedData, pageName)
+    
+    if (queries.length === 0) {
+      addMessage(`❌ 页面 "${pageName}" 没有找到查询条件数据。`, 'ai')
+      return
+    }
+    
+    // 分组查询条件
+    const groupedQueries = groupQueryConditions(queries)
+    
+    // 设置查询条件选择弹窗数据
+    selectedPageName.value = pageName
+    availableButtons.value = groupedQueries // 使用分组后的数据
+    currentSelectionType.value = 'queries'
+    buttonSelectionModalVisible.value = true
+    
+    // 添加确认消息
+    addMessage(`✅ 找到页面 "${pageName}" 的 ${groupedQueries.length} 个查询条件（已分组），请选择要分析的查询条件。`, 'ai')
+    
+  } catch (error) {
+    console.error('加载查询条件数据失败:', error)
+    addMessage(`❌ 加载查询条件数据失败: ${error.message}`, 'ai')
+  }
+}
+
 const handleButtonSelection = (button) => {
   // 关闭按钮选择弹窗
   buttonSelectionModalVisible.value = false
   
-  // 检查是否是"全部按钮点击量"选项
-  if (button.type === 'all_buttons') {
-    // 设置需求文本
-    const requirement = `#${selectedPageName.value} 页面的全部按钮点击量分析（按天展示）`
-    
-    // 触发分析
-    emit('analyze-requirement', {
-      requirement,
-      type: 'button_click_daily',
-      scope: 'all_buttons',
-      pageName: selectedPageName.value
-    })
-    
-    // 添加确认消息
-    addMessage(`✅ 开始分析页面 "${selectedPageName.value}" 的全部按钮点击量（按天展示）。`, 'ai')
+  // 根据选择类型进行不同处理
+  if (currentSelectionType.value === 'queries') {
+    // 查询条件分析
+    if (button.isAll) {
+      // 全部查询条件分析
+      const requirement = `#${selectedPageName.value} 页面的全部查询条件分析`
+      
+      emit('analyze-requirement', {
+        requirement,
+        type: 'query_condition_analysis',
+        pageName: selectedPageName.value,
+        queryCondition: 'all',
+        queryData: button
+      })
+      
+      addMessage(`✅ 开始分析页面 "${selectedPageName.value}" 的全部查询条件使用情况。`, 'ai')
+    } else {
+      // 具体查询条件分析
+      const requirement = `#${selectedPageName.value} 页面的"${button.displayName || button.content}"查询条件分析`
+      
+      emit('analyze-requirement', {
+        requirement,
+        type: 'query_condition_analysis',
+        pageName: selectedPageName.value,
+        queryCondition: button.displayName || button.content,
+        queryData: button
+      })
+      
+      addMessage(`✅ 开始分析页面 "${selectedPageName.value}" 的"${button.displayName || button.content}"查询条件使用情况。`, 'ai')
+    }
   } else {
-    // 设置需求文本
-    const requirement = `#${selectedPageName.value} 页面的"${button.content}"按钮点击分析`
-    
-    // 触发分析
-    emit('analyze-requirement', {
-      requirement,
-      type: 'button_click_analysis',
-      pageName: selectedPageName.value,
-      buttonName: button.content,
-      buttonData: button
-    })
-    
-    // 添加确认消息
-    addMessage(`✅ 开始分析页面 "${selectedPageName.value}" 的"${button.content}"按钮点击情况。`, 'ai')
+    // 按钮点击分析
+    if (button.type === 'all_buttons') {
+      // 设置需求文本
+      const requirement = `#${selectedPageName.value} 页面的全部按钮点击量分析（按天展示）`
+      
+      // 触发分析
+      emit('analyze-requirement', {
+        requirement,
+        type: 'button_click_daily',
+        scope: 'all_buttons',
+        pageName: selectedPageName.value
+      })
+      
+      // 添加确认消息
+      addMessage(`✅ 开始分析页面 "${selectedPageName.value}" 的全部按钮点击量（按天展示）。`, 'ai')
+    } else {
+      // 设置需求文本
+      const requirement = `#${selectedPageName.value} 页面的"${button.content}"按钮点击分析`
+      
+      // 触发分析
+      emit('analyze-requirement', {
+        requirement,
+        type: 'button_click_analysis',
+        pageName: selectedPageName.value,
+        buttonName: button.content,
+        buttonData: button
+      })
+      
+      // 添加确认消息
+      addMessage(`✅ 开始分析页面 "${selectedPageName.value}" 的"${button.content}"按钮点击情况。`, 'ai')
+    }
   }
 }
 
@@ -2179,8 +2314,158 @@ onMounted(() => {
 const showWelcomeMessage = () => {
   console.log('showWelcomeMessage - 开始显示欢迎消息')
   console.log('showWelcomeMessage - selectedBuryPointId.value:', selectedBuryPointId.value)
+  console.log('showWelcomeMessage - selectedAnalysisType.value:', selectedAnalysisType.value)
   console.log('showWelcomeMessage - store.state.projectConfig:', store.state.projectConfig)
-  // 获取当前选择的埋点类型
+  
+  // 优先根据分析类型显示消息
+  if (selectedAnalysisType.value) {
+    console.log('showWelcomeMessage - 根据分析类型显示消息:', selectedAnalysisType.value)
+    
+    let welcomeContent = ''
+    let welcomeActions = []
+    
+    switch (selectedAnalysisType.value) {
+      case 'page_analysis':
+        welcomeContent = `📊 页面访问分析
+
+请选择您要分析的页面范围：`
+        
+        welcomeActions = [
+          { 
+            text: '整体页面访问量', 
+            type: 'select_analysis', 
+            params: { type: 'page_visits', scope: 'all', description: '分析所有页面的访问量、UV/PV趋势等' } 
+          },
+          { 
+            text: '选择页面分析', 
+            type: 'select_analysis', 
+            params: { type: 'page_visits', scope: 'specific', description: '分析特定页面的访问趋势' } 
+          }
+        ]
+        break
+        
+      case 'click_analysis':
+        welcomeContent = `🖱️ 点击分析模式
+
+请选择您要分析点击行为的页面：`
+        
+        welcomeActions = [
+          { 
+            text: '选择分析页面', 
+            type: 'show_page_list', 
+            params: { type: 'user_click', scope: 'page' } 
+          }
+        ]
+        break
+        
+      case 'query_analysis':
+        welcomeContent = `🔍 查询条件分析模式
+
+请选择您要分析查询条件的页面：`
+        
+        welcomeActions = [
+          { 
+            text: '选择分析页面', 
+            type: 'show_page_list', 
+            params: { type: 'query_condition', scope: 'page' } 
+          }
+        ]
+        break
+        
+      case 'behavior_analysis':
+        welcomeContent = `🔄 行为分析模式
+
+现在为您提供用户行为分析相关的选项：`
+        
+        welcomeActions = [
+          { 
+            text: '👤 用户行为路径', 
+            type: 'select_analysis', 
+            params: { type: 'user_behavior', description: '分析用户在应用中的行为路径和流程' } 
+          },
+          { 
+            text: '📈 行为趋势分析', 
+            type: 'select_analysis', 
+            params: { type: 'user_behavior', description: '分析用户行为的时间趋势和变化' } 
+          },
+          { 
+            text: '🎯 行为转化漏斗', 
+            type: 'select_analysis', 
+            params: { type: 'user_behavior', description: '分析用户行为转化漏斗和关键节点' } 
+          },
+          { 
+            text: '📊 多埋点综合分析', 
+            type: 'select_analysis', 
+            params: { type: 'multi_bury_point', description: '综合分析多个埋点的数据，发现用户行为模式' } 
+          }
+        ]
+        break
+        
+      default:
+        // 如果没有匹配的分析类型，回退到埋点类型逻辑
+        const currentBuryPointType = getCurrentBuryPointType()
+        console.log('showWelcomeMessage - 回退到埋点类型逻辑:', currentBuryPointType)
+        
+        if (currentBuryPointType === '访问') {
+          welcomeContent = `📊 页面访问分析
+
+请选择您要分析的页面范围：`
+
+          welcomeActions = [
+            { 
+              text: '整体页面访问量', 
+              type: 'analyze', 
+              params: { type: 'page_visits', scope: 'all' } 
+            },
+            { 
+              text: '选择页面分析', 
+              type: 'show_page_list', 
+              params: { type: 'page_visits', scope: 'specific' } 
+            }
+          ]
+        } else if (currentBuryPointType === '点击') {
+          welcomeContent = `🖱️ 用户点击分析
+
+请选择您要分析的页面范围：`
+
+          welcomeActions = [
+            { 
+              text: '选择分析页面', 
+              type: 'show_page_list', 
+              params: { type: 'user_click', scope: 'page' } 
+            }
+          ]
+        } else {
+          // 默认情况 - 显示所有分析类型
+          welcomeContent = `您好！我是您的AI需求分析师。我将帮助您明确数据分析需求。
+
+请选择您想要进行的分析类型：`
+
+          welcomeActions = [
+            { 
+              text: '📊 页面访问分析', 
+              type: 'select_analysis', 
+              params: { type: 'page_visit', description: '分析页面的访问量、UV/PV趋势等' } 
+            },
+            { 
+              text: '🖱️ 用户点击分析', 
+              type: 'select_analysis', 
+              params: { type: 'user_click', description: '分析用户点击行为、按钮热度等' } 
+            },
+            { 
+              text: '🔄 行为转化分析', 
+              type: 'select_analysis', 
+              params: { type: 'conversion', description: '分析用户行为路径和转化漏斗' } 
+            }
+          ]
+        }
+    }
+    
+    addMessage(welcomeContent, 'ai', welcomeActions)
+    return
+  }
+  
+  // 如果没有选择分析类型，回退到原来的埋点类型逻辑
   const currentBuryPointType = getCurrentBuryPointType()
   console.log('showWelcomeMessage - 当前埋点类型:', currentBuryPointType)
   
