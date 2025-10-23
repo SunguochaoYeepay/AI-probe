@@ -287,7 +287,7 @@ export class QueryConditionDataProcessor {
     })
 
     // 🚀 修复：首先分析实际数据中存在的条件
-    const actualConditions = this.analyzeActualConditions(aggregatedData, queryCondition, rawData)
+    const actualConditions = this.analyzeActualConditions(aggregatedData, queryCondition, rawData, options)
     this.logger.log('📋 [QueryConditionDataProcessor] 实际数据中的条件:', actualConditions)
 
     // 如果实际数据中只有一种条件，且查询条件是多条件，则使用实际条件
@@ -378,9 +378,23 @@ export class QueryConditionDataProcessor {
    * @param {Array} aggregatedData - 聚合数据
    * @param {string} queryCondition - 查询条件
    * @param {Array} rawData - 原始数据（可选）
+   * @param {Object} options - 处理选项
    * @returns {Array} 实际存在的条件名称
    */
-  analyzeActualConditions(aggregatedData, queryCondition, rawData = null) {
+  analyzeActualConditions(aggregatedData, queryCondition, rawData = null, options = {}) {
+    // 🚀 优先从图表配置中获取实际条件信息
+    if (options.queryData && options.queryData.conditions) {
+      this.logger.log('🔍 [QueryConditionDataProcessor] 从图表配置中分析实际条件')
+      
+      const actualConditions = options.queryData.conditions
+        .filter(condition => condition.pv > 0 || condition.uv > 0) // 只包含有数据的条件
+        .map(condition => condition.displayName || condition.content)
+      
+      this.logger.log('📋 [QueryConditionDataProcessor] 从图表配置中分析出的实际条件:', actualConditions)
+      
+      return actualConditions
+    }
+    
     // 如果有原始数据，分析实际存在的条件
     if (rawData && rawData.length > 0) {
       this.logger.log('🔍 [QueryConditionDataProcessor] 分析原始数据中的实际条件')
