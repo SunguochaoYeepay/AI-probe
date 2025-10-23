@@ -8,7 +8,7 @@ import { useChart } from '@/composables/useChart'
  */
 export function useChatAnalysis() {
   const store = useStore()
-  const { analyzeRequirement, analyzeButtonClickRequirement, analyzeQueryConditionRequirement } = useRequirementAnalysis()
+  const { analyzeRequirement, analyzeButtonClickRequirement, analyzeQueryConditionRequirement, analyzeBehaviorRequirement } = useRequirementAnalysis()
   const { generateChart } = useChart()
 
   /**
@@ -24,6 +24,9 @@ export function useChatAnalysis() {
           return await analyzeButtonClickRequirement(analysisRequest)
         case 'query_condition_analysis':
           return await analyzeQueryConditionRequirement(analysisRequest)
+        case 'behavior_funnel':
+        case 'behavior_analysis':
+          return await analyzeBehaviorRequirement(analysisRequest)
         default:
           return await analyzeRequirement(analysisRequest)
       }

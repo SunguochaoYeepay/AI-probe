@@ -32,7 +32,12 @@ EventTarget.prototype.addEventListener = function(type, listener, options) {
 const originalConsoleWarn = console.warn
 console.warn = function(...args) {
   // 过滤掉passive事件监听器相关的警告
-  const message = args.join(' ')
+  const message = args.map(arg => {
+    if (typeof arg === 'object' && arg !== null) {
+      return JSON.stringify(arg)
+    }
+    return String(arg)
+  }).join(' ')
   if (message.includes('Unable to preventDefault inside passive event listener') ||
       message.includes('useFrameWheel')) {
     return

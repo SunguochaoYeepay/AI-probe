@@ -43,7 +43,10 @@ export function useDataFetch() {
       console.log(`📡 获取数据: ${startDateStr} 至 ${endDateStr}`)
       
       // 使用数据预加载服务获取数据
-      const data = await dataPreloadService.getMultiDayCachedData(dateRange, store.state.apiConfig.selectedPointId)
+      // 如果mode是数字，直接使用；否则使用store中配置的埋点ID
+      const pointId = typeof mode === 'number' ? mode : store.state.apiConfig.selectedPointId
+      console.log(`🔍 使用埋点ID: ${pointId} (传入mode: ${mode})`)
+      const data = await dataPreloadService.getMultiDayCachedData(dateRange, pointId)
       
       return {
         data,

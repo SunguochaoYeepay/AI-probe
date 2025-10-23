@@ -1,5 +1,14 @@
 <template>
   <div class="ai-chat-container">
+    <!-- 漏斗步骤配置抽屉 -->
+        <FunnelStepConfigDrawer
+          v-model:open="showFunnelConfig"
+          :initial-steps="funnelSteps"
+          :available-pages="availablePages"
+          :page-buttons="pageButtons"
+          @save="onFunnelStepsSave"
+          @reload-button-data="reloadButtonData"
+        />
     <!-- 配置选择区域 -->
     <div class="config-section">
       <!-- 分析时间部分已隐藏，默认使用近7天 -->
@@ -191,6 +200,7 @@ import { dataPreloadService } from '@/services/dataPreloadService'
 import { useDataFetch } from '@/composables/useDataFetch'
 import { extractButtonsFromMultiDayData, extractQueryConditionsFromMultiDayData, groupQueryConditions } from '@/utils/buttonExtractor'
 import ButtonSelectionModal from '@/components/ButtonSelectionModal.vue'
+import FunnelStepConfigDrawer from '@/components/FunnelStepConfigDrawer.vue'
 
 // Props
 const props = defineProps({
@@ -216,6 +226,9 @@ const isAIThinking = ref(false)
 const messagesContainer = ref(null)
 const store = useStore()
 
+// 使用数据获取composable
+const { fetchMultiDayData } = useDataFetch()
+
 // 埋点选择
 const selectedBuryPointId = ref(null)
 const selectedBuryPointIds = ref([]) // 用于行为分析的多选
@@ -228,6 +241,13 @@ const buttonSelectionModalVisible = ref(false)
 const selectedPageName = ref('')
 const availableButtons = ref([])
 const currentSelectionType = ref('buttons') // 'buttons' 或 'queries'
+
+// 漏斗步骤配置相关
+const showFunnelConfig = ref(false)
+const funnelSteps = ref([])
+const pendingFunnelAnalysis = ref(null) // 保存待执行的漏斗分析请求
+const availablePages = ref([]) // 可用的页面列表
+const pageButtons = ref(new Map()) // 页面按钮映射
 
 // 快捷建议
 const quickSuggestions = ref([
@@ -615,8 +635,8 @@ const onAnalysisTypeChange = (value) => {
           },
           { 
             text: '🎯 行为转化漏斗', 
-            type: 'select_analysis', 
-            params: { type: 'user_behavior', description: '分析用户行为转化漏斗和关键节点' } 
+            type: 'analyze', 
+            params: { type: 'behavior_funnel', scope: 'funnel' } 
           },
           { 
             text: '📊 多埋点综合分析', 
@@ -1466,14 +1486,220 @@ const handleAction = async (action) => {
     emit('show-config-modal')
     addMessage('已为您打开配置管理界面，请检查并保存配置后重试。', 'ai')
   } else if (action.type === 'analyze') {
-    // 触发分析
-    emit('analyze-requirement', action.params)
-    
-    // 添加确认消息
-    addMessage(`好的，我开始为您分析${action.text}。`, 'ai')
+    // 检查是否是漏斗分析
+    if (action.params?.type === 'behavior_funnel') {
+      // 保存待执行的漏斗分析请求
+      pendingFunnelAnalysis.value = action.params
+      // 先获取页面列表，然后弹出漏斗步骤配置抽屉
+      await loadAvailablePages()
+      showFunnelConfig.value = true
+      addMessage('请先配置转化步骤，然后开始分析。', 'ai')
+    } else {
+      // 触发分析
+      emit('analyze-requirement', action.params)
+      
+      // 添加确认消息
+      addMessage(`好的，我开始为您分析${action.text}。`, 'ai')
+    }
   } else if (action.type === 'clarify') {
     // 需求澄清
     addMessage('请重新描述您的需求，我会更好地理解您想要的分析内容。', 'ai')
+  }
+}
+
+// 加载可用页面列表
+const loadAvailablePages = async () => {
+  try {
+    console.log('🔍 开始加载可用页面列表...')
+    
+    // 获取访问埋点数据（ID: 110）
+    const dateRange = [dayjs().subtract(7, 'day'), dayjs()]
+    const visitDataResult = await fetchMultiDayData(110, dateRange)
+    const visitData = visitDataResult?.data || []
+    
+    console.log('📊 原始访问数据数量:', visitData.length)
+    
+    // 提取唯一的页面名称，确保都是字符串，并过滤掉"任意页面"
+    const uniquePages = [...new Set(
+      visitData
+        .map(record => record.pageName)
+        .filter(pageName => 
+          typeof pageName === 'string' && 
+          pageName.trim() !== '' && 
+          pageName !== '任意页面'
+        )
+    )]
+    
+    console.log('📊 提取到的页面列表:', uniquePages)
+    console.log('📊 页面数量:', uniquePages.length)
+    
+    // 按字母顺序排序
+    availablePages.value = uniquePages.sort()
+    
+    console.log('✅ 页面列表加载完成:', availablePages.value.length, '个页面')
+    console.log('✅ 最终页面列表:', availablePages.value)
+    
+    // 同时加载按钮数据
+    await loadPageButtons(visitData)
+  } catch (error) {
+    console.error('❌ 加载页面列表失败:', error)
+    // 如果加载失败，使用默认页面列表
+    availablePages.value = [
+      '企业付款-复核申请查询',
+      '下级商户查询-appid 配置',
+      '商户管理-基础信息',
+      '支付配置-接口配置'
+    ]
+    console.log('⚠️ 使用默认页面列表:', availablePages.value)
+  }
+}
+
+// 加载页面按钮数据
+const loadPageButtons = async (visitData) => {
+  try {
+    console.log('🔍 开始加载页面按钮数据...')
+    
+    // 获取点击埋点数据（ID: 109）
+    const dateRange = [dayjs().subtract(7, 'day'), dayjs()]
+    console.log('🔍 准备获取埋点ID 109的数据，日期范围:', dateRange)
+    const clickDataResult = await fetchMultiDayData(109, dateRange)
+    const clickData = clickDataResult?.data || []
+    console.log('🔍 获取到的点击数据结果:', clickDataResult)
+    
+    console.log('📊 原始点击数据数量:', clickData.length)
+    
+    // 统计不同类型的数据
+    const clickTypeStats = {}
+    clickData.forEach(record => {
+      const type = record.type || 'unknown'
+      clickTypeStats[type] = (clickTypeStats[type] || 0) + 1
+    })
+    console.log('📊 点击数据类型统计:', clickTypeStats)
+    
+    // 查看前几条数据的结构
+    console.log('🔍 前3条点击数据示例:', clickData.slice(0, 3))
+    
+    // 按页面分组按钮数据
+    const buttonsMap = new Map()
+    
+    let processedCount = 0
+    clickData.forEach(record => {
+      // 处理按钮点击数据，type为"click"（点击埋点数据）
+      if (record.pageName && record.content && record.type === 'click') {
+        processedCount++
+        if (processedCount <= 5) {
+          console.log(`🔍 处理第${processedCount}条数据:`, {
+            pageName: record.pageName,
+            content: record.content,
+            type: record.type
+          })
+        }
+        
+        const pageName = record.pageName
+        if (!buttonsMap.has(pageName)) {
+          buttonsMap.set(pageName, new Set())
+        }
+        
+        // 解析content JSON来提取按钮名称
+        try {
+          const contentObj = JSON.parse(record.content)
+          if (typeof contentObj === 'object' && contentObj !== null) {
+            // 从JSON的键值对中提取按钮名称
+            Object.keys(contentObj).forEach(key => {
+              const buttonName = `${key}:${contentObj[key]}`
+              buttonsMap.get(pageName).add(buttonName)
+              if (processedCount <= 5) {
+                console.log(`🔍 页面 "${pageName}" 找到按钮: "${buttonName}"`)
+              }
+            })
+          }
+        } catch (e) {
+          // 如果JSON解析失败，直接使用content作为按钮名称
+          if (record.content && record.content.trim() !== '') {
+            buttonsMap.get(pageName).add(record.content)
+            if (processedCount <= 5) {
+              console.log(`🔍 页面 "${pageName}" 找到按钮: "${record.content}"`)
+            }
+          }
+        }
+      }
+    })
+    
+    console.log(`📊 总共处理了 ${processedCount} 条 type="click" 的数据`)
+    
+    // 转换为数组并保存
+    const finalButtonsMap = new Map()
+    buttonsMap.forEach((buttonSet, pageName) => {
+      finalButtonsMap.set(pageName, Array.from(buttonSet).sort())
+    })
+    
+    pageButtons.value = finalButtonsMap
+    
+    console.log('✅ 页面按钮数据加载完成:', finalButtonsMap.size, '个页面有按钮数据')
+    console.log('📊 页面按钮映射:', finalButtonsMap)
+    
+    // 特别检查"下级商户查询-appid 配置"页面的按钮
+    const targetPage = '下级商户查询-appid 配置'
+    if (finalButtonsMap.has(targetPage)) {
+      console.log(`🎯 目标页面 "${targetPage}" 的按钮:`, finalButtonsMap.get(targetPage))
+    } else {
+      console.log(`⚠️ 没有找到页面 "${targetPage}" 的按钮数据`)
+      console.log('📋 所有可用的页面:', Array.from(finalButtonsMap.keys()))
+    }
+  } catch (error) {
+    console.error('❌ 加载页面按钮数据失败:', error)
+    pageButtons.value = new Map()
+  }
+}
+
+// 调试按钮数据
+const debugButtonData = async () => {
+  console.log('🔍 开始调试按钮数据...')
+  console.log('📊 当前页面按钮映射:', pageButtons.value)
+  console.log('📊 页面按钮映射大小:', pageButtons.value.size)
+  
+  // 检查特定页面
+  const targetPage = '下级商户查询-appid 配置'
+  if (pageButtons.value.has(targetPage)) {
+    console.log(`✅ 找到页面 "${targetPage}" 的按钮:`, pageButtons.value.get(targetPage))
+  } else {
+    console.log(`❌ 没有找到页面 "${targetPage}" 的按钮数据`)
+    console.log('📋 所有可用的页面:', Array.from(pageButtons.value.keys()))
+  }
+  
+  // 重新加载按钮数据
+  await loadPageButtons([])
+}
+
+// 重新加载按钮数据
+const reloadButtonData = async () => {
+  console.log('🔄 [AIChatInterface] 重新加载按钮数据...')
+  await loadPageButtons([])
+}
+
+// 漏斗步骤配置保存处理
+const onFunnelStepsSave = (steps) => {
+  console.log('🎯 漏斗步骤配置保存:', steps)
+  
+  // 保存步骤配置
+  funnelSteps.value = steps
+  
+  // 如果有待执行的漏斗分析请求，现在执行它
+  if (pendingFunnelAnalysis.value) {
+    // 将步骤配置添加到分析请求中
+    const analysisRequest = {
+      ...pendingFunnelAnalysis.value,
+      funnelSteps: steps
+    }
+    
+    // 触发分析
+    emit('analyze-requirement', analysisRequest)
+    
+    // 添加确认消息
+    addMessage('配置已保存，开始进行漏斗分析...', 'ai')
+    
+    // 清空待执行请求
+    pendingFunnelAnalysis.value = null
   }
 }
 
@@ -1489,6 +1715,12 @@ const handleAnalysisTypeSelection = async (params) => {
       break
     case 'conversion':
       await handleConversionAnalysis()
+      break
+    case 'user_behavior':
+      await handleUserBehaviorAnalysis()
+      break
+    case 'multi_bury_point':
+      await handleMultiBuryPointAnalysis()
       break
     default:
       addMessage('我理解了您的需求，让我为您进行分析。', 'ai')
@@ -1530,6 +1762,35 @@ const handleConversionAnalysis = async () => {
     { text: '用户注册转化流程', type: 'analyze', params: { type: 'conversion', scope: 'registration' } },
     { text: '购买转化漏斗', type: 'analyze', params: { type: 'conversion', scope: 'purchase' } },
     { text: '自定义转化路径', type: 'custom_conversion', params: { type: 'conversion', scope: 'custom' } }
+  ]
+
+  addMessage(content, 'ai', actions)
+}
+
+const handleUserBehaviorAnalysis = async () => {
+  const content = `🎯 用户行为分析
+
+请选择您想要进行的用户行为分析类型：`
+
+  const actions = [
+    { text: '🎯 行为转化漏斗', type: 'analyze', params: { type: 'behavior_funnel', scope: 'funnel' } },
+    { text: '👤 用户行为路径', type: 'analyze', params: { type: 'user_behavior', scope: 'path' } },
+    { text: '📈 行为趋势分析', type: 'analyze', params: { type: 'user_behavior', scope: 'trend' } },
+    { text: '📊 多埋点综合分析', type: 'analyze', params: { type: 'multi_bury_point', scope: 'comprehensive' } }
+  ]
+
+  addMessage(content, 'ai', actions)
+}
+
+const handleMultiBuryPointAnalysis = async () => {
+  const content = `📊 多埋点综合分析
+
+综合分析多个埋点的数据，发现用户行为模式。请选择分析类型：`
+
+  const actions = [
+    { text: '🎯 行为转化漏斗', type: 'analyze', params: { type: 'behavior_funnel', scope: 'funnel' } },
+    { text: '👤 用户行为路径', type: 'analyze', params: { type: 'user_behavior', scope: 'path' } },
+    { text: '📈 行为趋势分析', type: 'analyze', params: { type: 'user_behavior', scope: 'trend' } }
   ]
 
   addMessage(content, 'ai', actions)
@@ -2422,8 +2683,8 @@ const showWelcomeMessage = () => {
           },
           { 
             text: '🎯 行为转化漏斗', 
-            type: 'select_analysis', 
-            params: { type: 'user_behavior', description: '分析用户行为转化漏斗和关键节点' } 
+            type: 'analyze', 
+            params: { type: 'behavior_funnel', scope: 'funnel' } 
           },
           { 
             text: '📊 多埋点综合分析', 

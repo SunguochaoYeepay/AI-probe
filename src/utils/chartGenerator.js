@@ -171,6 +171,9 @@ export class ChartGenerator {
         return await this.generateQueryConditionAnalysisOption(analysis, data)
       case 'button_click_daily':
         return this.generateButtonClickDailyOption(analysis, data)
+      case 'behavior_funnel':
+      case 'behavior_analysis':
+        return this.generateBehaviorFunnelOption(analysis, data)
       default:
         return isDualMode ? this.generateDualBarOption(analysis, data) : this.generateBarOption(analysis, data)
     }
@@ -2805,6 +2808,147 @@ export class ChartGenerator {
       categories: sortedData.map(item => item.date),
       series: series
     }
+  }
+
+  /**
+   * 生成用户行为分析漏斗图配置
+   * @param {Object} analysis - 分析结果
+   * @param {Object} funnelData - 漏斗图数据
+   * @returns {Object} ECharts配置
+   */
+  generateBehaviorFunnelOption(analysis, funnelData) {
+    console.log('🔧 [ChartGenerator] 生成用户行为分析漏斗图配置:', {
+      analysis,
+      funnelData
+    })
+
+    if (!funnelData || !funnelData.steps || funnelData.steps.length === 0) {
+      console.warn('⚠️ [ChartGenerator] 漏斗图数据为空，返回默认配置')
+      return {
+        title: {
+          text: '用户行为转化漏斗',
+          subtext: '暂无数据',
+          left: 'center'
+        },
+        series: [{
+          name: '行为转化漏斗',
+          type: 'funnel',
+          data: []
+        }]
+      }
+    }
+
+    // 步骤颜色配置
+    const getStepColor = (index) => {
+      const colors = [
+        '#1890ff', // 蓝色 - 流程开始
+        '#52c41a', // 绿色 - 中间步骤
+        '#faad14', // 橙色 - 关键步骤
+        '#f5222d', // 红色 - 结束步骤
+        '#722ed1', // 紫色 - 其他步骤
+        '#13c2c2', // 青色
+        '#eb2f96', // 粉色
+        '#fa8c16'  // 深橙色
+      ]
+      return colors[index % colors.length]
+    }
+
+    const option = {
+      title: {
+        text: funnelData.funnelName || '用户行为转化漏斗',
+        subtext: `总参与人数: ${funnelData.totalParticipants} | 整体转化率: ${funnelData.overallConversionRate}%`,
+        left: 'center',
+        textStyle: {
+          fontSize: 18,
+          fontWeight: 'bold'
+        }
+      },
+      tooltip: {
+        trigger: 'item',
+        formatter: function(params) {
+          const step = funnelData.steps[params.dataIndex]
+          if (!step) return ''
+          
+          return `
+            <div style="padding: 10px;">
+              <strong style="color: #1890ff;">${step.stepName}</strong><br/>
+              <span style="color: #666;">参与人数: </span><strong>${step.participantCount}</strong><br/>
+              <span style="color: #666;">转化率: </span><strong style="color: #52c41a;">${step.conversionRate}%</strong><br/>
+              <span style="color: #666;">平均耗时: </span><strong style="color: #faad14;">${step.averageDuration}秒</strong><br/>
+              <span style="color: #666;">时间范围: </span><span style="color: #999;">${step.timeRange}</span>
+            </div>
+          `
+        }
+      },
+      series: [{
+        name: '行为转化漏斗',
+        type: 'funnel',
+        left: '10%',
+        top: 80,
+        bottom: 60,
+        width: '80%',
+        min: 0,
+        max: funnelData.totalParticipants,
+        minSize: '0%',
+        maxSize: '100%',
+        sort: 'descending',
+        gap: 2,
+        label: {
+          show: true,
+          position: 'inside',
+          formatter: function(params) {
+            const step = funnelData.steps[params.dataIndex]
+            if (!step) return ''
+            return `${step.stepName}\n${step.participantCount} (${step.conversionRate}%)`
+          },
+          fontSize: 12,
+          fontWeight: 'bold',
+          color: '#fff'
+        },
+        labelLine: {
+          length: 10,
+          lineStyle: {
+            width: 1,
+            type: 'solid'
+          }
+        },
+        itemStyle: {
+          borderColor: '#fff',
+          borderWidth: 2
+        },
+        emphasis: {
+          label: {
+            fontSize: 14
+          },
+          itemStyle: {
+            shadowBlur: 10,
+            shadowColor: 'rgba(0, 0, 0, 0.3)'
+          }
+        },
+        data: funnelData.steps.map((step, index) => ({
+          value: step.participantCount,
+          name: step.stepName,
+          itemStyle: {
+            color: getStepColor(index)
+          }
+        }))
+      }],
+      // 添加时间信息显示
+      graphic: funnelData.steps.map((step, index) => ({
+        type: 'text',
+        left: '85%',
+        top: `${80 + (index * 15)}%`,
+        style: {
+          text: `${step.averageDuration}秒`,
+          fontSize: 12,
+          fill: '#666',
+          fontWeight: 'bold'
+        }
+      }))
+    }
+
+    console.log('✅ [ChartGenerator] 用户行为分析漏斗图配置生成完成:', option)
+    return option
   }
 
   /**

@@ -564,6 +564,139 @@ export function useRequirementAnalysis() {
     }
   }
 
+  /**
+   * 用户行为分析需求处理
+   */
+  const analyzeBehaviorRequirement = async (dateRangeOrRequest) => {
+    // 检查参数类型，支持直接传入分析请求对象
+    let dateRange, analysisRequest
+    if (dateRangeOrRequest && typeof dateRangeOrRequest === 'object' && dateRangeOrRequest.type) {
+      // 传入的是分析请求对象
+      analysisRequest = dateRangeOrRequest
+      dateRange = analysisRequest.dateRange || [dayjs().subtract(6, 'day'), dayjs()] // 默认最近7天
+      console.log('🔍 用户行为分析 - 使用默认日期范围:', dateRange)
+    } else {
+      // 传入的是日期范围
+      dateRange = dateRangeOrRequest
+    }
+    
+    // 对于行为分析，如果传入了分析请求对象，则不需要检查用户输入的需求
+    if (!currentRequirement.value.trim() && !analysisRequest) {
+      message.warning('请输入分析需求')
+      return
+    }
+    
+    if (!requirementParser) {
+      console.log('需求解析器未初始化，正在自动初始化...')
+      initRequirementParser()
+    }
+    
+    analyzing.value = true
+    
+    // 开始图表生成loading状态
+    store.dispatch('updateChartGenerationStatus', {
+      isGenerating: true,
+      currentStep: '正在分析用户行为需求...',
+      progress: 10
+    })
+    
+    try {
+      // 构建上下文信息
+      const context = {
+        analysisType: 'behavior_analysis'
+      }
+      
+      // 解析需求
+      let analysis = await requirementParser.parse(currentRequirement.value, context)
+      
+      // 强制设置为行为分析类型
+      analysis = {
+        ...analysis,
+        intent: 'behavior_funnel_analysis',
+        chartType: 'behavior_funnel',
+        description: '用户行为转化漏斗分析'
+      }
+      
+      console.log('🎯 用户行为分析结果:', analysis)
+      
+      // 更新图表生成状态
+      store.dispatch('updateChartGenerationStatus', {
+        isGenerating: true,
+        currentStep: '正在获取用户行为数据...',
+        progress: 30
+      })
+      
+      // 获取双埋点数据（访问埋点 + 点击埋点）
+      const visitDataResult = await fetchMultiDayData(110, dateRange) // 访问埋点ID: 110
+      const clickDataResult = await fetchMultiDayData(109, dateRange) // 点击埋点ID: 109
+      
+      // 提取数据数组
+      const visitData = visitDataResult?.data || []
+      const clickData = clickDataResult?.data || []
+      
+      console.log('📊 获取到的双埋点数据:', {
+        visitDataCount: visitData?.length || 0,
+        clickDataCount: clickData?.length || 0
+      })
+      
+      // 更新图表生成状态
+      store.dispatch('updateChartGenerationStatus', {
+        isGenerating: true,
+        currentStep: '正在分析用户行为路径...',
+        progress: 60
+      })
+      
+      // 使用数据处理器处理双埋点数据
+      const { dataProcessorFactory } = await import('@/utils/dataProcessorFactory')
+      const funnelData = dataProcessorFactory.process('behavior_funnel_analysis', {
+        visitData: visitData || [],
+        clickData: clickData || []
+      }, {
+        format: 'raw',
+        analysis: analysis,
+        dateRange: {
+          startDate: dayjs(dateRange[0]).format('YYYY-MM-DD'),
+          endDate: dayjs(dateRange[1]).format('YYYY-MM-DD')
+        },
+        funnelName: analysis.description || '用户行为转化漏斗'
+      })
+      
+      console.log('🎯 用户行为分析漏斗数据:', funnelData)
+      
+      // 更新图表生成状态
+      store.dispatch('updateChartGenerationStatus', {
+        isGenerating: true,
+        currentStep: '正在生成漏斗图...',
+        progress: 80
+      })
+      
+      // 生成图表
+      await generateChart(analysis, funnelData, 'chart-container')
+      
+      // 完成图表生成
+      store.dispatch('updateChartGenerationStatus', {
+        isGenerating: false,
+        currentStep: '用户行为分析完成',
+        progress: 100
+      })
+      
+      message.success('用户行为分析完成')
+      
+    } catch (error) {
+      console.error('❌ 用户行为分析失败:', error)
+      message.error(`用户行为分析失败: ${error.message}`)
+      
+      // 重置图表生成状态
+      store.dispatch('updateChartGenerationStatus', {
+        isGenerating: false,
+        currentStep: '分析失败',
+        progress: 0
+      })
+    } finally {
+      analyzing.value = false
+    }
+  }
+
   return {
     // 响应式数据
     currentRequirement,
@@ -575,6 +708,7 @@ export function useRequirementAnalysis() {
     analyzeRequirement,
     analyzeButtonClickRequirement,
     analyzeQueryConditionRequirement,
+    analyzeBehaviorRequirement,
     clearRequirement,
     selectPageForAnalysis
   }

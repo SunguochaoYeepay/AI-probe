@@ -243,5 +243,65 @@ export const AI_CONFIG = {
   SAMPLE_PAGES_OPTIONS: {
     temperature: 0.3,
     num_predict: 100
-  }
+  },
+
+  // 用户行为分析提示词
+  BEHAVIOR_ANALYSIS: (userRequirement) => `你是一个用户行为分析专家。请分析用户的需求，识别用户想要分析的行为流程。
+
+用户需求：${userRequirement}
+
+请返回JSON格式的分析结果：
+{
+  "intent": "behavior_funnel_analysis",
+  "chartType": "behavior_funnel",
+  "description": "用户行为转化漏斗分析",
+  "flowSteps": [
+    {
+      "stepName": "步骤名称",
+      "stepType": "entry|process|exit",
+      "keywords": ["关键词1", "关键词2"],
+      "expectedDuration": 15
+    }
+  ],
+  "confidence": 0.95
+}
+
+分析规则：
+1. 识别用户想要分析的业务流程
+2. 提取关键步骤和操作
+3. 估算每个步骤的预期耗时
+4. 确定分析类型为行为漏斗分析
+
+请直接返回JSON格式的分析结果：`,
+
+  // 流程步骤识别提示词
+  FLOW_STEP_EXTRACTION: (behaviorData) => `基于用户行为数据，识别关键的业务流程步骤。
+
+行为数据：${JSON.stringify(behaviorData, null, 2)}
+
+请识别出完整的业务流程，包括：
+1. 流程起始步骤
+2. 中间处理步骤  
+3. 流程结束步骤
+
+返回JSON格式：
+{
+  "flowName": "流程名称",
+  "steps": [
+    {
+      "stepName": "步骤名称",
+      "stepOrder": 1,
+      "triggerActions": ["action1", "action2"],
+      "pageNames": ["page1", "page2"]
+    }
+  ]
+}
+
+识别规则：
+1. 基于页面访问和按钮点击数据识别流程
+2. 按照时间顺序排列步骤
+3. 识别关键的业务操作节点
+4. 为每个步骤提供描述性名称
+
+请直接返回JSON格式的识别结果：`
 }
