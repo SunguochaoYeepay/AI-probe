@@ -1887,6 +1887,21 @@ export class ChartGenerator {
     
     console.log(`📊 [ChartGenerator] 使用统一数据处理器工厂，分析类型: ${analysis.chartType}，数据格式: ${format}`)
     
+    // 🚀 修复：正确传递日期范围信息
+    let dateRangeInfo = null
+    if (analysis.dateRangeObj) {
+      // 优先使用 dateRangeObj
+      dateRangeInfo = analysis.dateRangeObj
+    } else if (analysis.userDateRange && analysis.userDateRange.length === 2) {
+      // 使用 userDateRange 作为备用
+      dateRangeInfo = {
+        startDate: analysis.userDateRange[0].format('YYYY-MM-DD'),
+        endDate: analysis.userDateRange[1].format('YYYY-MM-DD')
+      }
+    }
+    
+    console.log('📅 [ChartGenerator] 传递的日期范围信息:', dateRangeInfo)
+    
     // 使用统一的数据处理逻辑
     const chartData = dataProcessorFactory.process(analysis.chartType, data, {
       format: format,
@@ -1894,7 +1909,7 @@ export class ChartGenerator {
       queryCondition: analysis.parameters?.queryCondition || '',
       queryData: analysis.parameters?.queryData,
       // 🚀 传递日期范围信息
-      dateRange: analysis.dateRangeObj,
+      dateRange: dateRangeInfo,
       // 🚀 为查询条件分析传递原始数据
       rawData: format === 'raw' ? data : null
     })
@@ -1977,6 +1992,19 @@ export class ChartGenerator {
     if (chartData.isMultipleConditions) {
       if (queryCondition === 'all' || queryCondition === '全部查询条件' || queryCondition === '全部状态') {
         titleText = `${pageName} - 全部查询条件使用情况`
+      } else if (queryCondition && queryCondition.includes(':')) {
+        // 🚀 只支持新格式 "条件类型:条件值1、条件值2"
+        const parts = queryCondition.split(':')
+        const groupType = parts[0]
+        const conditionsStr = parts[1]
+        
+        if (groupType) {
+          // 使用更准确的标题格式：页面名称的"条件类型"条件值为"具体值"的使用情况
+          titleText = `"${pageName}"的"${groupType}"条件值为"${conditionsStr}"的使用情况`
+        } else {
+          // 如果没有条件类型信息，使用原来的格式
+          titleText = `${pageName} - "${conditionsStr}"查询条件使用情况`
+        }
       } else {
         titleText = `${pageName} - 多查询条件使用情况`
       }
@@ -2050,19 +2078,16 @@ export class ChartGenerator {
     const queryCondition = analysis.parameters?.queryCondition
     const queryData = analysis.parameters?.queryData
     
-    // 检查是否是状态分类的多选
-    const isStatusGroup = queryData?.groupType === '状态' && queryCondition?.startsWith('多条件:')
-    const isTimeGroup = queryData?.groupType === '申请时间' && queryCondition?.startsWith('多条件:')
+    // 🚀 只支持新格式 "条件类型:条件值1、条件值2"
+    const isSpecificGroup = queryData?.groupType && queryCondition?.includes(':')
     
-    if (isStatusGroup) {
-      console.log('🔍 检测到状态分类多选，按状态值聚合数据')
+    if (isSpecificGroup) {
+      console.log(`🔍 检测到${queryData?.groupType}分类多选，按条件值聚合数据`)
       return this.processStatusGroupData(data, analysis)
     }
     
-    if (isTimeGroup) {
-      console.log('🔍 检测到申请时间分类多选，按申请时间值聚合数据')
-      return this.processTimeGroupData(data, analysis)
-    }
+    // 注意：isTimeGroup 变量已被移除，统一使用 isSpecificGroup
+    // 如果需要特殊处理时间类型，可以在这里添加特定逻辑
     
     // 按条件分组数据
     const conditionMap = new Map()
@@ -2358,8 +2383,8 @@ export class ChartGenerator {
     console.log(`🔍 检查条件匹配: "${conditionName}" vs "${queryCondition}"`)
     console.log(`🔍 查询数据:`, queryData)
     
-    // 如果用户选择的是多条件（如"多条件:全部、待复核"）
-    if (queryCondition && queryCondition.startsWith('多条件:')) {
+    // 🚀 只支持新格式，如果用户选择的是多条件（如"状态:全部、待复核"）
+    if (queryCondition && queryCondition.includes(':')) {
       // 检查当前条件是否在用户选择的条件列表中
       if (queryData && queryData.allConditions && queryData.allConditions.length > 0) {
         const selectedConditions = queryData.allConditions.map(c => c.content)
@@ -2381,30 +2406,17 @@ export class ChartGenerator {
           const groupType = queryData?.groupType
           console.log(`🔍 用户选择的分类类型:`, groupType)
           
-          if (groupType === '状态' && parsedCondition.状态) {
-            const statusValue = parsedCondition.状态
-            console.log(`🔍 条件中的状态值:`, statusValue)
+          // 🚀 修复：动态匹配，不硬编码条件类型
+          if (groupType && parsedCondition[groupType]) {
+            const conditionValue = parsedCondition[groupType]
+            console.log(`🔍 条件中的${groupType}值:`, conditionValue)
             
-            // 检查状态值是否在用户选择的条件中
+            // 检查条件值是否在用户选择的条件中
             const isMatched = selectedConditions.some(selected => {
-              // 从 "状态::全部" 中提取 "全部"
+              // 从 "条件类型::条件值" 中提取 "条件值"
               const selectedValue = selected.split('::')[1]
-              console.log(`🔍 比较: "${statusValue}" vs "${selectedValue}"`)
-              return statusValue === selectedValue
-            })
-            
-            console.log(`🔍 JSON匹配结果:`, isMatched)
-            return isMatched
-          } else if (groupType === '申请时间' && parsedCondition.申请时间) {
-            const timeValue = parsedCondition.申请时间
-            console.log(`🔍 条件中的申请时间值:`, timeValue)
-            
-            // 检查申请时间值是否在用户选择的条件中
-            const isMatched = selectedConditions.some(selected => {
-              // 从 "申请时间::其他" 中提取 "其他"
-              const selectedValue = selected.split('::')[1]
-              console.log(`🔍 比较: "${timeValue}" vs "${selectedValue}"`)
-              return timeValue === selectedValue
+              console.log(`🔍 比较: "${conditionValue}" vs "${selectedValue}"`)
+              return conditionValue === selectedValue
             })
             
             console.log(`🔍 JSON匹配结果:`, isMatched)
@@ -2435,9 +2447,9 @@ export class ChartGenerator {
           return true
         }
       } catch (e) {
-        // 不是JSON格式，检查是否包含状态关键词
-        const statusKeywords = ['状态', '待复核', '全部', '已复核', '拒绝', '通过']
-        const hasStatusKeyword = statusKeywords.some(keyword => conditionName.includes(keyword))
+        // 🚀 修复：动态检查关键词，不硬编码
+        const groupType = queryData?.groupType
+        const hasKeyword = groupType ? conditionName.includes(groupType) : false
         
         // 如果用户选择了具体的条件，需要检查是否匹配
         if (queryData && queryData.allConditions && queryData.allConditions.length > 0) {
@@ -2445,20 +2457,20 @@ export class ChartGenerator {
           return selectedConditions.includes(conditionName)
         }
         
-        return hasStatusKeyword
+        return hasKeyword
       }
       
       return false
     }
     
-    // 如果用户选择的是"全部申请时间"，只显示申请时间相关的条件
-    if (queryCondition === '全部申请时间') {
-      const timeKeywords = ['申请时间', '今天', '昨天', '近7天', '近30天', '其他']
-      const hasTimeKeyword = timeKeywords.some(keyword => conditionName.includes(keyword))
+    // 🚀 修复：动态检查"全部"条件，不硬编码条件类型
+    if (queryCondition && queryCondition.startsWith('全部') && queryData?.groupType) {
+      const groupType = queryData.groupType
+      const hasKeyword = conditionName.includes(groupType)
       
       try {
         const parsed = JSON.parse(conditionName)
-        if (parsed.申请时间 || parsed.applicationTime) {
+        if (parsed[groupType]) {
           // 如果用户选择了具体的申请时间值，需要进一步过滤
           if (queryData && queryData.allConditions && queryData.allConditions.length > 0) {
             const selectedConditions = queryData.allConditions.map(c => c.content)
@@ -2470,7 +2482,7 @@ export class ChartGenerator {
         // 不是JSON格式，继续检查关键词
       }
       
-      return hasTimeKeyword
+        return hasKeyword
     }
     
     // 如果用户选择的是具体的条件类型，检查是否匹配

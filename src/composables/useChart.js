@@ -361,12 +361,18 @@ export function useChart() {
         timestamp: new Date().toISOString()
       })
       
+      // 确保图表生成器已初始化
+      if (!chartGenerator.value) {
+        console.log('图表生成器未初始化，正在初始化...')
+        initChartGenerator()
+      }
+      
       // 等待 DOM 更新后再生成图表
       await nextTick()
       await nextTick() // 双重 nextTick 确保 DOM 完全更新
       
       // 先销毁旧图表，确保重新渲染
-      if (chartGenerator.value.chart) {
+      if (chartGenerator.value && chartGenerator.value.chart) {
         console.log('销毁旧图表，准备重新生成')
         chartGenerator.value.chart.dispose()
         chartGenerator.value.chart = null // 清空引用，避免重复dispose
@@ -442,11 +448,71 @@ export function useChart() {
     }
   }
 
+  /**
+   * 处理时间范围变化
+   */
+  const handleTimeRangeChange = async (timeRangeInfo) => {
+    console.log('🕒 [Home] 收到时间范围变化事件:', timeRangeInfo)
+    
+    if (!store.state.chartConfig) {
+      console.warn('⚠️ [Home] 没有图表配置，无法更新时间范围')
+      return
+    }
+    
+    try {
+      const { days } = timeRangeInfo
+      console.log(`📅 [Home] 切换到${days}天数据范围`)
+      
+      // 显示加载状态
+      message.loading(`正在加载${days}天数据...`, 0)
+      
+      // 计算新的日期范围
+      const endDate = dayjs()
+      const startDate = endDate.subtract(days - 1, 'day')
+      const newDateRange = [startDate, endDate]
+      
+      console.log(`📊 [Home] 新日期范围: ${startDate.format('YYYY-MM-DD')} 至 ${endDate.format('YYYY-MM-DD')}`)
+      
+      // 获取新时间范围的数据
+      const { fetchDataForDateRange } = await import('@/composables/useDataFetch')
+      const newData = await fetchDataForDateRange(newDateRange)
+      
+      // 更新图表配置中的日期范围信息
+      const updatedChartConfig = {
+        ...store.state.chartConfig,
+        analysis: {
+          ...store.state.chartConfig.analysis,
+          userDateRange: newDateRange,
+          timeRange: days
+        }
+      }
+      
+      // 更新store中的图表配置
+      store.dispatch('updateChartConfig', {
+        ...updatedChartConfig,
+        data: newData,
+        rawData: newData,
+        timestamp: new Date().toISOString()
+      })
+      
+      // 重新生成图表
+      await generateChart(updatedChartConfig.analysis, newData, newDateRange)
+      
+      message.destroy()
+      message.success(`已切换到${days}天数据视图`)
+      
+    } catch (error) {
+      message.destroy()
+      console.error('❌ [Home] 时间范围切换失败:', error)
+      message.error(`切换时间范围失败: ${error.message}`)
+    }
+  }
 
   return {
     chartGenerator,
     initChartGenerator,
     generateChart,
-    extractPageNames
+    extractPageNames,
+    handleTimeRangeChange
   }
 }

@@ -584,13 +584,17 @@ const getQueryCondition = (chart) => {
   // 1. 优先从保存的参数中获取查询条件
   if (config.queryConditionParams?.queryCondition) {
     const condition = config.queryConditionParams.queryCondition
-    // 如果是多条件，只显示前几个条件
-    if (condition.startsWith('多条件:')) {
-      const conditions = condition.replace('多条件:', '').split(/[、，]/)
-      if (conditions.length > 2) {
-        return `${conditions.slice(0, 2).join('、')}等${conditions.length}个条件`
+    // 🚀 只支持新格式 "条件类型:条件值1、条件值2"
+    if (condition.includes(':') && (condition.includes('、') || condition.includes('，'))) {
+      // 新格式：状态:全部、待复核
+      const parts = condition.split(':')
+      if (parts.length === 2) {
+        const conditions = parts[1].split(/[、，]/)
+        if (conditions.length > 2) {
+          return `${conditions.slice(0, 2).join('、')}等${conditions.length}个条件`
+        }
+        return conditions.join('、')
       }
-      return conditions.join('、')
     }
     return condition
   }

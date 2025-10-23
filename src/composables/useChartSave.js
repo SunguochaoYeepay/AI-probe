@@ -1,0 +1,434 @@
+import { useStore } from 'vuex'
+import { message } from 'ant-design-vue'
+import dayjs from 'dayjs'
+import { chartDB } from '@/utils/indexedDBManager'
+import { useChartManager } from '@/composables/useChartManager'
+import { useChart } from '@/composables/useChart'
+import { aggregationService } from '@/utils/aggregationService'
+
+/**
+ * 图表保存相关的逻辑
+ */
+export function useChartSave() {
+  const store = useStore()
+  const { saveChart: saveChartToManager } = useChartManager()
+  const { extractPageNames } = useChart()
+
+  /**
+   * 保存图表到图表库
+   */
+  const saveChartToLibrary = async () => {
+    if (!store.state.chartConfig) {
+      message.warning('请先生成图表')
+      return
+    }
+    
+    try {
+      console.groupCollapsed('💾 [Home] 保存图表 - 优化版本')
+      console.time('saveChart')
+      const chartData = store.state.chartConfig.data
+      const effectiveAnalysis = store.state.analysisResult || store.state.chartConfig.analysis || {}
+      const chartType = effectiveAnalysis.chartType
+      
+      console.log('🔍 chartType 来源检查:', {
+        fromAnalysisResult: store.state.analysisResult?.chartType,
+        fromChartConfig: store.state.chartConfig?.analysis?.chartType,
+        finalChartType: chartType,
+        effectiveAnalysis: effectiveAnalysis
+      })
+      
+      if (!chartData || (Array.isArray(chartData) && chartData.length === 0)) {
+        message.warning('图表数据为空，无法保存')
+        console.warn('⚠️ [Home] 数据为空，终止保存')
+        console.groupEnd()
+        return
+      }
+      
+      // 从数据中提取日期范围
+      let uniqueDates = []
+      if (chartData && typeof chartData === 'object' && !Array.isArray(chartData) && chartData.categories) {
+        uniqueDates = [...new Set(chartData.categories)].sort()
+        console.log('🗓️ [Home] 使用图表对象中的categories作为日期范围', uniqueDates)
+      } else {
+        const dates = chartData.map(d => dayjs(d.createdAt).format('YYYY-MM-DD')).filter(d => d)
+        uniqueDates = [...new Set(dates)].sort()
+        console.log('🗓️ [Home] 使用原始数组数据提取的日期范围', uniqueDates)
+      }
+      
+      // 优化策略：只保存最近7天的数据
+      const maxInitialDays = 7
+      const recentDates = uniqueDates.slice(-maxInitialDays)
+      console.log(`📊 [Home] 优化策略：只保存最近${maxInitialDays}天数据 (${recentDates.length}/${uniqueDates.length}天)`)
+      
+      // 构造图表配置
+      let chartName = effectiveAnalysis.description || store.state.currentRequirement
+      
+      if (!chartName || chartName === '数据分析' || chartName === '数据对比分析') {
+        const pageName = extractPageNames(store.state.currentRequirement)[0]
+        if (pageName && pageName !== '__ALL__') {
+          const analysisType = store.state.apiConfig.selectedAnalysisType || 'page_analysis'
+          if (analysisType === 'page_analysis') {
+            chartName = `分析页面"${pageName}"的访问量数据`
+          } else if (analysisType === 'click_analysis') {
+            chartName = `分析页面"${pageName}"的点击行为`
+          } else if (analysisType === 'behavior_analysis') {
+            chartName = `分析页面"${pageName}"的用户行为`
+          } else {
+            chartName = `分析页面"${pageName}"的数据`
+          }
+        } else {
+          chartName = store.state.currentRequirement || '数据分析'
+        }
+      }
+      
+      // 添加时间戳避免重复
+      const timestamp = dayjs().format('MM-DD HH:mm')
+      chartName = `${chartName} (${timestamp})`
+      
+      // 检查图表名称是否已存在
+      const existingCharts = await chartDB.getAllCharts()
+      const duplicateChart = existingCharts.find(chart => chart.name === chartName)
+      
+      if (duplicateChart) {
+        console.warn('⚠️ [Home] 发现重复图表名称:', chartName)
+        message.warning({
+          content: `图表名称"${chartName}"已存在，请修改需求后重新生成图表`,
+          duration: 5
+        })
+        console.groupEnd()
+        return
+      }
+      
+      const chartConfig = {
+        name: chartName,
+        description: store.state.currentRequirement,
+        category: getCategoryByAnalysisType(store.state.apiConfig.selectedAnalysisType || 'page_analysis'),
+        chartType: chartType,
+        mode: store.state.analysisMode || 'single',
+        selectedPointId: store.state.apiConfig.selectedPointId,
+        埋点类型: (store.state.analysisMode || 'single') === 'dual' ? '访问+点击' : '访问',
+        filters: {
+          pageName: extractPageNames(store.state.currentRequirement)[0] || null
+        },
+        dimensions: ['date'],
+        metrics: effectiveAnalysis.metrics || ['uv', 'pv'],
+        dateRangeStrategy: 'last_30_days',
+        scheduledUpdate: {
+          enabled: true,
+          frequency: 'daily',
+          time: '01:00',
+          maxHistoryDays: 365,
+          batchSize: 10
+        },
+        dataRange: {
+          totalDays: uniqueDates.length,
+          initialDays: recentDates.length,
+          pendingDays: uniqueDates.length - recentDates.length,
+          lastDataUpdate: recentDates[recentDates.length - 1] || null
+        }
+      }
+      
+      // 保存特殊参数
+      if (chartType === 'query_condition_analysis' && store.state.queryConditionAnalysisParams.pageName) {
+        chartConfig.queryConditionParams = {
+          pageName: store.state.queryConditionAnalysisParams.pageName,
+          queryCondition: store.state.queryConditionAnalysisParams.queryCondition,
+          queryData: store.state.queryConditionAnalysisParams.queryData
+        }
+      }
+      
+      if ((chartType === 'button_click_analysis' || chartType === 'button_click_daily') && store.state.buttonAnalysisParams.pageName) {
+        chartConfig.buttonParams = {
+          pageName: store.state.buttonAnalysisParams.pageName,
+          buttonName: store.state.buttonAnalysisParams.buttonName,
+          buttonData: store.state.buttonAnalysisParams.buttonData
+        }
+      }
+      
+      if (chartType === 'single_page_uv_pv_chart' && effectiveAnalysis.parameters?.pageName) {
+        chartConfig.pageAccessParams = {
+          pageName: effectiveAnalysis.parameters.pageName
+        }
+      }
+      
+      // 按日期聚合数据
+      const initialData = {}
+      
+      const isButtonClickAnalysis = chartType === 'button_click_analysis' || chartType === 'button_click_daily'
+      const isQueryConditionAnalysis = chartType === 'query_condition_analysis'
+      
+      if (isButtonClickAnalysis) {
+        await processButtonClickData(chartData, effectiveAnalysis, recentDates, initialData)
+      } else if (isQueryConditionAnalysis) {
+        await processQueryConditionData(chartData, effectiveAnalysis, recentDates, initialData)
+      } else {
+        await processStandardData(chartData, chartConfig, recentDates, initialData)
+      }
+      
+      console.log('📝 [Home] initialData 预览(前2天):', Object.entries(initialData).slice(0,2))
+      
+      // 确保chartConfig可序列化
+      const serializableChartConfig = JSON.parse(JSON.stringify(chartConfig))
+      
+      // 保存图表
+      const savedChart = await saveChartToManager(serializableChartConfig, initialData)
+      
+      // 显示保存状态
+      const savedDays = Object.keys(initialData).length
+      const pendingDays = chartConfig.dataRange.pendingDays
+      
+      message.success(`图表"${savedChart.name}"已保存（${savedDays}天数据）`)
+      
+      if (pendingDays > 0) {
+        message.info({
+          content: `历史数据（${pendingDays}天）将通过定时任务自动补充`,
+          duration: 8
+        })
+      }
+      
+      console.timeEnd('saveChart')
+      console.groupEnd()
+      
+      // 提示用户查看
+      const key = `save-chart-${Date.now()}`
+      message.info({
+        content: '图表已保存，点击查看',
+        duration: 5,
+        key,
+        onClick: () => {
+          message.destroy(key)
+          window.open('/my-charts', '_blank')
+        }
+      })
+      
+    } catch (error) {
+      console.error('❌ [Home] 保存图表失败:', error)
+      console.groupEnd()
+      message.error('保存图表失败: ' + error.message)
+    }
+  }
+
+  /**
+   * 处理按钮点击数据
+   */
+  const processButtonClickData = async (chartData, effectiveAnalysis, recentDates, initialData) => {
+    console.log('🔍 [Home] 检测到按钮点击分析，使用特殊处理逻辑')
+    
+    if (chartData && typeof chartData === 'object' && !Array.isArray(chartData) && chartData.categories) {
+      console.log('📊 [Home] 数据已经是图表格式，直接转换')
+      
+      chartData.categories.forEach((date, index) => {
+        if (recentDates.includes(date)) {
+          initialData[date] = {
+            metrics: {
+              uv: chartData.uvData[index] || 0,
+              pv: chartData.pvData[index] || 0
+            },
+            dimensions: {},
+            metadata: {
+              rawRecordCount: 0,
+              filteredRecordCount: 0,
+              processedAt: new Date().toISOString(),
+              dataQuality: 'good'
+            }
+          }
+        }
+      })
+    } else {
+      console.log('🔧 [Home] 按钮点击分析：直接从原始数据聚合UV/PV')
+      for (const date of recentDates) {
+        const dayData = chartData.filter(d => 
+          dayjs(d.createdAt).format('YYYY-MM-DD') === date
+        )
+        
+        if (dayData.length > 0) {
+          const buttonClickData = dayData.filter(item => 
+            item.type === 'click' && 
+            item.pageName === effectiveAnalysis.pageName && 
+            item.content === effectiveAnalysis.buttonName
+          )
+          
+          let uv = 0
+          let pv = 0
+          const uvSet = new Set()
+          
+          buttonClickData.forEach(item => {
+            pv++
+            if (item.weCustomerKey) {
+              uvSet.add(item.weCustomerKey)
+            }
+          })
+          
+          uv = uvSet.size
+          
+          initialData[date] = {
+            metrics: { uv, pv },
+            dimensions: {},
+            metadata: {
+              rawRecordCount: dayData.length,
+              filteredRecordCount: buttonClickData.length,
+              processedAt: new Date().toISOString(),
+              dataQuality: buttonClickData.length > 0 ? 'good' : 'no_data'
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * 处理查询条件数据
+   */
+  const processQueryConditionData = async (chartData, effectiveAnalysis, recentDates, initialData) => {
+    console.log('🔍 [Home] 检测到查询条件分析，使用专门的保存逻辑')
+    
+    if (chartData && typeof chartData === 'object' && !Array.isArray(chartData) && chartData.conditionData) {
+      console.log('📊 [Home] 查询条件数据已经是多条件格式，保存每个条件的分别数据')
+      
+      // 保存每个条件的分别数据
+      chartData.conditionData.forEach((condition, conditionIndex) => {
+        const conditionName = condition.name
+        
+        chartData.categories.forEach((date, dateIndex) => {
+          if (recentDates.includes(date)) {
+            const pvValue = condition.data[dateIndex] || 0
+            const dataId = `${store.state.chartConfig.id}_${date}_${conditionName}`
+            
+            initialData[dataId] = {
+              metrics: {
+                pv: pvValue,
+                uv: 0
+              },
+              dimensions: {
+                condition: conditionName,
+                date: date
+              },
+              metadata: {
+                conditionIndex: conditionIndex,
+                dateIndex: dateIndex,
+                rawRecordCount: 0,
+                filteredRecordCount: 0,
+                processedAt: new Date().toISOString(),
+                dataQuality: 'good'
+              }
+            }
+          }
+        })
+      })
+    } else {
+      console.log('🔧 [Home] 查询条件分析：直接从原始数据聚合UV/PV')
+      for (const date of recentDates) {
+        const dayData = chartData.filter(d => 
+          dayjs(d.createdAt).format('YYYY-MM-DD') === date
+        )
+        
+        if (dayData.length > 0) {
+          const queryCondition = effectiveAnalysis.parameters?.queryCondition || ''
+          const queryConditionData = dayData.filter(item => {
+            if (item.type !== 'click' || item.pageName !== effectiveAnalysis.parameters?.pageName) {
+              return false
+            }
+            
+            let conditions = []
+            if (queryCondition.includes(':')) {
+              const parts = queryCondition.split(':')
+              if (parts.length === 2) {
+                conditions = parts[1].split(/[、，]/).map(c => c.trim())
+              }
+            }
+            
+            if (conditions.length > 0) {
+              let isMatch = conditions.some(condition => item.content === condition)
+              
+              if (!isMatch) {
+                try {
+                  const parsedContent = JSON.parse(item.content)
+                  if (typeof parsedContent === 'object') {
+                    const groupType = effectiveAnalysis.parameters?.queryData?.groupType
+                    if (groupType && parsedContent[groupType]) {
+                      const contentValue = parsedContent[groupType]
+                      isMatch = conditions.some(condition => contentValue === condition)
+                    }
+                  }
+                } catch (e) {
+                  // 不是JSON格式
+                }
+              }
+              
+              if (!isMatch && item.content === '查询') {
+                isMatch = true
+              }
+              
+              return isMatch
+            }
+            
+            return item.content === '查询'
+          })
+          
+          let uv = 0
+          let pv = 0
+          const uvSet = new Set()
+          
+          queryConditionData.forEach(item => {
+            pv++
+            if (item.weCustomerKey) {
+              uvSet.add(item.weCustomerKey)
+            }
+          })
+          
+          uv = uvSet.size
+          
+          initialData[date] = {
+            metrics: { uv, pv },
+            dimensions: {},
+            metadata: {
+              rawRecordCount: dayData.length,
+              filteredRecordCount: queryConditionData.length,
+              processedAt: new Date().toISOString(),
+              dataQuality: queryConditionData.length > 0 ? 'good' : 'no_data'
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * 处理标准数据
+   */
+  const processStandardData = async (chartData, chartConfig, recentDates, initialData) => {
+    console.log('📈 [Home] 非按钮点击/查询条件图表，使用标准聚合')
+    for (const date of recentDates) {
+      const dayData = chartData.filter(d => 
+        dayjs(d.createdAt).format('YYYY-MM-DD') === date
+      )
+      
+      if (dayData.length > 0) {
+        const aggregated = aggregationService.aggregateForChart(
+          dayData,
+          chartConfig,
+          date
+        )
+        
+        initialData[date] = JSON.parse(JSON.stringify(aggregated))
+      }
+    }
+  }
+
+  /**
+   * 根据分析类型获取分类
+   */
+  const getCategoryByAnalysisType = (analysisType) => {
+    const categoryMap = {
+      'page_analysis': '页面分析',
+      'click_analysis': '用户行为',
+      'behavior_analysis': '用户行为',
+      'query_condition_analysis': '查询条件分析'
+    }
+    return categoryMap[analysisType] || '页面分析'
+  }
+
+  return {
+    saveChartToLibrary
+  }
+}

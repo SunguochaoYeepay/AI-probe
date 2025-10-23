@@ -1,781 +1,235 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useStore } from 'vuex'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
-import { yeepayAPI } from '@/api'
 import { dataPreloadService } from '@/services/dataPreloadService'
-import { API_CONFIG } from '@/config/api'
 
+/**
+ * 数据获取相关的逻辑
+ */
 export function useDataFetch() {
   const store = useStore()
-  const fetchProgress = ref({ current: 0, total: 0, visible: false })
+  
+  // 响应式状态
+  const isLoading = ref(false)
+  const error = ref(null)
   const availablePages = ref([])
+  const isPreloading = ref(false)
 
-  // 生成日期范围数组
-  const generateDateRange = (start, end) => {
-    const dates = []
-    let current = dayjs(start)
-    const endDate = dayjs(end)
-    
-    while (current.isBefore(endDate) || current.isSame(endDate, 'day')) {
-      dates.push(current.format('YYYY-MM-DD'))
-      current = current.add(1, 'day')
-    }
-    
-    return dates
-  }
-
-  // 单埋点数据获取
-  const fetchSingleBuryPointData = async (dateRange) => {
-    if (!dateRange || dateRange.length !== 2) {
-      throw new Error('请选择有效的日期范围')
-    }
-      
-    const [start, end] = dateRange
-    const dates = generateDateRange(start, end)
-    
-    console.log(`========== 批量获取数据 (${dates.length}天) ==========`)
-    
-    // 获取动态埋点配置（与fetchMultiDayData保持一致）
-    const apiConfig = store.state.apiConfig
-    const projectConfig = store.state.projectConfig
-    let selectedPointId = null
-    
-    // 根据分析类型选择对应的埋点
-    const analysisType = analysis?.type || analysis?.intent
-    
-    if (analysisType === 'button_click_analysis' || analysisType === 'user_click' || analysisType === 'query_condition_analysis') {
-      // 按钮点击分析，优先使用点击埋点
-      if (projectConfig.clickBuryPointId) {
-        selectedPointId = projectConfig.clickBuryPointId
-        console.log(`使用点击埋点配置: ${selectedPointId}`)
-      } else if (projectConfig.clickPoint?.id) {
-        selectedPointId = projectConfig.clickPoint.id
-        console.log(`使用动态点击埋点配置: ${selectedPointId}`)
-      } else {
-        selectedPointId = API_CONFIG.defaultBuryPoints.click.id
-        console.log(`使用默认点击埋点配置: ${selectedPointId}`)
-      }
-    } else if (analysisType === 'page_visits' || analysisType === 'single_page_uv_pv_analysis' || analysisType === 'uv_pv_analysis' || analysisType === 'single') {
-      // 页面访问分析，优先使用访问埋点
-      if (projectConfig.visitBuryPointId) {
-        selectedPointId = projectConfig.visitBuryPointId
-        console.log(`使用访问埋点配置: ${selectedPointId}`)
-      } else if (projectConfig.visitPoint?.id) {
-        selectedPointId = projectConfig.visitPoint.id
-        console.log(`使用动态访问埋点配置: ${selectedPointId}`)
-      } else if (projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
-        // 回退到用户选择的埋点
-        selectedPointId = projectConfig.selectedBuryPointIds[0]
-        console.log(`使用用户选择的埋点: ${selectedPointId}`)
-      } else if (apiConfig && apiConfig.selectedPointId) {
-        selectedPointId = apiConfig.selectedPointId
-        console.log(`使用API配置的埋点: ${selectedPointId}`)
-      } else {
-        // 使用默认配置
-        selectedPointId = API_CONFIG.defaultBuryPoints.visit.id
-        console.log(`使用默认访问埋点配置: ${selectedPointId}`)
-      }
-    } else {
-      // 其他分析类型，使用通用逻辑
-      console.log(`未识别的分析类型: ${analysisType}，使用通用埋点选择逻辑`)
-      if (projectConfig.visitBuryPointId) {
-        selectedPointId = projectConfig.visitBuryPointId
-        console.log(`使用访问埋点配置: ${selectedPointId}`)
-      } else if (projectConfig.clickBuryPointId) {
-        selectedPointId = projectConfig.clickBuryPointId
-        console.log(`使用点击埋点配置: ${selectedPointId}`)
-      } else if (apiConfig && apiConfig.selectedPointId) {
-        selectedPointId = apiConfig.selectedPointId
-        console.log(`使用API配置的埋点: ${selectedPointId}`)
-      } else if (projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
-        // 回退到用户选择的埋点
-        selectedPointId = projectConfig.selectedBuryPointIds[0]
-        console.log(`使用用户选择的埋点: ${selectedPointId}`)
-      } else {
-        // 使用默认配置
-        selectedPointId = API_CONFIG.defaultBuryPoints.visit.id
-        console.log(`使用默认访问埋点配置: ${selectedPointId}`)
-      }
-    }
-    
-    // 添加调试信息
-    console.log(`🔍 埋点选择调试信息:`)
-    console.log(`  分析类型: ${analysisType}`)
-    console.log(`  访问埋点ID: ${projectConfig.visitBuryPointId}`)
-    console.log(`  点击埋点ID: ${projectConfig.clickBuryPointId}`)
-    console.log(`  API配置埋点: ${apiConfig?.selectedPointId}`)
-    console.log(`  用户选择埋点: ${projectConfig.selectedBuryPointIds}`)
-    console.log(`  最终选择埋点: ${selectedPointId}`)
-    
-    if (!selectedPointId) {
-      console.error('❌ 未能选择到任何埋点ID')
-      throw new Error('未选择任何埋点，无法获取数据')
-    }
-    
-    // 检查是否正在预加载，如果是则不显示重复的加载提示
-    const preloadStatus = dataPreloadService.getStatus()
-    let hideLoading = null
-    
-    if (!preloadStatus.isPreloading) {
-      // 只有在没有预加载时才显示获取数据的提示
-      hideLoading = message.loading(`正在获取数据... (0/${dates.length}天)`, 0)
-    }
-    
-    const allData = []
-    const currentPageSize = store.state.apiConfig.pageSize || 1000
-    let totalRequests = 0 // 统计总请求数
-    
-    console.log(`🚀 开始获取${dates.length}天数据，预计最多${dates.length * 25}个请求`)
-    
-    for (let i = 0; i < dates.length; i++) {
-      try {
-        console.log(`正在获取第 ${i + 1}/${dates.length} 天数据: ${dates[i]}`)
-        
-        // 更新Loading消息（只有在没有预加载时才显示）
-        if (hideLoading) {
-          if (hideLoading) { hideLoading() }
-          hideLoading = message.loading(`正在获取数据... (${i + 1}/${dates.length}天)`, 0)
-        }
-        
-        // 获取第一页数据，检查总数
-        const firstResponse = await yeepayAPI.searchBuryPointData({
-          pageSize: currentPageSize,
-          date: dates[i],
-          selectedPointId: selectedPointId
-        })
-        totalRequests++ // 第一页请求
-        
-        const totalRecords = firstResponse.data?.total || 0
-        const firstPageData = firstResponse.data?.dataList || []
-        let dayData = [...firstPageData]
-        
-        console.log(`  ${dates[i]}: 后台总数 ${totalRecords}，第一页获取 ${firstPageData.length} 条`)
-        
-        // 如果总数超过第一页，需要分页获取所有数据
-        if (totalRecords > currentPageSize) {
-          const totalPages = Math.ceil(totalRecords / currentPageSize)
-          console.log(`  ${dates[i]}: 需要分页获取，共 ${totalPages} 页，预计请求数: ${totalPages}`)
-          
-          // 如果页数过多，给出警告
-          if (totalPages > 20) {
-            console.warn(`⚠️  ${dates[i]}: 页数过多(${totalPages}页)，可能影响性能`)
-          }
-          
-          for (let page = 2; page <= totalPages; page++) {
-            console.log(`    获取第 ${page}/${totalPages} 页...`)
-            const pageResponse = await yeepayAPI.searchBuryPointData({
-              pageSize: currentPageSize,
-              page: page,
-              date: dates[i],
-              selectedPointId: selectedPointId
-            })
-            
-            const pageData = pageResponse.data?.dataList || []
-            dayData.push(...pageData)
-            totalRequests++ // 分页请求
-            console.log(`    第 ${page} 页获取 ${pageData.length} 条`)
-            
-            // 短暂延迟，避免请求过快
-            await new Promise(resolve => setTimeout(resolve, 100))
-          }
-        }
-        
-        allData.push(...dayData)
-        console.log(`  ${dates[i]}: 总计获取 ${dayData.length} 条数据`)
-        
-        // 调试：显示前几条数据的实际结构
-        if (dayData.length > 0) {
-          console.log(`  ${dates[i]} 前3条数据结构:`, dayData.slice(0, 3).map(d => ({
-            id: d.id,
-            pageName: d.pageName,
-            type: d.type,
-            createdAt: d.createdAt,
-            hasAllFields: !!(d.id && d.pageName && d.type && d.createdAt),
-            allKeys: Object.keys(d),
-            weCustomerKey: d.weCustomerKey,
-            content: d.content
-          })))
-        }
-        
-        // 短暂延迟，避免请求过快
-        if (i < dates.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100))
-        }
-        
-        newHideLoading()
-      } catch (error) {
-        console.error(`获取 ${dates[i]} 数据失败:`, error)
-        if (hideLoading) { hideLoading() }
-        // 继续获取其他天的数据
-      }
-    }
-    
-    // 隐藏Loading
-    if (hideLoading) { hideLoading() }
-    
-    console.log(`批量获取完成，共 ${allData.length} 条数据`)
-    console.log(`📊 请求统计: 总请求数 ${totalRequests}，平均每天 ${(totalRequests/dates.length).toFixed(1)} 个请求`)
-    console.log('====================================')
-    
-    return {
-      data: allData,
-      total: allData.length,
-      dateRange: `${dates[0]} 至 ${dates[dates.length - 1]}`,
-      mode: 'single'
-    }
-  }
-
-  // 双埋点数据获取
-  const fetchDualBuryPointData = async (dateRange) => {
-    console.log('========== 双埋点数据获取 ==========')
-    
-    if (!dateRange || dateRange.length !== 2) {
-      throw new Error('请选择有效的日期范围')
-    }
-      
-    const [start, end] = dateRange
-    const dates = generateDateRange(start, end)
-    
-    console.log(`获取日期范围双埋点数据: ${dates.length}天`)
-    
-    // 显示全局Loading
-    const hideLoading = message.loading(`正在获取双埋点数据... (0/${dates.length}天)`, 0)
-    
-    const allVisitData = []
-    const allClickData = []
-    const currentPageSize = store.state.apiConfig.pageSize || 1000
-    
-    for (let i = 0; i < dates.length; i++) {
-      try {
-        const date = dates[i]
-        console.log(`正在获取第 ${i + 1}/${dates.length} 天双埋点数据: ${date}`)
-        
-        // 更新Loading消息
-        if (hideLoading) { hideLoading() }
-        const newHideLoading = message.loading(`正在获取双埋点数据... (${i + 1}/${dates.length}天)`, 0)
-        
-        // 获取动态埋点配置
-        const projectConfig = store.state.projectConfig
-        let visitPointId = null
-        let clickPointId = null
-        
-        if (projectConfig.hasVisitPoint && projectConfig.hasClickPoint) {
-          // 使用动态配置
-          visitPointId = projectConfig.visitPoint?.id
-          clickPointId = projectConfig.clickPoint?.id
-          console.log(`使用动态双埋点配置: 访问${visitPointId}, 点击${clickPointId}`)
-        } else {
-          // 使用默认配置
-          visitPointId = API_CONFIG.defaultBuryPoints.visit.id
-          clickPointId = API_CONFIG.defaultBuryPoints.click.id
-          console.log(`使用默认双埋点配置: 访问${visitPointId}, 点击${clickPointId}`)
-        }
-        
-        // 获取访问数据
-        const visitResponse = await yeepayAPI.searchBuryPointData({
-          pageSize: currentPageSize,
-          date: date,
-          selectedPointId: visitPointId
-        })
-        const dayVisitData = visitResponse.data?.dataList || []
-        allVisitData.push(...dayVisitData)
-        console.log(`  ${date} 访问数据: ${dayVisitData.length} 条`)
-        
-        // 获取点击数据
-        const clickResponse = await yeepayAPI.searchBuryPointData({
-          pageSize: currentPageSize,
-          date: date,
-          selectedPointId: clickPointId
-        })
-        const dayClickData = clickResponse.data?.dataList || []
-        allClickData.push(...dayClickData)
-        console.log(`  ${date} 点击数据: ${dayClickData.length} 条`)
-        
-        // 短暂延迟，避免请求过快
-        if (i < dates.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 200))
-        }
-        
-        newHideLoading()
-      } catch (error) {
-        console.error(`获取 ${dates[i]} 双埋点数据失败:`, error)
-        if (hideLoading) { hideLoading() }
-        // 继续获取其他天的数据
-      }
-    }
-    
-    // 隐藏Loading
-    if (hideLoading) { hideLoading() }
-    
-    // 关联所有数据
-    const correlatedData = correlateVisitAndClickData(allVisitData, allClickData)
-    
-    console.log(`双埋点批量获取完成: 访问${allVisitData.length}条 + 点击${allClickData.length}条 = 关联${correlatedData.length}条`)
-    console.log('====================================')
-    
-    return {
-      data: correlatedData,
-      visitData: allVisitData,
-      clickData: allClickData,
-      total: correlatedData.length,
-      dateRange: `${dates[0]} 至 ${dates[dates.length - 1]}`,
-      mode: 'dual'
-    }
-  }
-
-  // 关联访问和点击数据
-  const correlateVisitAndClickData = (visitData, clickData) => {
-    const correlatedData = []
-    
-    // 为访问数据添加点击信息
-    visitData.forEach(visit => {
-      const visitTime = new Date(visit.createdAt)
-      const visitCustomerKey = visit.weCustomerKey
-      const visitPageName = visit.pageName
-      
-      // 查找同一用户在同一页面的点击行为（时间窗口：前后5分钟）
-      const relatedClicks = clickData.filter(click => {
-        const clickTime = new Date(click.createdAt)
-        const timeDiff = Math.abs(clickTime - visitTime) / (1000 * 60) // 分钟
-        return click.weCustomerKey === visitCustomerKey && 
-               click.pageName === visitPageName && 
-               timeDiff <= 5
-      })
-      
-      // 创建关联数据
-      const correlatedItem = {
-        ...visit,
-        dataType: 'visit',
-        relatedClicks: relatedClicks,
-        clickCount: relatedClicks.length,
-        hasClicks: relatedClicks.length > 0
-      }
-      
-      correlatedData.push(correlatedItem)
-    })
-    
-    // 为点击数据添加访问信息
-    clickData.forEach(click => {
-      const clickTime = new Date(click.createdAt)
-      const clickCustomerKey = click.weCustomerKey
-      const clickPageName = click.pageName
-      
-      // 查找同一用户在同一页面的访问行为（时间窗口：前后5分钟）
-      const relatedVisits = visitData.filter(visit => {
-        const visitTime = new Date(visit.createdAt)
-        const timeDiff = Math.abs(visitTime - clickTime) / (1000 * 60) // 分钟
-        return visit.weCustomerKey === clickCustomerKey && 
-               visit.pageName === clickPageName && 
-               timeDiff <= 5
-      })
-      
-      // 创建关联数据
-      const correlatedItem = {
-        ...click,
-        dataType: 'click',
-        relatedVisits: relatedVisits,
-        visitCount: relatedVisits.length,
-        hasVisits: relatedVisits.length > 0
-      }
-      
-      correlatedData.push(correlatedItem)
-    })
-    
-    // 按时间排序
-    correlatedData.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
-    
-    return correlatedData
-  }
-
-  // N埋点数据获取（新方法）
-  const fetchMultiBuryPointData = async (pointIds, dateRange) => {
-    const [start, end] = dateRange
-    const dates = []
-    let current = dayjs(start)
-    
-    while (current.isSameOrBefore(dayjs(end))) {
-      dates.push(current.format('YYYY-MM-DD'))
-      current = current.add(1, 'day')
-    }
-    
-    console.log('====================================')
-    console.log(`🚀 N埋点模式 - API获取数据`)
-    console.log(`📅 日期范围: ${dates[0]} 至 ${dates[dates.length - 1]} (${dates.length}天)`)
-    console.log(`🎯 埋点数量: ${pointIds.length}个`)
-    console.log(`📍 埋点列表: [${pointIds.join(', ')}]`)
-    console.log('====================================')
-    
-    // 显示全局Loading
-    const hideLoading = message.loading(`正在获取${pointIds.length}个埋点的数据... (0/${dates.length}天)`, 0)
-    
-    const allData = []
-    const currentPageSize = store.state.apiConfig.pageSize || 1000
-    let totalRequests = 0
-    
-    // 遍历每一天
-    for (let i = 0; i < dates.length; i++) {
-      const date = dates[i]
-      
-      // 更新Loading消息
-      if (hideLoading) { hideLoading() }
-      const newHideLoading = message.loading(`正在获取数据... (${i + 1}/${dates.length}天)`, 0)
-      
-      // 遍历每个埋点
-      for (const pointId of pointIds) {
-        try {
-          console.log(`📊 获取 ${date} - 埋点 ${pointId} 的数据...`)
-          
-          // 获取该埋点该日期的数据（支持分页）
-          let page = 1
-          let hasMoreData = true
-          
-          while (hasMoreData) {
-            const response = await yeepayAPI.searchBuryPointData({
-              pageSize: currentPageSize,
-              page,
-              date,
-              selectedPointId: pointId
-            })
-            
-            totalRequests++
-            const dayData = response.data?.dataList || []
-            
-            if (dayData.length > 0) {
-              // 为每条数据标记埋点ID
-              const dataWithPointId = dayData.map(item => ({
-                ...item,
-                _buryPointId: pointId
-              }))
-              allData.push(...dataWithPointId)
-              console.log(`  ✅ 埋点 ${pointId} - ${date}: 第${page}页 ${dayData.length}条`)
-            }
-            
-            // 判断是否还有更多数据
-            if (dayData.length < currentPageSize) {
-              hasMoreData = false
-            } else {
-              page++
-            }
-          }
-          
-          // 短暂延迟，避免请求过快
-          await new Promise(resolve => setTimeout(resolve, 100))
-          
-        } catch (error) {
-          console.error(`❌ 获取 ${date} - 埋点 ${pointId} 数据失败:`, error)
-        }
-      }
-      
-      newHideLoading()
-    }
-    
-    if (hideLoading) { hideLoading() }
-    
-    console.log('====================================')
-    console.log(`✅ N埋点批量获取完成:`)
-    console.log(`📊 总数据量: ${allData.length}条`)
-    console.log(`📡 总请求数: ${totalRequests}个`)
-    console.log(`🎯 埋点数量: ${pointIds.length}个`)
-    console.log('====================================')
-    
-    return {
-      data: allData,
-      totalRequests,
-      totalRecords: allData.length,
-      buryPoints: pointIds,
-      analysisMode: pointIds.length === 1 ? 'single' : 'multi',
-      dateRange: `${dates[0]} 至 ${dates[dates.length - 1]}`
-    }
-  }
-
-  // 数据缓存
-  const dataCache = ref(new Map())
-  
-  // 生成缓存键 - 支持N埋点模式
-  const generateCacheKey = (pointIds, dateRange) => {
-    const [start, end] = dateRange
-    // 确保日期格式一致，统一转换为 YYYY-MM-DD 格式
-    const startStr = dayjs(start).format('YYYY-MM-DD')
-    const endStr = dayjs(end).format('YYYY-MM-DD')
-    
-    // 如果pointIds是数组，生成多埋点缓存键
-    if (Array.isArray(pointIds)) {
-      const sortedIds = [...pointIds].sort((a, b) => a - b) // 排序确保相同埋点组合得到相同键
-      return `multi-[${sortedIds.join(',')}]-${startStr}-${endStr}`
-    }
-    
-    // 兼容旧的字符串模式（'single'/'dual'）
-    return `${pointIds}-${startStr}-${endStr}`
-  }
-  
-  // 批量获取多天数据（优先使用预加载缓存）- 支持N埋点模式
-  const fetchMultiDayData = async (analysisMode, dateRange, analysisResult = null) => {
-    // 使用智能埋点选择逻辑
-    const projectConfig = store.state.projectConfig
-    const apiConfig = store.state.apiConfig
-    let selectedPointIds = []
-    
-    // 根据分析结果或分析模式选择埋点
-    const isButtonClickAnalysis = analysisResult?.chartType?.includes('button_click_analysis') || 
-                                 analysisResult?.intent === 'button_click_analysis'
-    
-    const analysisType = analysisResult?.type || analysisResult?.intent
-    const isQueryConditionAnalysis = analysisType === 'query_condition_analysis'
-    
-    if (isButtonClickAnalysis || isQueryConditionAnalysis) {
-      // 按钮点击分析，优先使用点击埋点
-      if (projectConfig.clickBuryPointId) {
-        selectedPointIds = [projectConfig.clickBuryPointId]
-        console.log(`使用点击埋点配置: ${projectConfig.clickBuryPointId}`)
-      } else if (projectConfig.clickPoint?.id) {
-        selectedPointIds = [projectConfig.clickPoint.id]
-        console.log(`使用动态点击埋点配置: ${projectConfig.clickPoint.id}`)
-      } else if (projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
-        selectedPointIds = [projectConfig.selectedBuryPointIds[0]]
-        console.log(`使用用户选择的埋点: ${selectedPointIds[0]}`)
-      } else {
-        selectedPointIds = [API_CONFIG.defaultBuryPoints.click.id]
-        console.log(`使用默认点击埋点配置: ${API_CONFIG.defaultBuryPoints.click.id}`)
-      }
-    } else if (analysisMode === 'single') {
-      // 单埋点模式，优先使用访问埋点
-      if (projectConfig.visitBuryPointId) {
-        selectedPointIds = [projectConfig.visitBuryPointId]
-        console.log(`使用访问埋点配置: ${projectConfig.visitBuryPointId}`)
-      } else if (projectConfig.visitPoint?.id) {
-        selectedPointIds = [projectConfig.visitPoint.id]
-        console.log(`使用动态访问埋点配置: ${projectConfig.visitPoint.id}`)
-      } else if (projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
-        selectedPointIds = [projectConfig.selectedBuryPointIds[0]]
-        console.log(`使用用户选择的埋点: ${selectedPointIds[0]}`)
-      } else if (apiConfig && apiConfig.selectedPointId) {
-        selectedPointIds = [apiConfig.selectedPointId]
-        console.log(`使用API配置的埋点: ${apiConfig.selectedPointId}`)
-      } else {
-        selectedPointIds = [API_CONFIG.defaultBuryPoints.visit.id]
-        console.log(`使用默认访问埋点配置: ${API_CONFIG.defaultBuryPoints.visit.id}`)
-      }
-    } else if (analysisMode === 'dual') {
-      // 双埋点模式，使用访问和点击埋点
-      const pointIds = []
-      if (projectConfig.visitBuryPointId) {
-        pointIds.push(projectConfig.visitBuryPointId)
-      }
-      if (projectConfig.clickBuryPointId && projectConfig.clickBuryPointId !== projectConfig.visitBuryPointId) {
-        pointIds.push(projectConfig.clickBuryPointId)
-      }
-      selectedPointIds = pointIds.length > 0 ? pointIds : projectConfig.selectedBuryPointIds || []
-    } else {
-      // 其他模式，使用旧的逻辑
-      selectedPointIds = projectConfig.selectedBuryPointIds || []
-    }
-    
-    if (selectedPointIds.length === 0) {
-      console.warn('⚠️ 未选择任何埋点，无法获取数据')
-      return {
-        data: [],
-        totalRequests: 0,
-        totalRecords: 0,
-        buryPoints: [],
-        analysisMode: 'none'
-      }
-    }
-    
-    const cacheKey = generateCacheKey(selectedPointIds, dateRange)
-    
-    console.log('====================================')
-    console.log('🔍 N埋点模式 - 数据获取请求详情:')
-    console.log(`📅 日期范围: ${dateRange[0]} 至 ${dateRange[1]}`)
-    console.log(`🎯 选中埋点数量: ${selectedPointIds.length}`)
-    console.log(`📍 埋点ID列表: [${selectedPointIds.join(', ')}]`)
-    console.log(`🔑 缓存键: ${cacheKey}`)
-    console.log('====================================')
-    
-    // 检查内存缓存
-    if (dataCache.value.has(cacheKey)) {
-      const cachedResult = dataCache.value.get(cacheKey)
-      
-      // 🔧 验证内存缓存的完整性
-      if (cachedResult && cachedResult.data && cachedResult.data.length > 0) {
-        console.log(`✅ 使用内存缓存数据: ${cacheKey}`)
-        console.log(`📊 内存缓存数据量: ${cachedResult.data.length} 条`)
-        
-        // 检查是否是不完整的数据（例如只有1000条）
-        if (cachedResult.data.length === 1000) {
-          console.warn(`⚠️ 内存缓存可能不完整（正好1000条），清除并重新获取`)
-          dataCache.value.delete(cacheKey)
-        } else {
-          return cachedResult
-        }
-      } else {
-        console.warn(`⚠️ 内存缓存数据异常，清除并重新获取`)
-        dataCache.value.delete(cacheKey)
-      }
-    }
-    
-    // 尝试从预加载缓存中获取所有埋点的数据
-    console.log(`🔍 检查预加载缓存数据...`)
-    
-    try {
-      let allCachedData = []
-      let allFromCache = true
-      let totalCachedRecords = 0
-      
-      // 遍历每个埋点，尝试从缓存获取
-      let cachedPointsCount = 0
-      for (const pointId of selectedPointIds) {
-        console.log(`📊 检查埋点 ${pointId} 的缓存...`)
-        const cachedData = await dataPreloadService.getMultiDayCachedData(dateRange, pointId)
-        
-        if (cachedData && cachedData.length > 0) {
-          console.log(`  ✅ 埋点 ${pointId}: 找到缓存 ${cachedData.length}条`)
-          // 为每条数据标记埋点ID（如果还没有）
-          const dataWithPointId = cachedData.map(item => ({
-            ...item,
-            _buryPointId: pointId
-          }))
-          // 使用concat而不是展开操作，避免栈溢出
-          allCachedData = allCachedData.concat(dataWithPointId)
-          totalCachedRecords += cachedData.length
-          cachedPointsCount++
-        } else {
-          console.log(`  ❌ 埋点 ${pointId}: 缓存未命中`)
-          // 不要break，继续检查其他埋点
-        }
-      }
-      
-      // 如果至少有一个埋点有缓存数据，就使用缓存
-      if (cachedPointsCount > 0 && allCachedData.length > 0) {
-        console.log('====================================')
-        console.log(`✅✅✅ 部分/全部埋点缓存命中！`)
-        console.log(`📊 缓存埋点数: ${cachedPointsCount}/${selectedPointIds.length}`)
-        console.log(`📊 总计: ${totalCachedRecords}条数据`)
-        console.log(`💡 跳过API调用，直接使用缓存数据`)
-        console.log('====================================')
-        
-        const result = {
-          data: allCachedData,
-          totalRequests: 0,
-          totalRecords: totalCachedRecords,
-          buryPoints: selectedPointIds,
-          analysisMode: selectedPointIds.length === 1 ? 'single' : 'multi'
-        }
-        
-        // 缓存到内存
-        dataCache.value.set(cacheKey, result)
-        return result
-      }
-    } catch (error) {
-      console.warn('❌ 获取预加载缓存失败，回退到API调用:', error)
-    }
-    
-    // 缓存未完全命中，从API获取数据
-    console.log('====================================')
-    console.log(`❌ 缓存未完全命中！需要从API获取数据`)
-    console.log(`🔑 缓存键: ${cacheKey}`)
-    console.log(`📡 即将调用API获取 ${selectedPointIds.length} 个埋点的数据...`)
-    console.log('====================================')
-    
-    // 使用新的多埋点获取方法
-    const result = await fetchMultiBuryPointData(selectedPointIds, dateRange)
-    
-    // 缓存结果
-    dataCache.value.set(cacheKey, result)
-    console.log(`💾 数据已缓存: ${cacheKey}`)
-    
-    // 清理旧缓存（保留最近5个）
-    if (dataCache.value.size > 5) {
-      const keys = Array.from(dataCache.value.keys())
-      const oldKey = keys[0]
-      dataCache.value.delete(oldKey)
-      console.log(`🗑️ 清理旧缓存: ${oldKey}`)
-    }
-    
-    return result
-  }
-
-  // 加载可用的页面列表
-  const loadAvailablePages = async (userDateRange = null) => {
-    try {
-      console.log('开始加载页面列表...')
-      
-      // 使用用户选择的日期范围，如果没有则使用默认的7天范围
-      let dateRange
-      if (userDateRange && userDateRange.length === 2) {
-        dateRange = userDateRange
-        console.log('使用用户选择的日期范围:', dateRange)
-      } else {
-        const endDate = dayjs().format('YYYY-MM-DD')
-        const startDate = dayjs().subtract(6, 'day').format('YYYY-MM-DD')
-        dateRange = [startDate, endDate]
-        console.log('使用默认日期范围:', dateRange)
-      }
-      
-      // 使用缓存的数据获取逻辑
-      const result = await fetchMultiDayData('single', dateRange)
-      const data = result.data // 提取实际的数据数组
-      
-      // 从实际数据中提取页面名称，过滤掉模板字符串
-      const allPages = new Set()
-      data.forEach(item => {
-        if (item.pageName && !item.pageName.includes('{{') && !item.pageName.includes('}}')) {
-          allPages.add(item.pageName)
-        }
-      })
-      
-      availablePages.value = Array.from(allPages).sort()
-      
-      console.log('加载到', availablePages.value.length, '个可用页面（基于实际数据）')
-      console.log('页面列表:', availablePages.value.slice(0, 10)) // 显示前10个页面
-    } catch (error) {
-      console.warn('加载页面列表失败:', error)
-    }
-  }
-
-  // 验证连接
+  /**
+   * 验证API连接
+   */
   const validateConnection = async () => {
     try {
-      await yeepayAPI.validateToken()
-      store.dispatch('updateSystemStatus', {
-        dataConnected: true,
-        lastUpdate: new Date().toISOString()
-      })
-      return true
+      const { yeepayAPI } = await import('@/api')
+      const response = await yeepayAPI.validateToken()
+      return response && response.success !== false
     } catch (error) {
-      console.warn('API连接验证失败，将使用模拟数据:', error)
-      
-      // 显示更详细的错误信息
-      if (error.response) {
-        console.error('服务器返回错误:', {
-          状态码: error.response.status,
-          错误数据: error.response.data,
-          请求URL: error.config?.url,
-          请求方法: error.config?.method,
-          请求数据: error.config?.data
-        })
-      }
-      
-      store.dispatch('updateSystemStatus', {
-        dataConnected: false,
-        lastUpdate: new Date().toISOString()
-      })
+      console.error('API连接验证失败:', error)
       return false
     }
   }
 
-  // 清理缓存
-  const clearCache = () => {
-    dataCache.value.clear()
-    console.log('数据缓存已清理')
+  /**
+   * 获取多天数据
+   */
+  const fetchMultiDayData = async (mode, dateRange) => {
+    try {
+      isLoading.value = true
+      const [startDate, endDate] = dateRange
+      const startDateStr = startDate.format('YYYY-MM-DD')
+      const endDateStr = endDate.format('YYYY-MM-DD')
+      
+      console.log(`📡 获取数据: ${startDateStr} 至 ${endDateStr}`)
+      
+      // 使用数据预加载服务获取数据
+      const data = await dataPreloadService.getMultiDayCachedData(dateRange, store.state.apiConfig.selectedPointId)
+      
+      return {
+        data,
+        dateRange: [startDateStr, endDateStr]
+      }
+    } catch (error) {
+      console.error('获取多天数据失败:', error)
+      throw error
+    } finally {
+      isLoading.value = false
+    }
   }
-  
+
+  /**
+   * 根据日期范围获取数据
+   */
+  const fetchDataForDateRange = async (dateRange) => {
+    const [startDate, endDate] = dateRange
+    const startDateStr = startDate.format('YYYY-MM-DD')
+    const endDateStr = endDate.format('YYYY-MM-DD')
+    
+    console.log(`📡 [Home] 获取数据: ${startDateStr} 至 ${endDateStr}`)
+    
+    // 获取日期范围内的所有数据
+    const allData = []
+    let currentDate = startDate
+    
+    while (currentDate.isSameOrBefore(endDate)) {
+      const dateStr = currentDate.format('YYYY-MM-DD')
+      console.log(`📅 [Home] 获取 ${dateStr} 的数据...`)
+      
+      try {
+        const dayData = await fetchDayData({
+          date: dateStr,
+          projectId: store.state.apiConfig.projectId,
+          selectedPointId: store.state.apiConfig.selectedPointId
+        })
+        
+        allData.push(...dayData)
+        console.log(`✅ [Home] ${dateStr}: ${dayData.length} 条数据`)
+        
+      } catch (error) {
+        console.warn(`⚠️ [Home] ${dateStr} 数据获取失败:`, error)
+        // 即使某天数据获取失败，也继续处理其他天
+      }
+      
+      currentDate = currentDate.add(1, 'day')
+    }
+    
+    console.log(`📊 [Home] 总计获取 ${allData.length} 条数据`)
+    return allData
+  }
+
+  /**
+   * 获取单天数据的辅助函数
+   */
+  const fetchDayData = async ({ date, projectId, selectedPointId }) => {
+    const { yeepayAPI } = await import('@/api')
+    
+    const response = await yeepayAPI.searchBuryPointData({
+      date: date,
+      pageSize: store.state.apiConfig.pageSize || 1000,
+      projectId: projectId,
+      selectedPointId: selectedPointId
+    })
+    
+    return response.data?.dataList || []
+  }
+
+  /**
+   * 手动触发数据预加载
+   */
+  const triggerManualPreload = async () => {
+    try {
+      isPreloading.value = true
+      console.log('🔄 手动触发数据预加载...')
+      
+      // 不显示loading消息，让右侧状态组件处理
+      await dataPreloadService.triggerPreload()
+      
+      // 不显示success消息，让右侧状态组件处理
+      console.log('✅ 手动数据预加载完成')
+    } catch (error) {
+      console.error('手动数据预加载失败:', error)
+      message.error('数据预加载失败: ' + error.message)
+    } finally {
+      isPreloading.value = false
+    }
+  }
+
+  /**
+   * 处理日期范围变化
+   */
+  const onDateRangeChange = async (dates, dateStrings) => {
+    console.log('====================================')
+    console.log('Home: onDateRangeChange 被调用')
+    console.log('传入的 dates:', dates)
+    console.log('传入的 dateStrings:', dateStrings)
+    console.log('====================================')
+    
+    if (!dates || dates.length !== 2) {
+      console.log('日期范围无效，退出')
+      return
+    }
+    
+    // 使用 dateStrings 如果存在，否则从 dates 中提取日期字符串
+    let start, end
+    if (dateStrings && dateStrings.length === 2) {
+      [start, end] = dateStrings
+      console.log('使用 dateStrings:', start, '至', end)
+    } else {
+      // 从 dayjs 对象中提取日期字符串
+      start = dates[0].format('YYYY-MM-DD')
+      end = dates[1].format('YYYY-MM-DD')
+      console.log('从 dates 提取:', start, '至', end)
+    }
+    
+    console.log('最终日期范围:', start, '至', end)
+    
+    // 清空缓存，确保使用新的日期范围重新获取数据
+    clearCache()
+    console.log('已清空数据缓存，准备重新加载数据')
+    
+    // 注释掉自动重新加载页面列表，避免调用API
+    // await loadAvailablePages(dateRange.value)
+    console.log('⏸️ 跳过自动重新加载页面列表')
+    
+    message.success(`日期范围已设置为 ${start} 至 ${end}`)
+  }
+
+  /**
+   * 刷新数据
+   */
+  const refreshData = async () => {
+    try {
+      await validateConnection()
+      message.success('数据刷新成功')
+    } catch (error) {
+      message.error('数据刷新失败')
+    }
+  }
+
+  /**
+   * 清空缓存
+   */
+  const clearCache = () => {
+    dataPreloadService.clearCache()
+  }
+
+  /**
+   * 加载可用页面
+   */
+  const loadAvailablePages = async (dateRange) => {
+    try {
+      isLoading.value = true
+      const data = await fetchMultiDayData('single', dateRange)
+      
+      // 从数据中提取页面名称
+      const pages = [...new Set(data.data.map(item => item.pageName).filter(Boolean))]
+      availablePages.value = pages
+      
+      return pages
+    } catch (error) {
+      console.error('加载可用页面失败:', error)
+      throw error
+    } finally {
+      isLoading.value = false
+    }
+  }
+
   return {
-    fetchProgress,
+    // 状态
+    isLoading,
+    error,
     availablePages,
-    fetchMultiDayData,
-    loadAvailablePages,
+    isPreloading,
+    
+    // 方法
     validateConnection,
-    clearCache
+    fetchMultiDayData,
+    fetchDataForDateRange,
+    fetchDayData,
+    triggerManualPreload,
+    onDateRangeChange,
+    refreshData,
+    clearCache,
+    loadAvailablePages
   }
 }

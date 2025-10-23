@@ -1867,11 +1867,15 @@ const handleMultipleConditionsSelection = (selectedItems) => {
     allConditions: selectedItems
   }
   
+  // 🚀 修复：使用具体的条件类型而不是"多条件"
+  const groupType = selectedItems[0]?.groupType || selectedItems[0]?.parentType
+  const properQueryCondition = groupType ? `${groupType}:${conditionNames}` : conditionNames
+  
   emit('analyze-requirement', {
     requirement,
     type: 'query_condition_analysis',
     pageName: selectedPageName.value,
-    queryCondition: `多条件:${conditionNames}`,
+    queryCondition: properQueryCondition,
     queryData: queryData
   })
   
