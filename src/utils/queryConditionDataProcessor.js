@@ -302,6 +302,10 @@ export class QueryConditionDataProcessor {
     
     this.logger.log('📋 [QueryConditionDataProcessor] 最终使用的条件名称:', conditionNames)
 
+    // 🚀 获取实际条件比例信息
+    const conditionRatios = this.getConditionRatios(conditionNames, options)
+    this.logger.log('📊 [QueryConditionDataProcessor] 条件比例信息:', conditionRatios)
+
     // 为每个条件生成数据
     const conditionData = conditionNames.map((name, index) => {
       const dataPerCondition = aggregatedData.map(item => {
@@ -314,42 +318,50 @@ export class QueryConditionDataProcessor {
             // 单个条件：直接使用总PV
             value = totalPv
           } else {
-            // 多个条件：使用更真实的数据分配策略
-            if (totalPv === 0) {
-              value = 0
-            } else if (totalPv === 1) {
-              // 只有1个PV时，随机分配给一个条件
-              value = index === 0 ? 1 : 0
-            } else if (totalPv <= conditionNames.length) {
-              // PV数量小于等于条件数量时，每个条件最多1个
-              value = index < totalPv ? 1 : 0
+            // 多个条件：使用实际比例分配
+            if (conditionRatios[name]) {
+              // 使用实际比例分配
+              value = Math.round(totalPv * conditionRatios[name])
+              // 确保至少为0
+              value = Math.max(0, value)
             } else {
-              // PV数量大于条件数量时，使用加权分配
-              // 主要条件（第一个）获得更多分配
-              const mainConditionRatio = 0.4 // 主要条件占40%
-              const otherConditionRatio = 0.6 / (conditionNames.length - 1) // 其他条件平分60%
-              
-              if (index === 0) {
-                // 主要条件
-                value = Math.max(1, Math.floor(totalPv * mainConditionRatio))
+              // 如果没有比例信息，使用默认分配策略
+              if (totalPv === 0) {
+                value = 0
+              } else if (totalPv === 1) {
+                // 只有1个PV时，随机分配给一个条件
+                value = index === 0 ? 1 : 0
+              } else if (totalPv <= conditionNames.length) {
+                // PV数量小于等于条件数量时，每个条件最多1个
+                value = index < totalPv ? 1 : 0
               } else {
-                // 其他条件
-                value = Math.max(0, Math.floor(totalPv * otherConditionRatio))
-              }
-              
-              // 确保总和不超过总PV
-              const currentSum = conditionNames.reduce((sum, _, i) => {
-                if (i === 0) {
-                  return sum + Math.max(1, Math.floor(totalPv * mainConditionRatio))
+                // PV数量大于条件数量时，使用加权分配
+                // 主要条件（第一个）获得更多分配
+                const mainConditionRatio = 0.4 // 主要条件占40%
+                const otherConditionRatio = 0.6 / (conditionNames.length - 1) // 其他条件平分60%
+                
+                if (index === 0) {
+                  // 主要条件
+                  value = Math.max(1, Math.floor(totalPv * mainConditionRatio))
                 } else {
-                  return sum + Math.max(0, Math.floor(totalPv * otherConditionRatio))
+                  // 其他条件
+                  value = Math.max(0, Math.floor(totalPv * otherConditionRatio))
                 }
-              }, 0)
-              
-              if (currentSum > totalPv) {
-                // 如果总和超过总PV，按比例缩减
-                const scale = totalPv / currentSum
-                value = Math.floor(value * scale)
+                
+                // 确保总和不超过总PV
+                const currentSum = conditionNames.reduce((sum, _, i) => {
+                  if (i === 0) {
+                    return sum + Math.max(1, Math.floor(totalPv * mainConditionRatio))
+                  } else {
+                    return sum + Math.max(0, Math.floor(totalPv * otherConditionRatio))
+                  }
+                }, 0)
+                
+                if (currentSum > totalPv) {
+                  // 如果总和超过总PV，按比例缩减
+                  const scale = totalPv / currentSum
+                  value = Math.floor(value * scale)
+                }
               }
             }
           }
@@ -371,6 +383,38 @@ export class QueryConditionDataProcessor {
 
     this.logger.log('✅ [QueryConditionDataProcessor] 多条件数据生成完成:', conditionData)
     return conditionData
+  }
+
+  /**
+   * 获取条件比例信息
+   * @param {Array} conditionNames - 条件名称数组
+   * @param {Object} options - 处理选项
+   * @returns {Object} 条件比例映射
+   */
+  getConditionRatios(conditionNames, options) {
+    const ratios = {}
+    
+    if (options.queryData && options.queryData.conditions) {
+      // 从图表配置中获取条件比例
+      const totalPv = options.queryData.conditions.reduce((sum, condition) => sum + (condition.pv || 0), 0)
+      
+      if (totalPv > 0) {
+        options.queryData.conditions.forEach(condition => {
+          const conditionName = condition.displayName || condition.content
+          if (conditionNames.includes(conditionName)) {
+            ratios[conditionName] = (condition.pv || 0) / totalPv
+          }
+        })
+      }
+    }
+    
+    this.logger.log('📊 [QueryConditionDataProcessor] 计算条件比例:', {
+      conditionNames,
+      totalPv: options.queryData?.conditions?.reduce((sum, c) => sum + (c.pv || 0), 0) || 0,
+      ratios
+    })
+    
+    return ratios
   }
 
   /**
