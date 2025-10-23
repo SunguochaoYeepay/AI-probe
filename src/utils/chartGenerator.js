@@ -1510,7 +1510,9 @@ export class ChartGenerator {
       analysis: analysis,
       userDateRange: userDateRange,
       // 🚀 传递日期范围信息
-      dateRange: analysis.dateRangeObj
+      dateRange: analysis.dateRangeObj,
+      // 🚀 为查询条件分析传递原始数据
+      rawData: format === 'raw' ? data : null
     })
     
     console.log('📊 单页面UV/PV图表数据:', {
@@ -1755,7 +1757,9 @@ export class ChartGenerator {
       format: format,
       analysis: analysis,
       // 🚀 传递日期范围信息
-      dateRange: analysis.dateRangeObj
+      dateRange: analysis.dateRangeObj,
+      // 🚀 为查询条件分析传递原始数据
+      rawData: format === 'raw' ? data : null
     })
     
     console.log(`🔍 [ChartGenerator] 按钮点击分析图表数据:`, {
@@ -1890,7 +1894,9 @@ export class ChartGenerator {
       queryCondition: analysis.parameters?.queryCondition || '',
       queryData: analysis.parameters?.queryData,
       // 🚀 传递日期范围信息
-      dateRange: analysis.dateRangeObj
+      dateRange: analysis.dateRangeObj,
+      // 🚀 为查询条件分析传递原始数据
+      rawData: format === 'raw' ? data : null
     })
     
     // 获取查询条件信息

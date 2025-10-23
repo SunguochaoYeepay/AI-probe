@@ -151,7 +151,7 @@ export class QueryConditionDataProcessor {
    * @returns {Object} 分配后的图表数据
    */
   allocate(aggregatedData, options) {
-    const { queryCondition, queryData } = options
+    const { queryCondition, queryData, rawData } = options
 
     // 🚀 修复：生成完整的时间轴，填充缺失的天数为0值
     if (!aggregatedData || aggregatedData.length === 0) {
@@ -251,7 +251,7 @@ export class QueryConditionDataProcessor {
       return existingData || { date: date, pv: 0, uv: 0 }
     })
     
-    const conditionData = this.generateConditionData(fullAggregatedData, queryCondition)
+    const conditionData = this.generateConditionData(fullAggregatedData, queryCondition, rawData)
     
     this.logger.log('📊 [QueryConditionDataProcessor] 完整时间轴生成（多条件）:', {
       originalDataCount: aggregatedData.length,
@@ -277,17 +277,30 @@ export class QueryConditionDataProcessor {
    * 生成多条件数据
    * @param {Array} aggregatedData - 聚合数据
    * @param {string} queryCondition - 查询条件
+   * @param {Array} rawData - 原始数据（可选）
    * @returns {Array} 条件数据
    */
-  generateConditionData(aggregatedData, queryCondition) {
+  generateConditionData(aggregatedData, queryCondition, rawData = null) {
     this.logger.log('🔍 [QueryConditionDataProcessor] 生成多条件数据:', {
       dataLength: aggregatedData.length,
       queryCondition
     })
 
-    // 提取条件名称
-    const conditionNames = this.extractConditionNames(queryCondition)
-    this.logger.log('📋 [QueryConditionDataProcessor] 解析出的条件名称:', conditionNames)
+    // 🚀 修复：首先分析实际数据中存在的条件
+    const actualConditions = this.analyzeActualConditions(aggregatedData, queryCondition, rawData)
+    this.logger.log('📋 [QueryConditionDataProcessor] 实际数据中的条件:', actualConditions)
+
+    // 如果实际数据中只有一种条件，且查询条件是多条件，则使用实际条件
+    let conditionNames = actualConditions
+    if (actualConditions.length === 1 && this.isMultiCondition(queryCondition)) {
+      this.logger.log('⚠️ [QueryConditionDataProcessor] 实际数据中只有一种条件，但查询条件是多条件，使用实际条件')
+      conditionNames = actualConditions
+    } else {
+      // 否则使用查询条件中指定的条件
+      conditionNames = this.extractConditionNames(queryCondition)
+    }
+    
+    this.logger.log('📋 [QueryConditionDataProcessor] 最终使用的条件名称:', conditionNames)
 
     // 为每个条件生成数据
     const conditionData = conditionNames.map((name, index) => {
@@ -358,6 +371,49 @@ export class QueryConditionDataProcessor {
 
     this.logger.log('✅ [QueryConditionDataProcessor] 多条件数据生成完成:', conditionData)
     return conditionData
+  }
+
+  /**
+   * 分析实际数据中存在的条件
+   * @param {Array} aggregatedData - 聚合数据
+   * @param {string} queryCondition - 查询条件
+   * @param {Array} rawData - 原始数据（可选）
+   * @returns {Array} 实际存在的条件名称
+   */
+  analyzeActualConditions(aggregatedData, queryCondition, rawData = null) {
+    // 如果有原始数据，分析实际存在的条件
+    if (rawData && rawData.length > 0) {
+      this.logger.log('🔍 [QueryConditionDataProcessor] 分析原始数据中的实际条件')
+      
+      // 从原始数据中提取所有唯一的条件
+      const actualConditions = new Set()
+      
+      rawData.forEach(item => {
+        if (item.content) {
+          try {
+            // 解析JSON格式的content
+            const contentObj = JSON.parse(item.content)
+            if (contentObj.状态) {
+              actualConditions.add(contentObj.状态)
+            }
+          } catch (e) {
+            // 如果不是JSON格式，直接使用content作为条件
+            actualConditions.add(item.content)
+          }
+        }
+      })
+      
+      const conditionArray = Array.from(actualConditions)
+      this.logger.log('📋 [QueryConditionDataProcessor] 从原始数据中分析出的实际条件:', conditionArray)
+      
+      return conditionArray
+    }
+    
+    // 如果没有原始数据，返回查询条件中解析出的条件
+    const extractedConditions = this.extractConditionNames(queryCondition)
+    this.logger.log('🔍 [QueryConditionDataProcessor] 从查询条件解析出的条件:', extractedConditions)
+    
+    return extractedConditions
   }
 
   /**

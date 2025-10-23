@@ -666,6 +666,12 @@ export class DataProcessorFactory {
    */
   process(analysisType, data, options) {
     const processor = this.getProcessor(analysisType)
+    
+    // 🚀 为查询条件分析传递原始数据
+    if (analysisType === 'query_condition_analysis' && options.rawData) {
+      options.rawData = options.rawData
+    }
+    
     return processor.process(data, options)
   }
 }

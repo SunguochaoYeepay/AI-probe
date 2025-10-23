@@ -667,7 +667,9 @@ const transformChartData = async (data, config, chartInfo = null) => {
       dateRange: {
         startDate: dateRange.value?.startDate,
         endDate: dateRange.value?.endDate
-      }
+      },
+      // 🚀 为查询条件分析传递原始数据
+      rawData: format === 'raw' ? data : null
     })
     
     console.log('✅ [ChartDetail] 统一数据处理完成:', result)
