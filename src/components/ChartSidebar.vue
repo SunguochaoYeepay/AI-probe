@@ -20,36 +20,6 @@
       </div>
     </div>
 
-    <!-- 搜索框 -->
-    <div class="sidebar-search" v-if="!collapsed">
-      <a-input-search
-        v-model:value="searchKeyword"
-        placeholder="搜索图表..."
-        @search="onSearch"
-        :loading="isSearching"
-        allow-clear
-      >
-        <template #prefix>
-          <SearchOutlined />
-        </template>
-      </a-input-search>
-      
-      <!-- 搜索结果 -->
-      <div class="search-results" v-if="searchResults.length > 0">
-        <div class="search-title">搜索结果</div>
-        <div class="search-list">
-          <div 
-            v-for="result in searchResults" 
-            :key="result.id"
-            class="search-item"
-            @click="viewSearchResult(result)"
-          >
-            <div class="search-item-title">{{ result.name }}</div>
-            <div class="search-item-desc">{{ result.description }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- 导航菜单 -->
     <a-menu
@@ -172,7 +142,6 @@ import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   BarChartOutlined,
-  SearchOutlined,
   DashboardOutlined,
   FileTextOutlined,
   UserOutlined,
@@ -203,46 +172,13 @@ const props = defineProps({
 const collapsed = ref(false)
 const selectedKeys = ref([props.currentPage])
 const openKeys = ref(['page-analysis'])
-const searchKeyword = ref('')
 
 // 监听currentPage变化
 watch(() => props.currentPage, (newPage) => {
   selectedKeys.value = [newPage]
 }, { immediate: true })
 
-// 计算属性
-const filteredCharts = computed(() => {
-  // 这里可以根据搜索关键词过滤图表
-  return []
-})
-
-// 搜索功能
-const searchResults = ref([])
-const isSearching = ref(false)
-
 // 方法
-const onSearch = async (value) => {
-  if (!value.trim()) {
-    searchResults.value = []
-    isSearching.value = false
-    return
-  }
-  
-  isSearching.value = true
-  try {
-    // 这里可以调用图表管理器的搜索方法
-    console.log('搜索图表:', value)
-    // 模拟搜索延迟
-    await new Promise(resolve => setTimeout(resolve, 300))
-    
-    // 实际搜索逻辑会在这里实现
-    searchResults.value = []
-  } catch (error) {
-    console.error('搜索失败:', error)
-  } finally {
-    isSearching.value = false
-  }
-}
 
 const emit = defineEmits(['menu-click'])
 
@@ -295,9 +231,6 @@ const createNewChart = () => {
   router.push('/')
 }
 
-const viewSearchResult = (result) => {
-  router.push(`/chart/${result.id}`)
-}
 
 // 暴露给父组件的方法
 defineExpose({
@@ -337,55 +270,6 @@ defineExpose({
   white-space: nowrap;
 }
 
-.sidebar-search {
-  padding: 16px;
-  border-bottom: 1px solid var(--border-color, #f0f0f0);
-}
-
-.search-results {
-  margin-top: 12px;
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.search-title {
-  font-size: 12px;
-  color: var(--text-color-secondary, #999);
-  margin-bottom: 8px;
-  padding: 0 4px;
-}
-
-.search-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.search-item {
-  padding: 8px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: 1px solid transparent;
-}
-
-.search-item:hover {
-  background: var(--bg-color, #f5f5f5);
-  border-color: var(--border-color, #d9d9d9);
-}
-
-.search-item-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-color, #262626);
-  margin-bottom: 2px;
-}
-
-.search-item-desc {
-  font-size: 11px;
-  color: var(--text-color-secondary, #8c8c8c);
-  line-height: 1.4;
-}
 
 .sidebar-menu {
   border-right: none;
