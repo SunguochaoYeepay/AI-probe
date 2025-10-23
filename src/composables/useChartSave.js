@@ -102,7 +102,7 @@ export function useChartSave() {
       
       const chartConfig = {
         name: chartName,
-        description: store.state.currentRequirement,
+        description: store.state.currentRequirement || effectiveAnalysis.description || chartName,
         category: getCategoryByAnalysisType(store.state.apiConfig.selectedAnalysisType || 'page_analysis'),
         chartType: chartType,
         mode: store.state.analysisMode || 'single',

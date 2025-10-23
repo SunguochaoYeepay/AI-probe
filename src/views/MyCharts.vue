@@ -40,7 +40,7 @@
         <a-col :span="6" v-if="activeType === 'page-visits' || activeType === 'button-clicks' || activeType === 'query-conditions'">
           <a-input
             v-model:value="pageFilter"
-            placeholder="筛选页面..."
+            placeholder="所属页面...."
             allow-clear
           >
             <template #prefix>

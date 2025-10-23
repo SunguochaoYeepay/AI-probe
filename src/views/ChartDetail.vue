@@ -1,7 +1,7 @@
 <template>
   <AppLayout 
-    page-title="图表详情"
-    current-page="chart-detail"
+    :page-title="dynamicPageTitle"
+    :current-page="dynamicCurrentPage"
     @menu-click="handleMenuClick"
   >
     <template #header-actions>
@@ -26,13 +26,10 @@
       <a-card class="info-card" :bordered="false">
         <!-- 分析对象 -->
         <div class="analysis-target" style="margin-bottom: 16px;">
-          <h3 style="margin: 0 0 8px 0; color: #1890ff;">
+          <h3 style="margin: 0; color: #666;">
             <FileTextOutlined style="margin-right: 8px;" />
             {{ getAnalysisTarget() }}
           </h3>
-          <p style="margin: 0; color: #666; font-size: 14px;">
-            {{ chart?.description }}
-          </p>
         </div>
         
         <a-row :gutter="24">
@@ -46,20 +43,10 @@
               <a-descriptions-item label="图表类型">
                 {{ getChartTypeName(chart?.config.chartType) }}
               </a-descriptions-item>
-              <a-descriptions-item label="数据范围">
-                {{ chart?.config.dateRangeStrategy }}
-              </a-descriptions-item>
             </a-descriptions>
           </a-col>
           <a-col :span="12">
             <a-descriptions :column="1" size="small">
-              <a-descriptions-item label="数据条数">
-                <a-statistic 
-                  :value="chartData.length" 
-                  suffix="条"
-                  :value-style="{ fontSize: '14px' }"
-                />
-              </a-descriptions-item>
               <a-descriptions-item label="最后更新">
                 <span v-if="chart?.lastDataUpdate">
                   {{ formatDateTime(chart?.lastDataUpdate) }}
@@ -199,6 +186,30 @@ const needUpdate = computed(() => {
   return chart.value.lastDataUpdate < yesterday
 })
 
+// 动态页面标题
+const dynamicPageTitle = computed(() => {
+  if (!chart.value) return '图表详情'
+  return getAnalysisTarget()
+})
+
+// 动态当前页面（用于菜单高亮）
+const dynamicCurrentPage = computed(() => {
+  if (!chart.value?.config?.chartType) return 'chart-detail'
+  
+  const chartType = chart.value.config.chartType
+  switch (chartType) {
+    case 'query_condition_analysis':
+      return 'query-conditions'
+    case 'button_click_analysis':
+    case 'button_click_daily':
+      return 'button-clicks'
+    case 'single_page_uv_pv_chart':
+      return 'page-visits'
+    default:
+      return 'chart-detail'
+  }
+})
+
 const keyMetrics = computed(() => {
   if (!chartData.value || chartData.value.length === 0) {
     return {}
@@ -244,7 +255,21 @@ const loadData = async () => {
     // 等待数据库初始化完成
     await waitForDatabaseInit()
     
-    const result = await getChartData(route.params.id)
+    // 🚀 设置默认时间范围为7天
+    selectedTimeRange.value = '7'
+    console.log('📅 设置默认时间范围为7天')
+    
+    // 计算7天的日期范围
+    const endDate = dayjs()
+    const startDate = endDate.subtract(7, 'day')
+    
+    console.log(`📊 [ChartDetail] 默认日期范围: ${startDate.format('YYYY-MM-DD')} 至 ${endDate.format('YYYY-MM-DD')}`)
+    
+    // 获取7天的数据
+    const result = await getChartData(route.params.id, {
+      startDate: startDate.format('YYYY-MM-DD'),
+      endDate: endDate.format('YYYY-MM-DD')
+    })
     
     chart.value = result.chart
     chartData.value = result.data
@@ -254,23 +279,6 @@ const loadData = async () => {
       chart: chart.value.name,
       dataCount: chartData.value.length
     })
-    
-    // 🚀 根据图表的数据范围策略设置默认时间范围
-    const dateRangeStrategy = chart.value.config.dateRangeStrategy
-    if (dateRangeStrategy === 'last_30_days') {
-      selectedTimeRange.value = '30'
-      console.log('📅 设置默认时间范围为30天')
-    } else if (dateRangeStrategy === 'last_7_days') {
-      selectedTimeRange.value = '7'
-      console.log('📅 设置默认时间范围为7天')
-    } else if (dateRangeStrategy === 'last_60_days') {
-      selectedTimeRange.value = '60'
-      console.log('📅 设置默认时间范围为60天')
-    } else {
-      // 默认保持7天
-      selectedTimeRange.value = '7'
-      console.log('📅 使用默认时间范围7天')
-    }
     
     // 渲染图表
     await renderChart()
@@ -1074,9 +1082,24 @@ const getChartTypeName = (type) => {
 }
 
 const getAnalysisTarget = () => {
-  if (!chart.value?.description) return '未知分析对象'
+  // 🚀 修复：优先使用 description，如果为空则使用 name
+  let description = chart.value?.description
+  if (!description && chart.value?.name) {
+    description = chart.value.name
+    console.log('🔍 [ChartDetail] 使用 chartName 作为描述:', description)
+  }
   
-  const description = chart.value.description
+  if (!description) {
+    console.log('🔍 [ChartDetail] 图表描述和名称都为空:', {
+      hasChart: !!chart.value,
+      description: chart.value?.description,
+      chartName: chart.value?.name,
+      chartConfig: chart.value?.config
+    })
+    return '未知分析对象'
+  }
+  
+  console.log('🔍 [ChartDetail] 使用描述:', description)
   
   // 提取页面名称
   let pageName = ''
@@ -1092,6 +1115,28 @@ const getAnalysisTarget = () => {
   const buttonMatch = description.match(/"([^"]+)"按钮/)
   if (buttonMatch) {
     buttonName = buttonMatch[1]
+  }
+  
+  // 🚀 修复：处理查询条件分析的描述格式
+  // 格式：分析页面"${pageName}"的"${queryCondition}"查询条件使用情况
+  const queryConditionMatch = description.match(/分析页面"([^"]+)"的"([^"]+)"查询条件使用情况/)
+  if (queryConditionMatch) {
+    const extractedPageName = queryConditionMatch[1]
+    const queryCondition = queryConditionMatch[2]
+    return `${extractedPageName} 页面的 "${queryCondition}" 查询条件`
+  }
+  
+  // 🚀 修复：处理按钮点击分析的描述格式
+  // 格式：分析页面"${pageName}"的"${buttonName}"按钮点击情况
+  const buttonClickMatch = description.match(/分析页面"([^"]+)"的"([^"]+)"按钮点击情况/)
+  if (buttonClickMatch) {
+    const extractedPageName = buttonClickMatch[1]
+    const extractedButtonName = buttonClickMatch[2]
+    console.log('🔍 [ChartDetail] 按钮点击分析匹配成功:', {
+      pageName: extractedPageName,
+      buttonName: extractedButtonName
+    })
+    return `${extractedPageName} 页面的 "${extractedButtonName}" 按钮`
   }
   
   // 根据是否有按钮名称决定显示内容
@@ -1134,7 +1179,7 @@ const onTimeRangeChange = async (e) => {
     
     // 计算新的日期范围
     const endDate = dayjs()
-    const startDate = endDate.subtract(days - 1, 'day')
+    const startDate = endDate.subtract(days, 'day')
     
     console.log(`📊 [ChartDetail] 新日期范围: ${startDate.format('YYYY-MM-DD')} 至 ${endDate.format('YYYY-MM-DD')}`)
     

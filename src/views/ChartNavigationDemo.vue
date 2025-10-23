@@ -192,7 +192,7 @@ const goToMyCharts = () => {
   }
   
   .page-content {
-    padding: 24px;
+    padding: 16px;
     min-height: calc(100vh - 64px);
   }
 }
