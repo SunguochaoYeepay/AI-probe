@@ -139,17 +139,53 @@ export function useChartManager() {
       
       // 批量保存初始数据
       if (initialData && Object.keys(initialData).length > 0) {
-        const dataList = Object.entries(initialData).map(([date, data]) => ({
-          chartId: chart.id,
-          date: date,
-          ...data
-        }))
+        const dataList = Object.entries(initialData).map(([key, data]) => {
+          // 🚀 修复：处理多条件数据的键格式
+          let date, conditionName
+          if (key.startsWith('temp_')) {
+            // 多条件数据格式：temp_2025-10-17_全部
+            const parts = key.split('_')
+            if (parts.length >= 3) {
+              date = parts[1]
+              conditionName = parts.slice(2).join('_')
+            } else {
+              console.warn('⚠️ 多条件数据键格式异常:', key)
+              date = key
+              conditionName = null
+            }
+          } else {
+            // 单条件数据格式：2025-10-17
+            date = key
+            conditionName = null
+          }
+          
+          return {
+            chartId: chart.id,
+            date: date,
+            conditionName: conditionName,
+            ...data
+          }
+        })
+        
+        console.log('🔍 [ChartManager] 准备保存的数据列表:', {
+          dataListLength: dataList.length,
+          sampleData: dataList.slice(0, 2),
+          allKeys: dataList.map(d => ({ chartId: d.chartId, date: d.date, conditionName: d.conditionName })),
+          sampleDataKeys: dataList.length > 0 ? Object.keys(dataList[0]) : []
+        })
         
         await chartDB.batchSaveChartData(dataList)
         console.log(`✅ 初始数据已保存: ${dataList.length}天`)
         
         // 更新最后数据更新时间
-        const latestDate = Object.keys(initialData).sort().pop()
+        const allDates = Object.keys(initialData).map(key => {
+          if (key.startsWith('temp_')) {
+            return key.split('_')[1]
+          }
+          return key
+        }).filter((date, index, arr) => arr.indexOf(date) === index) // 去重
+        
+        const latestDate = allDates.sort().pop()
         await chartDB.updateChart(chart.id, {
           lastDataUpdate: formatLastUpdateTime(latestDate)
         })

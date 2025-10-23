@@ -107,7 +107,8 @@ export class QueryConditionDataProcessor {
         return {
           date: item.date || item.createdAt,
           pv: pv,
-          uv: uv
+          uv: uv,
+          conditionName: item.conditionName // 🚀 修复：保留conditionName字段
         }
       })
     }
@@ -273,7 +274,16 @@ export class QueryConditionDataProcessor {
     })
 
     // 判断是否为多条件
-    const isMultiCondition = this.isMultiCondition(queryCondition)
+    // 🚀 修复：优先根据实际数据中的conditionName字段判断
+    const uniqueConditions = [...new Set(aggregatedData.map(item => item.conditionName).filter(Boolean))]
+    const isMultiCondition = uniqueConditions.length > 1 || this.isMultiCondition(queryCondition)
+    
+    this.logger.log('🔍 [QueryConditionDataProcessor] 多条件检测:', {
+      uniqueConditions: uniqueConditions,
+      conditionCount: uniqueConditions.length,
+      isMultiCondition: isMultiCondition,
+      queryCondition: queryCondition
+    })
     
     if (!isMultiCondition) {
       // 单条件：直接返回UV/PV数据
@@ -350,9 +360,15 @@ export class QueryConditionDataProcessor {
       item.dimensions && item.dimensions.condition
     )
     
+    // 🚀 检查是否有conditionName字段（多条件数据）
+    const hasConditionName = aggregatedData.some(item => item.conditionName)
+    
     if (hasConditionDimension) {
       this.logger.log('🔍 [QueryConditionDataProcessor] 检测到条件维度数据，直接构建多条件数据')
       return this.buildConditionDataFromDimensionData(aggregatedData, options, fullDateRange)
+    } else if (hasConditionName) {
+      this.logger.log('🔍 [QueryConditionDataProcessor] 检测到conditionName字段，构建多条件数据')
+      return this.buildConditionDataFromConditionName(aggregatedData, options, fullDateRange)
     }
 
     // 原有的单维度数据处理逻辑
@@ -464,6 +480,57 @@ export class QueryConditionDataProcessor {
         isMultipleConditions: false,
         conditionData: []
       }
+    }
+  }
+
+  /**
+   * 🚀 从conditionName字段构建条件数据
+   * @param {Array} aggregatedData - 聚合数据
+   * @param {Object} options - 处理选项
+   * @param {Array} fullDateRange - 完整日期范围
+   * @returns {Object} 构建的条件数据
+   */
+  buildConditionDataFromConditionName(aggregatedData, options, fullDateRange) {
+    this.logger.log('🔧 [QueryConditionDataProcessor] 从conditionName构建多条件数据')
+    
+    // 获取所有唯一条件
+    const uniqueConditions = [...new Set(aggregatedData.map(item => item.conditionName).filter(Boolean))]
+    this.logger.log('📋 [QueryConditionDataProcessor] 检测到的条件:', uniqueConditions)
+    
+    // 为每个条件构建数据
+    const conditionData = uniqueConditions.map(conditionName => {
+      const conditionItems = aggregatedData.filter(item => item.conditionName === conditionName)
+      
+      // 创建条件数据映射
+      const conditionDataMap = new Map()
+      conditionItems.forEach(item => {
+        conditionDataMap.set(item.date, item)
+      })
+      
+      // 为每个日期生成数据
+      const data = fullDateRange.map(date => {
+        const item = conditionDataMap.get(date)
+        return item ? (item.pv || 0) : 0
+      })
+      
+      return {
+        name: conditionName,
+        data: data
+      }
+    })
+    
+    this.logger.log('✅ [QueryConditionDataProcessor] 多条件数据构建完成:', {
+      conditionCount: conditionData.length,
+      conditionNames: conditionData.map(c => c.name),
+      sampleData: conditionData.map(c => ({ name: c.name, dataLength: c.data.length, sample: c.data.slice(0, 3) }))
+    })
+    
+    return {
+      categories: fullDateRange,
+      uvData: [],
+      pvData: [],
+      isMultipleConditions: true,
+      conditionData: conditionData
     }
   }
 

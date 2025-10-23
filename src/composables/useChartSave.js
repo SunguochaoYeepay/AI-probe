@@ -5,6 +5,7 @@ import { chartDB } from '@/utils/indexedDBManager'
 import { useChartManager } from '@/composables/useChartManager'
 import { useChart } from '@/composables/useChart'
 import { aggregationService } from '@/utils/aggregationService'
+import { buttonClickAnalysisSaveService } from '@/services/buttonClickAnalysisSaveService'
 
 /**
  * 图表保存相关的逻辑
@@ -158,9 +159,25 @@ export function useChartSave() {
       const isQueryConditionAnalysis = chartType === 'query_condition_analysis'
       
       if (isButtonClickAnalysis) {
-        await processButtonClickData(chartData, effectiveAnalysis, recentDates, initialData)
+        // 使用专门的按钮点击分析保存服务
+        const saveResult = await buttonClickAnalysisSaveService.saveButtonClickAnalysis({
+          chartData,
+          effectiveAnalysis,
+          recentDates,
+          chartType
+        })
+        console.log('✅ [Home] 按钮点击分析保存完成:', saveResult)
+        return saveResult
       } else if (isQueryConditionAnalysis) {
-        await processQueryConditionData(chartData, effectiveAnalysis, recentDates, initialData)
+        // 🚀 修复：检查是否已有处理好的多条件数据
+        const processedChartData = store.state.chartConfig.data
+        if (processedChartData && typeof processedChartData === 'object' && !Array.isArray(processedChartData) && processedChartData.conditionData) {
+          console.log('📊 [Home] 使用已处理的多条件数据保存')
+          await processQueryConditionData(processedChartData, effectiveAnalysis, recentDates, initialData)
+        } else {
+          console.log('🔧 [Home] 使用原始数据重新处理查询条件')
+          await processQueryConditionData(chartData, effectiveAnalysis, recentDates, initialData)
+        }
       } else {
         await processStandardData(chartData, chartConfig, recentDates, initialData)
       }
@@ -204,7 +221,8 @@ export function useChartSave() {
     } catch (error) {
       console.error('❌ [Home] 保存图表失败:', error)
       console.groupEnd()
-      message.error('保存图表失败: ' + error.message)
+      const errorMessage = error?.message || error?.toString() || '未知错误'
+      message.error('保存图表失败: ' + errorMessage)
     }
   }
 
@@ -282,8 +300,15 @@ export function useChartSave() {
   const processQueryConditionData = async (chartData, effectiveAnalysis, recentDates, initialData) => {
     console.log('🔍 [Home] 检测到查询条件分析，使用专门的保存逻辑')
     
-    if (chartData && typeof chartData === 'object' && !Array.isArray(chartData) && chartData.conditionData) {
+    if (chartData && typeof chartData === 'object' && !Array.isArray(chartData) && chartData.conditionData && chartData.conditionData.length > 0) {
       console.log('📊 [Home] 查询条件数据已经是多条件格式，保存每个条件的分别数据')
+      console.log('🔍 [Home] 数据结构检查:', {
+        hasConditionData: !!chartData.conditionData,
+        conditionDataLength: chartData.conditionData?.length,
+        conditionDataSample: chartData.conditionData?.slice(0, 2),
+        categoriesLength: chartData.categories?.length,
+        categoriesSample: chartData.categories?.slice(0, 3)
+      })
       
       // 保存每个条件的分别数据
       chartData.conditionData.forEach((condition, conditionIndex) => {
@@ -292,9 +317,12 @@ export function useChartSave() {
         chartData.categories.forEach((date, dateIndex) => {
           if (recentDates.includes(date)) {
             const pvValue = condition.data[dateIndex] || 0
-            const dataId = `${store.state.chartConfig.id}_${date}_${conditionName}`
+            // 🚀 修复：使用临时ID，稍后会被正确的chartId替换
+            const dataId = `temp_${date}_${conditionName}`
             
             initialData[dataId] = {
+              date: date, // 🚀 修复：确保date字段正确
+              conditionName: conditionName, // 🚀 修复：添加conditionName字段
               metrics: {
                 pv: pvValue,
                 uv: 0
@@ -317,10 +345,62 @@ export function useChartSave() {
       })
     } else {
       console.log('🔧 [Home] 查询条件分析：直接从原始数据聚合UV/PV')
-      for (const date of recentDates) {
-        const dayData = chartData.filter(d => 
-          dayjs(d.createdAt).format('YYYY-MM-DD') === date
-        )
+      console.log('🔍 [Home] 原始数据结构检查:', {
+        isArray: Array.isArray(chartData),
+        dataLength: Array.isArray(chartData) ? chartData.length : 'N/A',
+        dataType: typeof chartData,
+        hasConditionData: !!(chartData && chartData.conditionData),
+        sampleData: Array.isArray(chartData) ? chartData.slice(0, 2) : chartData
+      })
+      
+      // 🚀 修复：检查数据格式，如果是对象且包含categories和uvData/pvData，说明是处理后的单条件数据
+      if (chartData && typeof chartData === 'object' && !Array.isArray(chartData) && 
+          chartData.categories && (chartData.uvData || chartData.pvData)) {
+        console.log('📊 [Home] 检测到处理后的单条件数据，直接使用')
+        
+        // 提取条件名称
+        const queryCondition = effectiveAnalysis.parameters?.queryCondition || ''
+        let conditionName = '全部'
+        if (queryCondition.includes(':')) {
+          const parts = queryCondition.split(':')
+          if (parts.length === 2) {
+            const conditions = parts[1].split(/[、，]/).map(c => c.trim())
+            if (conditions.length === 1) {
+              conditionName = conditions[0]
+            }
+          }
+        }
+        
+        // 使用处理后的数据
+        chartData.categories.forEach((date, index) => {
+          if (recentDates.includes(date)) {
+            const uv = chartData.uvData ? chartData.uvData[index] || 0 : 0
+            const pv = chartData.pvData ? chartData.pvData[index] || 0 : 0
+            
+            const dataId = `temp_${date}_${conditionName}`
+            initialData[dataId] = {
+              date: date,
+              conditionName: conditionName,
+              metrics: { uv, pv },
+              dimensions: {
+                condition: conditionName,
+                date: date
+              },
+              metadata: {
+                processedAt: new Date().toISOString(),
+                dataQuality: 'good',
+                source: 'processed_single_condition'
+              }
+            }
+          }
+        })
+      } else if (Array.isArray(chartData)) {
+        // 原始数组数据，需要重新聚合
+        console.log('📊 [Home] 检测到原始数组数据，重新聚合')
+        for (const date of recentDates) {
+          const dayData = chartData.filter(d => 
+            dayjs(d.createdAt).format('YYYY-MM-DD') === date
+          )
         
         if (dayData.length > 0) {
           const queryCondition = effectiveAnalysis.parameters?.queryCondition || ''
@@ -378,9 +458,27 @@ export function useChartSave() {
           
           uv = uvSet.size
           
-          initialData[date] = {
+          // 🚀 修复：单条件数据也使用conditionName字段
+          let conditionName = '全部'
+          if (queryCondition.includes(':')) {
+            const parts = queryCondition.split(':')
+            if (parts.length === 2) {
+              const conditions = parts[1].split(/[、，]/).map(c => c.trim())
+              if (conditions.length === 1) {
+                conditionName = conditions[0]
+              }
+            }
+          }
+          
+          const dataId = `temp_${date}_${conditionName}`
+          initialData[dataId] = {
+            date: date,
+            conditionName: conditionName,
             metrics: { uv, pv },
-            dimensions: {},
+            dimensions: {
+              condition: conditionName,
+              date: date
+            },
             metadata: {
               rawRecordCount: dayData.length,
               filteredRecordCount: queryConditionData.length,
@@ -389,6 +487,9 @@ export function useChartSave() {
             }
           }
         }
+      }
+      } else {
+        console.log('⚠️ [Home] 查询条件分析：未知的数据格式')
       }
     }
   }

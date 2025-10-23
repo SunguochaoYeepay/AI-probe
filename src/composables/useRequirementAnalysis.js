@@ -280,9 +280,14 @@ export function useRequirementAnalysis() {
       console.log('🔍 按钮点击分析 - 使用传入日期范围:', dateRange)
     }
     
+    // 设置需求文本（如果为空）
     if (!currentRequirement.value.trim()) {
-      message.warning('请输入分析需求')
-      return
+      if (analysisRequest?.requirement) {
+        currentRequirement.value = analysisRequest.requirement
+      } else {
+        message.warning('请输入分析需求')
+        return
+      }
     }
     
     if (!requirementParser) {

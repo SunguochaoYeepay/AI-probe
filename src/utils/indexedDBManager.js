@@ -7,7 +7,7 @@ class ChartDatabase {
   constructor() {
     this.db = null
     this.dbName = 'yeepay_charts_db'
-    this.version = 1
+    this.version = 2 // 🚀 升级版本以支持多条件数据索引
   }
 
   /**
@@ -30,7 +30,8 @@ class ChartDatabase {
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result
-        console.log('🔄 IndexedDB升级中...')
+        const oldVersion = event.oldVersion
+        console.log('🔄 IndexedDB升级中...', { oldVersion, newVersion: this.version })
 
         // 创建图表配置表
         if (!db.objectStoreNames.contains('charts')) {
@@ -46,8 +47,25 @@ class ChartDatabase {
           const dataStore = db.createObjectStore('chart_data', { keyPath: 'id' })
           dataStore.createIndex('chartId', 'chartId', { unique: false })
           dataStore.createIndex('date', 'date', { unique: false })
-          dataStore.createIndex('chartId_date', ['chartId', 'date'], { unique: true })
+          // 🚀 修复：支持多条件数据的复合索引
+          dataStore.createIndex('chartId_date_condition', ['chartId', 'date', 'conditionName'], { unique: true })
           console.log('📈 创建 chart_data 表')
+        } else if (oldVersion < 2) {
+          // 🚀 升级现有表：删除旧索引，添加新索引
+          const transaction = event.target.transaction
+          const dataStore = transaction.objectStore('chart_data')
+          
+          try {
+            // 删除旧的唯一索引
+            dataStore.deleteIndex('chartId_date')
+            console.log('🗑️ 删除旧的 chartId_date 索引')
+          } catch (e) {
+            console.log('ℹ️ 旧索引不存在，跳过删除')
+          }
+          
+          // 添加新的复合索引
+          dataStore.createIndex('chartId_date_condition', ['chartId', 'date', 'conditionName'], { unique: true })
+          console.log('✅ 添加新的 chartId_date_condition 索引')
         }
 
         // 创建原始数据缓存表（可选）
@@ -181,7 +199,15 @@ class ChartDatabase {
    * @param {Object} data - { chartId, date, metrics, dimensions, metadata }
    */
   async saveChartData(data) {
-    const id = `${data.chartId}_${data.date}`
+    // 🚀 修复：为多条件数据生成唯一ID
+    let id
+    if (data.conditionName) {
+      // 多条件数据：chartId_date_conditionName
+      id = `${data.chartId}_${data.date}_${data.conditionName}`
+    } else {
+      // 单条件数据：chartId_date
+      id = `${data.chartId}_${data.date}`
+    }
     const record = {
       id,
       ...data
@@ -203,11 +229,32 @@ class ChartDatabase {
         return
       }
 
+      console.log('🔍 [IndexedDB] batchSaveChartData 开始:', {
+        dataListLength: dataList.length,
+        sampleData: dataList.slice(0, 2)
+      })
+
       const transaction = this.db.transaction(['chart_data'], 'readwrite')
       const store = transaction.objectStore('chart_data')
 
-      dataList.forEach(data => {
-        const id = `${data.chartId}_${data.date}`
+      dataList.forEach((data, index) => {
+        // 🚀 修复：为多条件数据生成唯一ID
+        let id
+        if (data.conditionName) {
+          // 多条件数据：chartId_date_conditionName
+          id = `${data.chartId}_${data.date}_${data.conditionName}`
+        } else {
+          // 单条件数据：chartId_date
+          id = `${data.chartId}_${data.date}`
+        }
+        
+        console.log(`🔍 [IndexedDB] 保存数据 ${index + 1}:`, {
+          id,
+          chartId: data.chartId,
+          date: data.date,
+          conditionName: data.conditionName
+        })
+        
         store.put({ id, ...data })
       })
 
@@ -215,7 +262,14 @@ class ChartDatabase {
         console.log(`✅ 批量保存 ${dataList.length} 条数据`)
         resolve()
       }
-      transaction.onerror = () => reject(transaction.error)
+      transaction.onerror = (event) => {
+        console.error('❌ [IndexedDB] 批量保存失败:', {
+          error: transaction.error,
+          event: event,
+          dataListLength: dataList.length
+        })
+        reject(transaction.error || new Error('批量保存失败'))
+      }
     })
   }
 
@@ -277,10 +331,26 @@ class ChartDatabase {
    * 检查是否存在某天的数据
    */
   async hasChartData(chartId, date) {
-    const id = `${chartId}_${date}`
-    return this._executeTransaction('chart_data', 'readonly', (store) => {
-      return store.get(id)
-    }).then(result => !!result)
+    // 🚀 修复：检查是否存在该日期的任何数据（包括多条件数据）
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('数据库未初始化'))
+        return
+      }
+
+      const transaction = this.db.transaction(['chart_data'], 'readonly')
+      const store = transaction.objectStore('chart_data')
+      const index = store.index('chartId')
+      const request = index.getAll(chartId)
+
+      request.onsuccess = () => {
+        const data = request.result
+        // 检查是否存在该日期的数据
+        const hasData = data.some(d => d.date === date)
+        resolve(hasData)
+      }
+      request.onerror = () => reject(request.error)
+    })
   }
 
   /**

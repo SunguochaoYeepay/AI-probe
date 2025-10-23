@@ -66,7 +66,8 @@ export function useChart() {
       console.log('====================================')
       
       // 如果需求中指定了页面，过滤数据
-      let specifiedPages = await extractPageNames(analysis.originalText || analysis.description)
+      const requirementText = analysis.originalText || analysis.description || currentRequirement.value
+      let specifiedPages = await extractPageNames(requirementText)
       
       // 如果analysis中有pageName参数，优先使用
       if (analysis.parameters?.pageName) {
@@ -294,6 +295,45 @@ export function useChart() {
         // 对于单页面UV/PV图表，图表生成器会自己处理数据聚合
         // 这里不需要预处理，保持原始数据格式
         console.log('📊 单页面UV/PV图表，使用原始数据:', data.length, '条')
+      } else if (analysisWithDateRange.chartType === 'query_condition_analysis') {
+        // 🚀 修复：查询条件分析需要保存处理后的多条件数据
+        console.log('📊 查询条件分析，需要处理多条件数据')
+        try {
+          const { dataProcessorFactory } = await import('@/utils/dataProcessorFactory.js')
+          
+          // 判断数据格式
+          const isAggregated = data && data.length > 0 && (
+            (data[0].hasOwnProperty('uv') && data[0].hasOwnProperty('pv')) ||
+            (data[0].hasOwnProperty('metrics') && data[0].hasOwnProperty('date')) ||
+            data[0].hasOwnProperty('chartId')
+          )
+          const format = isAggregated ? 'aggregated' : 'raw'
+          
+          // 使用数据处理器工厂处理数据
+          const chartData = dataProcessorFactory.process(analysisWithDateRange.chartType, data, {
+            format: format,
+            analysis: analysisWithDateRange,
+            queryCondition: analysisWithDateRange.parameters?.queryCondition || '',
+            queryData: analysisWithDateRange.parameters?.queryData,
+            dateRange: {
+              startDate: dateRange[0].format('YYYY-MM-DD'),
+              endDate: dateRange[1].format('YYYY-MM-DD')
+            },
+            rawData: format === 'raw' ? data : null
+          })
+          
+          // 保存处理后的多条件数据
+          processedData = chartData
+          console.log('✅ 查询条件分析数据处理完成:', {
+            isMultipleConditions: chartData.isMultipleConditions,
+            conditionDataLength: chartData.conditionData?.length || 0,
+            categoriesLength: chartData.categories?.length || 0
+          })
+        } catch (error) {
+          console.error('❌ 查询条件分析数据处理失败:', error)
+          // 如果处理失败，使用原始数据
+          processedData = data
+        }
       } else if (analysisWithDateRange.chartType?.includes('button_click_analysis') || analysisWithDateRange.chartType === 'button_click_daily' || analysis.type === 'button_click_daily') {
         // 对于按钮点击分析，设置正确的图表类型和参数
         // 优先使用原始analysis.type，因为Ollama AI可能理解错误
