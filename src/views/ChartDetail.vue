@@ -80,6 +80,8 @@
       <!-- 图表区域 -->
       <a-card class="chart-card" :bordered="false" title="数据可视化">
         <template #extra>
+        <div class="chart-controls">
+          <!-- 时间范围选择 -->
           <a-radio-group 
             v-model:value="selectedTimeRange" 
             size="small"
@@ -90,6 +92,7 @@
             <a-radio-button value="30">近30天</a-radio-button>
             <a-radio-button value="60">近60天</a-radio-button>
           </a-radio-group>
+        </div>
         </template>
         <div id="chart-container" class="chart-container"></div>
       </a-card>
@@ -151,7 +154,8 @@ import {
   ReloadOutlined,
   DownloadOutlined,
   DeleteOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  UserOutlined
 } from '@ant-design/icons-vue'
 import * as echarts from 'echarts'
 import dayjs from 'dayjs'
@@ -1212,6 +1216,11 @@ const onTimeRangeChange = async (e) => {
   }
 }
 
+
+
+
+
+
 // 生命周期
 onMounted(async () => {
   await loadData()
@@ -1270,6 +1279,13 @@ onUnmounted(() => {
   
   .text-danger {
     color: #ff4d4f;
+  }
+  
+  /* 图表控件样式 */
+  .chart-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
   
   /* 时间选择器样式 */

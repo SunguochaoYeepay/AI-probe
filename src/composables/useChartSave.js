@@ -100,6 +100,7 @@ export function useChartSave() {
         return
       }
       
+      
       const chartConfig = {
         name: chartName,
         description: store.state.currentRequirement || effectiveAnalysis.description || chartName,
@@ -225,6 +226,7 @@ export function useChartSave() {
       message.error('保存图表失败: ' + errorMessage)
     }
   }
+
 
   /**
    * 处理按钮点击数据

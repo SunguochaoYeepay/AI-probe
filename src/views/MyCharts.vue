@@ -75,6 +75,7 @@
           </a-input>
         </a-col>
         
+        
       </a-row>
     </div>
 
@@ -376,6 +377,7 @@ const displayCharts = computed(() => {
     })
   }
 
+
   // 按创建时间排序（最新的在前）
   charts.sort((a, b) => {
     const aValue = new Date(a.createdAt)
@@ -618,6 +620,45 @@ const getQueryCondition = (chart) => {
   switch (config.chartType) {
     case 'query_condition_analysis':
       return '查询条件'
+    default:
+      return '-'
+  }
+}
+
+// 提取用户标识
+const getWeUserId = (chart) => {
+  const config = chart.config || {}
+  
+  // 1. 优先从冗余字段中获取用户标识
+  if (config.redundantFields?.weUserId) {
+    const weUserId = config.redundantFields.weUserId
+    if (weUserId === 'multiple') {
+      return '多用户'
+    }
+    return weUserId
+  }
+  
+  // 2. 从保存的参数中获取用户标识
+  if (config.weUserId) {
+    return config.weUserId
+  }
+  
+  // 3. 从图表描述中提取用户标识
+  const description = chart.description || chart.name || ''
+  
+  // 匹配 "用户'XXX'的..." 格式
+  const userMatch = description.match(/用户["'](.+?)["']/)
+  if (userMatch) {
+    return userMatch[1]
+  }
+  
+  // 4. 根据图表类型返回默认值
+  switch (config.chartType) {
+    case 'single_page_uv_pv_chart':
+    case 'button_click_analysis':
+    case 'button_click_daily':
+    case 'query_condition_analysis':
+      return '全部用户'
     default:
       return '-'
   }
