@@ -370,19 +370,27 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     // 开始处理用户行为分析数据
 
     try {
-      // 1. 检查是否有自定义步骤配置
-      const customSteps = options?.funnelSteps || null
+      // 检查分析类型
+      const analysisType = options?.analysisType || 'behavior_funnel'
       
-      if (customSteps && customSteps.length > 0) {
-        // 🚀 修复：如果有自定义步骤配置，直接使用配置生成漏斗数据
-        const funnelData = this.generateFunnelFromCustomSteps(customSteps, data, options)
-        return funnelData
+      if (analysisType === 'behavior_path') {
+        // 行为路径分析：自动发现用户行为路径
+        return this.generateBehaviorPathData(data, options)
       } else {
-        // 2. 如果没有自定义步骤，使用原有逻辑
-        // 使用默认步骤提取逻辑
-        const userPaths = this.dataOrganizer.organizeUserBehaviorPaths(data.visitData, data.clickData, customSteps)
-        const funnelData = this.analyzeUserBehaviorPaths(userPaths, options)
-        return funnelData
+        // 漏斗分析：基于配置或自动提取步骤
+        const customSteps = options?.funnelSteps || null
+        
+        if (customSteps && customSteps.length > 0) {
+          // 🚀 修复：如果有自定义步骤配置，直接使用配置生成漏斗数据
+          const funnelData = this.generateFunnelFromCustomSteps(customSteps, data, options)
+          return funnelData
+        } else {
+          // 2. 如果没有自定义步骤，使用原有逻辑
+          // 使用默认步骤提取逻辑
+          const userPaths = this.dataOrganizer.organizeUserBehaviorPaths(data.visitData, data.clickData, customSteps)
+          const funnelData = this.analyzeUserBehaviorPaths(userPaths, options)
+          return funnelData
+        }
       }
     } catch (error) {
       console.error('❌ [BehaviorAnalysisDataProcessor] 数据处理失败:', error)
@@ -807,6 +815,317 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
 
   allocate(aggregatedData, options) {
     return aggregatedData
+  }
+
+  /**
+   * 生成行为路径数据
+   * @param {Object} data - 包含visitData和clickData的对象
+   * @param {Object} options - 处理选项
+   * @returns {Object} 行为路径数据
+   */
+  generateBehaviorPathData(data, options) {
+    console.log('🔧 [BehaviorAnalysisDataProcessor] 开始生成行为路径数据:', {
+      visitDataCount: data.visitData?.length || 0,
+      clickDataCount: data.clickData?.length || 0,
+      options
+    })
+
+    // 1. 整合用户行为路径
+    const userPaths = this.dataOrganizer.organizeUserBehaviorPaths(data.visitData, data.clickData, null)
+    
+    // 2. 分析路径模式
+    const pathAnalysis = this.analyzePathPatterns(userPaths)
+    console.log('🔍 [generateBehaviorPathData] 路径分析结果:', pathAnalysis)
+    
+    // 3. 生成桑基图数据
+    const sankeyData = this.generateSankeyData(pathAnalysis)
+    console.log('🔍 [generateBehaviorPathData] 桑基图数据:', sankeyData)
+    
+    const result = {
+      pathId: `path_${Date.now()}`,
+      pathName: '用户行为路径分析',
+      totalUsers: pathAnalysis.totalUsers,
+      paths: pathAnalysis.paths,
+      nodes: sankeyData.nodes,
+      links: sankeyData.links,
+      timestamp: new Date().toISOString()
+    }
+
+    console.log('✅ [BehaviorAnalysisDataProcessor] 行为路径数据生成完成:', {
+      totalUsers: result.totalUsers,
+      pathCount: result.paths.length,
+      nodeCount: result.nodes.length,
+      linkCount: result.links.length
+    })
+
+    return result
+  }
+
+  /**
+   * 分析路径模式
+   * @param {Array} userPaths - 用户路径数据
+   * @returns {Object} 路径分析结果
+   */
+  analyzePathPatterns(userPaths) {
+    const pathCounts = new Map()
+    const nodeCounts = new Map()
+    let totalUsers = 0
+
+    // 统计路径和节点
+    userPaths.forEach(path => {
+      totalUsers++
+      
+      // 检查路径数据是否存在
+      if (!path.behaviorPath || !Array.isArray(path.behaviorPath)) {
+        console.warn('⚠️ [analyzePathPatterns] 路径数据无效:', path)
+        return
+      }
+      
+      // 统计完整路径
+      const pathKey = path.behaviorPath.map(step => step.stepName).join(' → ')
+      pathCounts.set(pathKey, (pathCounts.get(pathKey) || 0) + 1)
+      
+      // 统计节点
+      path.behaviorPath.forEach(step => {
+        const nodeKey = step.stepName
+        nodeCounts.set(nodeKey, (nodeCounts.get(nodeKey) || 0) + 1)
+      })
+    })
+
+    // 生成路径列表（按频次排序）
+    const paths = Array.from(pathCounts.entries())
+      .map(([path, count]) => ({
+        path,
+        count,
+        percentage: ((count / totalUsers) * 100).toFixed(2)
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 20) // 只保留前20条路径
+
+    console.log('✅ [analyzePathPatterns] 路径分析完成:', {
+      totalUsers,
+      pathCount: paths.length,
+      nodeCount: nodeCounts.size,
+      topPaths: paths.slice(0, 5).map(p => `${p.path} (${p.count})`)
+    })
+
+    return {
+      totalUsers,
+      paths,
+      nodeCounts
+    }
+  }
+
+  /**
+   * 生成桑基图数据
+   * @param {Object} pathAnalysis - 路径分析结果
+   * @returns {Object} 桑基图数据
+   */
+  generateSankeyData(pathAnalysis) {
+    console.log('🔧 [generateSankeyData] 开始生成桑基图数据:', {
+      pathCount: pathAnalysis.paths.length,
+      nodeCounts: pathAnalysis.nodeCounts.size
+    })
+    
+    const nodes = []
+    const links = []
+    const nodeMap = new Map()
+
+    // 生成节点
+    pathAnalysis.paths.forEach((pathData, index) => {
+      const steps = pathData.path.split(' → ')
+      console.log(`🔍 [generateSankeyData] 处理路径 ${index + 1}:`, {
+        path: pathData.path,
+        steps: steps,
+        count: pathData.count
+      })
+      
+      steps.forEach((step, stepIndex) => {
+        if (!nodeMap.has(step)) {
+          const node = {
+            name: step,
+            value: pathAnalysis.nodeCounts.get(step) || 0
+          }
+          nodes.push(node)
+          nodeMap.set(step, node)
+        }
+      })
+    })
+
+    // 生成连接
+    pathAnalysis.paths.forEach((pathData, index) => {
+      const steps = pathData.path.split(' → ')
+      
+      console.log(`🔍 [generateSankeyData] 处理路径: ${steps.join(' → ')}`)
+      
+      // 🚀 修复：只移除相邻重复，保留完整路径
+      const cleanedSteps = []
+      for (let i = 0; i < steps.length; i++) {
+        const currentStep = steps[i]
+        // 只移除相邻的重复步骤，保留用户的实际访问路径
+        if (i === 0 || currentStep !== steps[i - 1]) {
+          cleanedSteps.push(currentStep)
+        }
+      }
+      
+      console.log(`🔍 [generateSankeyData] 清理相邻重复: ${steps.join(' → ')} → ${cleanedSteps.join(' → ')}`)
+      
+      // 使用清理后的步骤生成连接
+      for (let i = 0; i < cleanedSteps.length - 1; i++) {
+        const source = cleanedSteps[i]
+        const target = cleanedSteps[i + 1]
+        
+        console.log(`🔗 [generateSankeyData] 生成连接: ${source} → ${target}`)
+        
+        // 检查是否已存在相同的连接
+        const existingLink = links.find(link => 
+          link.source === source && link.target === target
+        )
+        
+        if (existingLink) {
+          existingLink.value += pathData.count
+          console.log(`🔄 [generateSankeyData] 更新现有连接: ${source} → ${target}, 新值: ${existingLink.value}`)
+        } else {
+          links.push({
+            source,
+            target,
+            value: pathData.count
+          })
+          console.log(`➕ [generateSankeyData] 添加新连接: ${source} → ${target}, 值: ${pathData.count}`)
+        }
+      }
+    })
+
+    // 🚀 修复：检测并移除循环连接
+    const acyclicLinks = this.removeCycles(links, nodes)
+    console.log('🔧 [generateSankeyData] 循环检测完成:', {
+      原始连接数: links.length,
+      去环后连接数: acyclicLinks.length,
+      移除的连接: links.length - acyclicLinks.length
+    })
+
+    console.log('✅ [generateSankeyData] 桑基图数据生成完成:', {
+      nodeCount: nodes.length,
+      linkCount: acyclicLinks.length,
+      nodes: nodes.map(n => n.name),
+      links: acyclicLinks.map(l => `${l.source} → ${l.target} (${l.value})`)
+    })
+
+    return { nodes, links: acyclicLinks }
+  }
+
+  /**
+   * 移除循环连接，确保桑基图数据无环
+   * @param {Array} links - 原始连接数组
+   * @param {Array} nodes - 节点数组
+   * @returns {Array} 去环后的连接数组
+   */
+  removeCycles(links, nodes) {
+    console.log('🔧 [removeCycles] 开始检测循环连接')
+    console.log('🔍 [removeCycles] 原始连接:', links.map(l => `${l.source} → ${l.target} (${l.value})`))
+    
+    if (links.length === 0) {
+      return links
+    }
+    
+    // 🚀 智能循环检测：使用拓扑排序检测真正的循环
+    const nodeNames = nodes.map(n => n.name)
+    const nodeSet = new Set(nodeNames)
+    
+    // 构建邻接表
+    const adjacencyList = new Map()
+    nodeNames.forEach(nodeName => {
+      adjacencyList.set(nodeName, [])
+    })
+    
+    links.forEach(link => {
+      if (nodeSet.has(link.source) && nodeSet.has(link.target)) {
+        adjacencyList.get(link.source).push(link.target)
+      }
+    })
+    
+    // 使用拓扑排序检测循环
+    const inDegree = new Map()
+    nodeNames.forEach(node => {
+      inDegree.set(node, 0)
+    })
+    
+    links.forEach(link => {
+      if (nodeSet.has(link.target)) {
+        inDegree.set(link.target, (inDegree.get(link.target) || 0) + 1)
+      }
+    })
+    
+    // 拓扑排序
+    const queue = []
+    const result = []
+    
+    nodeNames.forEach(node => {
+      if (inDegree.get(node) === 0) {
+        queue.push(node)
+      }
+    })
+    
+    while (queue.length > 0) {
+      const current = queue.shift()
+      result.push(current)
+      
+      const neighbors = adjacencyList.get(current) || []
+      neighbors.forEach(neighbor => {
+        const newInDegree = inDegree.get(neighbor) - 1
+        inDegree.set(neighbor, newInDegree)
+        if (newInDegree === 0) {
+          queue.push(neighbor)
+        }
+      })
+    }
+    
+    // 如果拓扑排序结果长度小于节点数，说明存在循环
+    const hasCycle = result.length < nodeNames.length
+    console.log('🔍 [removeCycles] 是否存在循环:', hasCycle)
+    
+    if (!hasCycle) {
+      console.log('✅ [removeCycles] 无循环，返回原始连接')
+      return links
+    }
+    
+    // 🚀 如果存在循环，智能移除：保留重要连接，移除次要循环
+    console.log('🔧 [removeCycles] 检测到循环，智能移除')
+    
+    // 按连接值排序，优先保留重要的连接
+    const sortedLinks = [...links].sort((a, b) => b.value - a.value)
+    const acyclicLinks = []
+    const processedPairs = new Set()
+    
+    for (const link of sortedLinks) {
+      const pairKey = `${link.source}-${link.target}`
+      const reversePairKey = `${link.target}-${link.source}`
+      
+      // 移除自循环
+      if (link.source === link.target) {
+        console.log(`🗑️ [removeCycles] 移除自循环: ${link.source} → ${link.target}`)
+        continue
+      }
+      
+      // 如果存在反向连接，只保留值更大的那个
+      if (processedPairs.has(reversePairKey)) {
+        console.log(`🗑️ [removeCycles] 移除反向循环: ${link.source} → ${link.target}`)
+        continue
+      }
+      
+      acyclicLinks.push(link)
+      processedPairs.add(pairKey)
+    }
+    
+    console.log('🔍 [removeCycles] 智能去环后连接:', acyclicLinks.map(l => `${l.source} → ${l.target} (${l.value})`))
+    
+    // 如果移除后连接数为0，保留第一个连接
+    if (acyclicLinks.length === 0 && links.length > 0) {
+      console.log('⚠️ [removeCycles] 移除循环后无连接，保留第一个连接')
+      return [links[0]]
+    }
+    
+    return acyclicLinks
   }
 }
 

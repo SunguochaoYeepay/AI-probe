@@ -607,6 +607,7 @@ export class DataProcessorFactory {
     
     // 注册用户行为分析数据处理器
     this.processors.set('behavior_funnel_analysis', new BehaviorAnalysisDataProcessor())
+    this.processors.set('behavior_path_analysis', new BehaviorAnalysisDataProcessor())
     this.processors.set('behavior_analysis', new BehaviorAnalysisDataProcessor())
   }
 

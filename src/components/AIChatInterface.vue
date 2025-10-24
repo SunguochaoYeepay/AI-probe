@@ -199,6 +199,7 @@ import { useBuryPointConfig } from '@/composables/useBuryPointConfig'
 import { usePageDataManager } from '@/composables/usePageDataManager'
 import { useMessageHandler } from '@/composables/useMessageHandler'
 import { useActionHandler } from '@/composables/useActionHandler'
+import { useRequirementAnalysis } from '@/composables/useRequirementAnalysis'
 
 // Props
 const props = defineProps({
@@ -235,6 +236,9 @@ const {
   clearChat,
   loadChatHistory
 } = useAIChat()
+
+// 需求分析功能
+const { analyzeBehaviorRequirement } = useRequirementAnalysis()
 
 // 埋点配置管理
 const {
@@ -447,7 +451,10 @@ const handleAction = async (action) => {
       // 先获取页面列表，然后弹出漏斗步骤配置抽屉
       await loadAvailablePages()
       showFunnelConfig.value = true
-      addMessage('请先配置转化步骤，然后开始分析。', 'ai')
+    } else if (action.params?.type === 'behavior_path') {
+      // 直接执行行为路径分析
+      console.log('🔍 [handleAction] 执行行为路径分析:', action.params)
+      emit('analyze-requirement', action.params)
     } else {
       // 触发分析
       emit('analyze-requirement', action.params)
@@ -545,24 +552,14 @@ const showWelcomeMessage = () => {
         
         welcomeActions = [
           { 
-            text: '👤 用户行为路径', 
-            type: 'select_analysis', 
-            params: { type: 'user_behavior', description: '分析用户在应用中的行为路径和流程' } 
-          },
-          { 
-            text: '📈 行为趋势分析', 
-            type: 'select_analysis', 
-            params: { type: 'user_behavior', description: '分析用户行为的时间趋势和变化' } 
+            text: '🛤️ 用户行为路径', 
+            type: 'analyze', 
+            params: { type: 'behavior_path', scope: 'path' } 
           },
           { 
             text: '🎯 行为转化漏斗', 
             type: 'analyze', 
             params: { type: 'behavior_funnel', scope: 'funnel' } 
-          },
-          { 
-            text: '📊 多埋点综合分析', 
-            type: 'select_analysis', 
-            params: { type: 'multi_bury_point', description: '综合分析多个埋点的数据，发现用户行为模式' } 
           }
         ]
         break

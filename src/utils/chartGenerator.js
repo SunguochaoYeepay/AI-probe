@@ -172,8 +172,15 @@ export class ChartGenerator {
       case 'button_click_daily':
         return this.generateButtonClickDailyOption(analysis, data)
       case 'behavior_funnel':
-      case 'behavior_analysis':
         return this.generateBehaviorFunnelOption(analysis, data)
+      case 'behavior_path':
+      case 'behavior_analysis':
+        // 根据分析类型决定生成漏斗图还是路径图
+        if (analysis.intent === 'behavior_path' || analysis.chartType === 'behavior_path') {
+          return this.generateBehaviorPathOption(analysis, data)
+        } else {
+          return this.generateBehaviorFunnelOption(analysis, data)
+        }
       default:
         return isDualMode ? this.generateDualBarOption(analysis, data) : this.generateBarOption(analysis, data)
     }
@@ -2808,6 +2815,72 @@ export class ChartGenerator {
       categories: sortedData.map(item => item.date),
       series: series
     }
+  }
+
+  /**
+   * 生成用户行为路径图配置
+   * @param {Object} analysis - 分析结果
+   * @param {Object} pathData - 行为路径数据
+   * @returns {Object} ECharts配置
+   */
+  generateBehaviorPathOption(analysis, pathData) {
+    console.log('🔧 [ChartGenerator] 生成用户行为路径图配置:', {
+      analysis,
+      pathData
+    })
+    
+    // 生成桑基图配置
+    const option = {
+      title: {
+        text: analysis.description || '用户行为路径分析',
+        subtext: `总用户数: ${pathData.totalUsers} | 发现路径: ${pathData.paths.length}条`,
+        left: 'center',
+        textStyle: {
+          fontSize: 18,
+          fontWeight: 'bold'
+        },
+        subtextStyle: {
+          fontSize: 12,
+          color: '#666'
+        }
+      },
+      tooltip: {
+        trigger: 'item',
+        triggerOn: 'mousemove',
+        formatter: function(params) {
+          if (params.dataType === 'node') {
+            return `${params.name}<br/>用户数: ${params.value}`
+          } else if (params.dataType === 'edge') {
+            return `${params.data.source} → ${params.data.target}<br/>用户数: ${params.data.value}`
+          }
+        }
+      },
+      series: [{
+        type: 'sankey',
+        data: pathData.nodes,
+        links: pathData.links,
+        emphasis: {
+          focus: 'adjacency'
+        },
+        lineStyle: {
+          color: 'gradient',
+          curveness: 0.5
+        },
+        itemStyle: {
+          borderWidth: 1,
+          borderColor: '#aaa'
+        },
+        label: {
+          fontSize: 10,
+          formatter: function(params) {
+            return params.name.length > 8 ? params.name.substring(0, 8) + '...' : params.name
+          }
+        }
+      }]
+    }
+    
+    console.log('✅ [ChartGenerator] 用户行为路径图配置生成完成:', option)
+    return option
   }
 
   /**

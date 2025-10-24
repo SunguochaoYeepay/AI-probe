@@ -80,10 +80,8 @@ export function useActionHandler(selectedBuryPointId) {
 请选择您想要进行的用户行为分析类型：`
 
     const actions = [
-      { text: '🎯 行为转化漏斗', type: 'analyze', params: { type: 'behavior_funnel', scope: 'funnel' } },
-      { text: '👤 用户行为路径', type: 'analyze', params: { type: 'user_behavior', scope: 'path' } },
-      { text: '📈 行为趋势分析', type: 'analyze', params: { type: 'user_behavior', scope: 'trend' } },
-      { text: '📊 多埋点综合分析', type: 'analyze', params: { type: 'multi_bury_point', scope: 'comprehensive' } }
+      { text: '🛤️ 用户行为路径', type: 'analyze', params: { type: 'behavior_path', scope: 'path' } },
+      { text: '🎯 行为转化漏斗', type: 'analyze', params: { type: 'behavior_funnel', scope: 'funnel' } }
     ]
 
     addMessage(content, 'ai', actions)
@@ -95,9 +93,8 @@ export function useActionHandler(selectedBuryPointId) {
 综合分析多个埋点的数据，发现用户行为模式。请选择分析类型：`
 
     const actions = [
-      { text: '🎯 行为转化漏斗', type: 'analyze', params: { type: 'behavior_funnel', scope: 'funnel' } },
-      { text: '👤 用户行为路径', type: 'analyze', params: { type: 'user_behavior', scope: 'path' } },
-      { text: '📈 行为趋势分析', type: 'analyze', params: { type: 'user_behavior', scope: 'trend' } }
+      { text: '🛤️ 用户行为路径', type: 'analyze', params: { type: 'behavior_path', scope: 'path' } },
+      { text: '🎯 行为转化漏斗', type: 'analyze', params: { type: 'behavior_funnel', scope: 'funnel' } }
     ]
 
     addMessage(content, 'ai', actions)

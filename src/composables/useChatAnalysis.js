@@ -25,6 +25,7 @@ export function useChatAnalysis() {
         case 'query_condition_analysis':
           return await analyzeQueryConditionRequirement(analysisRequest)
         case 'behavior_funnel':
+        case 'behavior_path':
         case 'behavior_analysis':
           return await analyzeBehaviorRequirement(analysisRequest)
         default:

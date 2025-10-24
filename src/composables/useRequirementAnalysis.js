@@ -581,6 +581,13 @@ export function useRequirementAnalysis() {
     }
     
     // 对于行为分析，如果传入了分析请求对象，则不需要检查用户输入的需求
+    console.log('🔍 [analyzeBehaviorRequirement] 调试信息:', {
+      currentRequirement: currentRequirement.value,
+      analysisRequest: analysisRequest,
+      hasRequirement: !!currentRequirement.value.trim(),
+      hasAnalysisRequest: !!analysisRequest
+    })
+    
     if (!currentRequirement.value.trim() && !analysisRequest) {
       message.warning('请输入分析需求')
       return
@@ -609,12 +616,15 @@ export function useRequirementAnalysis() {
       // 解析需求
       let analysis = await requirementParser.parse(currentRequirement.value, context)
       
-      // 强制设置为行为分析类型
+      // 根据分析请求类型设置分析参数
+      const analysisType = analysisRequest?.type || 'behavior_funnel'
+      const isPathAnalysis = analysisType === 'behavior_path'
+      
       analysis = {
         ...analysis,
-        intent: 'behavior_funnel_analysis',
-        chartType: 'behavior_funnel',
-        description: '用户行为转化漏斗分析'
+        intent: isPathAnalysis ? 'behavior_path_analysis' : 'behavior_funnel_analysis',
+        chartType: isPathAnalysis ? 'behavior_path' : 'behavior_funnel',
+        description: isPathAnalysis ? '用户行为路径分析' : '用户行为转化漏斗分析'
       }
       
       console.log('🎯 用户行为分析结果:', analysis)
@@ -653,31 +663,36 @@ export function useRequirementAnalysis() {
       console.log('🔍 [useRequirementAnalysis] 漏斗步骤配置:', analysisRequest?.funnelSteps)
       console.log('🔍 [useRequirementAnalysis] 分析请求对象:', analysisRequest)
       
-      const funnelData = dataProcessorFactory.process('behavior_funnel_analysis', {
+      // 根据分析类型决定处理方式
+      const requestType = analysisRequest?.type || 'behavior_funnel'
+      const processorType = requestType === 'behavior_path' ? 'behavior_path_analysis' : 'behavior_funnel_analysis'
+      
+      const processedData = dataProcessorFactory.process(processorType, {
         visitData: visitData || [],
         clickData: clickData || []
       }, {
         format: 'raw',
         analysis: analysis,
+        analysisType: requestType, // 传递分析类型
         dateRange: {
           startDate: dayjs(dateRange[0]).format('YYYY-MM-DD'),
           endDate: dayjs(dateRange[1]).format('YYYY-MM-DD')
         },
-        funnelName: analysis.description || '用户行为转化漏斗',
+        funnelName: analysis.description || (requestType === 'behavior_path' ? '用户行为路径分析' : '用户行为转化漏斗'),
         funnelSteps: analysisRequest?.funnelSteps || null // 🚀 修复：传递漏斗步骤配置
       })
       
-      console.log('🎯 用户行为分析漏斗数据:', funnelData)
+      console.log('🎯 用户行为分析数据:', processedData)
       
       // 更新图表生成状态
       store.dispatch('updateChartGenerationStatus', {
         isGenerating: true,
-        currentStep: '正在生成漏斗图...',
+        currentStep: requestType === 'behavior_path' ? '正在生成行为路径图...' : '正在生成漏斗图...',
         progress: 80
       })
       
       // 生成图表
-      await generateChart(analysis, funnelData, 'chart-container')
+      await generateChart(analysis, processedData, 'chart-container')
       
       // 保存图表配置到 store，包括漏斗步骤数据
       const chartConfig = {
@@ -685,8 +700,8 @@ export function useRequirementAnalysis() {
           ...analysis,
           funnelSteps: analysisRequest?.funnelSteps || null // 保存漏斗步骤配置
         },
-        data: funnelData,
-        rawData: funnelData,
+        data: processedData,
+        rawData: processedData,
         timestamp: new Date().toISOString()
       }
       store.commit('SET_CHART_CONFIG', chartConfig)
