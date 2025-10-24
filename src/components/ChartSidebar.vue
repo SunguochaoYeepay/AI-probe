@@ -155,7 +155,8 @@ import {
   SettingOutlined,
   UnorderedListOutlined,
   DatabaseOutlined,
-  PlusOutlined
+  PlusOutlined,
+  SearchOutlined
 } from '@ant-design/icons-vue'
 
 const router = useRouter()
