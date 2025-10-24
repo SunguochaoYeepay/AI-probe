@@ -71,14 +71,10 @@ export function useBuryPointConfig(addMessage) {
           break
           
         case 'behavior_analysis':
-          // 行为分析显示页面访问和按钮点击埋点
+          // 行为分析只显示页面访问埋点（用户行为路径分析只使用页面浏览数据）
           if (projectConfig.visitBuryPointId) {
             const visitPoint = getBuryPointInfo(projectConfig.visitBuryPointId)
             configuredPoints.push({ ...visitPoint, type: '访问' })
-          }
-          if (projectConfig.clickBuryPointId) {
-            const clickPoint = getBuryPointInfo(projectConfig.clickBuryPointId)
-            configuredPoints.push({ ...clickPoint, type: '点击' })
           }
           break
           
@@ -315,18 +311,13 @@ export function useBuryPointConfig(addMessage) {
       // 切换到行为分析模式，清空单选埋点，初始化多选埋点
       selectedBuryPointId.value = null
       if (filteredPoints.length > 0 && selectedBuryPointIds.value.length === 0) {
-        // 默认选择页面访问和按钮点击的埋点
+        // 默认只选择页面访问埋点（用户行为路径分析只使用页面浏览数据）
         const defaultSelectedIds = []
         const projectConfig = store.state.projectConfig
         
-        // 添加页面访问埋点
+        // 只添加页面访问埋点
         if (projectConfig.visitBuryPointId) {
           defaultSelectedIds.push(projectConfig.visitBuryPointId)
-        }
-        
-        // 添加按钮点击埋点
-        if (projectConfig.clickBuryPointId) {
-          defaultSelectedIds.push(projectConfig.clickBuryPointId)
         }
         
         selectedBuryPointIds.value = defaultSelectedIds

@@ -636,17 +636,16 @@ export function useRequirementAnalysis() {
         progress: 30
       })
       
-      // 获取双埋点数据（访问埋点 + 点击埋点）
+      // 获取访问埋点数据（用户行为路径分析只使用页面浏览数据）
       const visitDataResult = await fetchMultiDayData(110, dateRange) // 访问埋点ID: 110
-      const clickDataResult = await fetchMultiDayData(109, dateRange) // 点击埋点ID: 109
       
       // 提取数据数组
       const visitData = visitDataResult?.data || []
-      const clickData = clickDataResult?.data || []
+      const clickData = [] // 用户行为路径分析不使用点击数据
       
-      console.log('📊 获取到的双埋点数据:', {
+      console.log('📊 获取到的访问埋点数据:', {
         visitDataCount: visitData?.length || 0,
-        clickDataCount: clickData?.length || 0
+        clickDataCount: 0 // 不再使用点击数据
       })
       
       // 更新图表生成状态

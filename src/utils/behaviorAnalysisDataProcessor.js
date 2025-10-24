@@ -10,26 +10,25 @@ import { BaseDataProcessor } from './baseDataProcessor.js'
  */
 class DualBuryPointDataOrganizer {
   /**
-   * 整合访问埋点和点击埋点数据
+   * 整合访问埋点数据（用户行为路径分析只使用页面浏览数据）
    * @param {Array} visitData - 访问埋点数据
-   * @param {Array} clickData - 点击埋点数据
+   * @param {Array} clickData - 点击埋点数据（用户行为路径分析中不使用）
    * @param {Array} customSteps - 自定义步骤配置
    * @returns {Array} 用户行为路径数组
    */
   organizeUserBehaviorPaths(visitData, clickData, customSteps = null) {
-    console.log('🔄 [DualBuryPointDataOrganizer] 开始整合双埋点数据:', {
+    console.log('🔄 [DualBuryPointDataOrganizer] 开始整合访问埋点数据:', {
       visitDataCount: visitData?.length || 0,
-      clickDataCount: clickData?.length || 0
+      clickDataCount: 0 // 用户行为路径分析不使用点击数据
     })
 
-    // 1. 数据预处理和清洗
+    // 1. 数据预处理和清洗（只处理访问数据）
     const cleanVisitData = this.validateAndCleanData(visitData || [])
-    const cleanClickData = this.validateAndCleanData(clickData || [])
 
-    // 2. 按用户分组所有数据
+    // 2. 按用户分组访问数据
     const userDataMap = new Map()
     
-    // 处理访问数据
+    // 只处理访问数据，不处理点击数据
     cleanVisitData.forEach(record => {
       const userKey = record.weCustomerKey
       if (!userDataMap.has(userKey)) {
@@ -52,35 +51,6 @@ class DualBuryPointDataOrganizer {
         pageName: record.pageName,
         pageBehavior: record.pageBehavior,
         stayTime: record.stayTime,
-        timestamp: new Date(record.createdAt),
-        wePath: record.wePath,
-        originalData: record
-      })
-    })
-    
-    // 处理点击数据
-    cleanClickData.forEach(record => {
-      const userKey = record.weCustomerKey
-      if (!userDataMap.has(userKey)) {
-        userDataMap.set(userKey, {
-          weCustomerKey: userKey,
-          weUserId: record.weUserId,
-          actions: [],
-          deviceInfo: {
-            weDeviceName: record.weDeviceName,
-            wePlatform: record.wePlatform,
-            weSystem: record.weSystem,
-            weOs: record.weOs,
-            weBrowserName: record.weBrowserName
-          }
-        })
-      }
-      
-      userDataMap.get(userKey).actions.push({
-        type: 'click',
-        pageName: record.pageName,
-        content: record.content,
-        clickType: record.type, // query, click等
         timestamp: new Date(record.createdAt),
         wePath: record.wePath,
         originalData: record
@@ -150,7 +120,7 @@ class DualBuryPointDataOrganizer {
   }
   
   /**
-   * 识别步骤名称
+   * 识别步骤名称（基于页面访问数据）
    * @param {Object} currentAction - 当前行为
    * @param {Object} nextAction - 下一个行为
    * @param {Array} customSteps - 自定义步骤配置
@@ -162,29 +132,16 @@ class DualBuryPointDataOrganizer {
       return this.identifyStepWithCustomConfig(currentAction, customSteps)
     }
     
-    // 默认的步骤识别逻辑
+    // 基于页面访问的步骤识别逻辑
     if (currentAction.type === 'visit') {
       if (currentAction.pageBehavior === '打开') {
         return '流程开始'
       } else if (currentAction.pageBehavior === '关闭') {
         return '流程结束'
       } else {
-        return `访问${currentAction.pageName}`
+        // 使用页面名称作为步骤名称
+        return currentAction.pageName || '未知页面'
       }
-    } else if (currentAction.type === 'click') {
-      // 尝试从content中提取操作名称
-      if (currentAction.content) {
-        try {
-          const contentObj = JSON.parse(currentAction.content)
-          if (contentObj.申请时间 || contentObj.状态) {
-            return '发起查询操作'
-          }
-        } catch (e) {
-          // 如果不是JSON，直接使用content
-          return currentAction.content
-        }
-      }
-      return `点击操作`
     }
     
     return '未知步骤'
@@ -208,17 +165,14 @@ class DualBuryPointDataOrganizer {
   }
 
   /**
-   * 检查行为是否匹配步骤条件
+   * 检查行为是否匹配步骤条件（只处理页面访问）
    * @param {Object} action - 行为对象
    * @param {Object} step - 步骤配置
    * @returns {Boolean} 是否匹配
    */
   matchesStepCondition(action, step) {
-    // 检查类型匹配
-    if (step.type === 'page' && action.type !== 'visit') {
-      return false
-    }
-    if (step.type === 'button' && action.type !== 'click') {
+    // 只处理页面访问类型
+    if (action.type !== 'visit') {
       return false
     }
 
@@ -227,47 +181,6 @@ class DualBuryPointDataOrganizer {
       // 检查页面行为
       if (step.pageBehavior && step.pageBehavior !== '任意') {
         if (action.pageBehavior !== step.pageBehavior) {
-          return false
-        }
-      }
-      
-      // 检查目标页面
-      if (step.targetPage && step.targetPage !== '任意页面') {
-        if (action.pageName !== step.targetPage) {
-          return false
-        }
-      }
-    }
-
-    // 按钮点击条件检查
-    if (step.type === 'button') {
-      // 检查点击类型
-      if (step.clickType && step.clickType !== '任意') {
-        if (action.clickType !== step.clickType) {
-          return false
-        }
-      }
-      
-      // 检查内容条件
-      if (step.contentCondition) {
-        const conditions = step.contentCondition.split(',').map(c => c.trim())
-        let matches = false
-        
-        if (action.content) {
-          try {
-            const contentObj = JSON.parse(action.content)
-            matches = conditions.some(condition => 
-              Object.keys(contentObj).some(key => key.includes(condition))
-            )
-          } catch (e) {
-            // 如果不是JSON，检查字符串包含
-            matches = conditions.some(condition => 
-              action.content.includes(condition)
-            )
-          }
-        }
-        
-        if (!matches) {
           return false
         }
       }
@@ -423,11 +336,10 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
       })
     })
     
-    // 2. 分析数据，统计每个步骤的参与人数
+    // 2. 分析数据，统计每个步骤的参与人数（只处理访问数据）
     const visitData = data.visitData || []
-    const clickData = data.clickData || []
     
-    // 🚀 修复：统计访问数据 - 计算平均停留时间
+    // 统计访问数据 - 计算平均停留时间
     let totalVisitMatches = 0
     const visitUserSet = new Set() // 用于去重统计访问用户
     
@@ -453,46 +365,12 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
             stats.participantCount++
           }
           
-          // 🚀 修复：所有匹配的数据都计算停留时间（用于计算平均停留时间）
+          // 计算停留时间（用于计算平均停留时间）
           if (visit.stayTime) {
             const duration = parseInt(visit.stayTime) || 0
             stats.totalDuration += duration
             stats.durations.push(duration)
           }
-        }
-      })
-    })
-    
-    // 🚀 修复：统计点击数据 - 计算平均停留时间
-    let totalClickMatches = 0
-    const clickUserSet = new Set() // 用于去重统计点击用户
-    
-    clickData.forEach(click => {
-      const matchedSteps = this.matchAllStepsFromData(click, customSteps, 'click')
-      totalClickMatches += matchedSteps.length
-      
-      // 获取用户标识（weCustomerKey是系统内置的用户唯一标识）
-      const userId = click.weCustomerKey || `click_${click.id || Math.random()}`
-      
-      matchedSteps.forEach(stepName => {
-        if (stepStats.has(stepName)) {
-          const stats = stepStats.get(stepName)
-          
-          // 初始化用户集合（如果不存在）
-          if (!stats.userSet) {
-            stats.userSet = new Set()
-          }
-          
-          // 只有新用户才增加计数（UV统计）
-          if (!stats.userSet.has(userId)) {
-            stats.userSet.add(userId)
-            stats.participantCount++
-          }
-          
-          // 🚀 修复：所有匹配的数据都计算停留时间（用于计算平均停留时间）
-          // 点击操作通常耗时较短，使用1秒作为默认值
-          stats.totalDuration += 1
-          stats.durations.push(1)
         }
       })
     })
@@ -541,37 +419,25 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
   }
   
   /**
-   * 根据数据匹配所有符合条件的步骤
+   * 根据数据匹配所有符合条件的步骤（只处理页面访问）
    * @param {Object} dataItem - 数据项
    * @param {Array} customSteps - 自定义步骤配置
-   * @param {String} dataType - 数据类型 ('visit' 或 'click')
+   * @param {String} dataType - 数据类型 (只处理 'visit')
    * @returns {Array} 匹配的步骤名称数组
    */
   matchAllStepsFromData(dataItem, customSteps, dataType) {
     const matchedSteps = []
     
+    // 只处理页面访问数据
+    if (dataType !== 'visit') {
+      return matchedSteps
+    }
+    
     for (const step of customSteps) {
-      if (step.type === 'page' && dataType === 'visit') {
+      if (step.type === 'page') {
         // 页面访问匹配
         if (step.pageBehavior === '任意' || step.pageBehavior === dataItem.pageBehavior) {
           if (step.targetPage === '任意页面' || step.targetPage === dataItem.pageName) {
-            matchedSteps.push(step.name)
-          }
-        }
-      } else if (step.type === 'button' && dataType === 'click') {
-        // 按钮点击匹配
-        if (step.targetPage === '任意页面' || step.targetPage === dataItem.pageName) {
-          if (step.contentCondition && dataItem.content) {
-            // 检查内容条件
-            const conditions = step.contentCondition.split(',').map(c => c.trim())
-            const hasMatchingCondition = conditions.some(condition => 
-              dataItem.content.includes(condition)
-            )
-            if (hasMatchingCondition) {
-              matchedSteps.push(step.name)
-            }
-          } else {
-            // 没有内容条件，直接匹配
             matchedSteps.push(step.name)
           }
         }
@@ -594,15 +460,15 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
   }
   
   /**
-   * 从数据中获取时间范围
+   * 从数据中获取时间范围（只处理访问数据）
    * @param {Object} data - 原始数据
    * @returns {String} 时间范围字符串
    */
   getTimeRangeFromData(data) {
-    const allData = [...(data.visitData || []), ...(data.clickData || [])]
-    if (allData.length === 0) return '无数据'
+    const visitData = data.visitData || []
+    if (visitData.length === 0) return '无数据'
     
-    const dates = allData.map(item => item.createdAt || item.timestamp)
+    const dates = visitData.map(item => item.createdAt || item.timestamp)
       .filter(date => date)
       .map(date => new Date(date).toISOString().split('T')[0])
       .sort()
@@ -826,7 +692,7 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
   generateBehaviorPathData(data, options) {
     console.log('🔧 [BehaviorAnalysisDataProcessor] 开始生成行为路径数据:', {
       visitDataCount: data.visitData?.length || 0,
-      clickDataCount: data.clickData?.length || 0,
+      clickDataCount: 0, // 用户行为路径分析不使用点击数据
       options
     })
 
