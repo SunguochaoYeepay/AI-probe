@@ -426,38 +426,93 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     const visitData = data.visitData || []
     const clickData = data.clickData || []
     
-    // 统计访问数据
+    // 🚀 修复：统计访问数据 - 基于用户ID去重统计（UV统计）
+    let totalVisitMatches = 0
+    const visitUserSet = new Set() // 用于去重统计访问用户
+    
     visitData.forEach(visit => {
-      const stepName = this.matchStepFromData(visit, customSteps, 'visit')
-      if (stepName && stepStats.has(stepName)) {
-        const stats = stepStats.get(stepName)
-        stats.participantCount++
-        
-        // 计算停留时间
-        if (visit.stayTime) {
-          const duration = parseInt(visit.stayTime) || 0
-          stats.totalDuration += duration
-          stats.durations.push(duration)
+      const matchedSteps = this.matchAllStepsFromData(visit, customSteps, 'visit')
+      totalVisitMatches += matchedSteps.length
+      
+      // 获取用户标识（weCustomerKey是系统内置的用户唯一标识）
+      const userId = visit.weCustomerKey || `visit_${visit.id || Math.random()}`
+      
+      matchedSteps.forEach(stepName => {
+        if (stepStats.has(stepName)) {
+          const stats = stepStats.get(stepName)
+          
+          // 初始化用户集合（如果不存在）
+          if (!stats.userSet) {
+            stats.userSet = new Set()
+          }
+          
+          // 只有新用户才增加计数（UV统计）
+          if (!stats.userSet.has(userId)) {
+            stats.userSet.add(userId)
+            stats.participantCount++
+            
+            // 计算停留时间（只计算新用户的时间）
+            if (visit.stayTime) {
+              const duration = parseInt(visit.stayTime) || 0
+              stats.totalDuration += duration
+              stats.durations.push(duration)
+            }
+          }
         }
-      }
+      })
     })
     
-    // 统计点击数据
+    // 🚀 修复：统计点击数据 - 基于用户ID去重统计（UV统计）
+    let totalClickMatches = 0
+    const clickUserSet = new Set() // 用于去重统计点击用户
+    
     clickData.forEach(click => {
-      const stepName = this.matchStepFromData(click, customSteps, 'click')
-      if (stepName && stepStats.has(stepName)) {
-        const stats = stepStats.get(stepName)
-        stats.participantCount++
-        
-        // 点击操作通常耗时较短
-        stats.totalDuration += 1
-        stats.durations.push(1)
-      }
+      const matchedSteps = this.matchAllStepsFromData(click, customSteps, 'click')
+      totalClickMatches += matchedSteps.length
+      
+      // 获取用户标识（weCustomerKey是系统内置的用户唯一标识）
+      const userId = click.weCustomerKey || `click_${click.id || Math.random()}`
+      
+      matchedSteps.forEach(stepName => {
+        if (stepStats.has(stepName)) {
+          const stats = stepStats.get(stepName)
+          
+          // 初始化用户集合（如果不存在）
+          if (!stats.userSet) {
+            stats.userSet = new Set()
+          }
+          
+          // 只有新用户才增加计数（UV统计）
+          if (!stats.userSet.has(userId)) {
+            stats.userSet.add(userId)
+            stats.participantCount++
+            
+            // 点击操作通常耗时较短（只计算新用户的时间）
+            stats.totalDuration += 1
+            stats.durations.push(1)
+          }
+        }
+      })
     })
     
     // 3. 转换为数组并排序
     const steps = Array.from(stepStats.values())
       .sort((a, b) => a.stepOrder - b.stepOrder)
+    
+    console.log('🔍 [BehaviorAnalysisDataProcessor] 数据匹配统计:')
+    console.log(`  - 访问数据匹配次数: ${totalVisitMatches}`)
+    console.log(`  - 点击数据匹配次数: ${totalClickMatches}`)
+    console.log(`  - 总匹配次数: ${totalVisitMatches + totalClickMatches}`)
+    console.log('📊 [BehaviorAnalysisDataProcessor] UV统计详情:')
+    steps.forEach((step, index) => {
+      const userCount = step.userSet ? step.userSet.size : 0
+      console.log(`  ${index + 1}. ${step.stepName}: ${step.participantCount}人 (UV: ${userCount})`)
+    })
+    
+    console.log('🔍 [BehaviorAnalysisDataProcessor] 步骤排序调试:')
+    steps.forEach((step, index) => {
+      console.log(`  ${index + 1}. ${step.stepName} (stepOrder: ${step.stepOrder}, 参与人数: ${step.participantCount})`)
+    })
     
     // 4. 计算转化率和平均耗时
     const baseCount = steps[0]?.participantCount || 1
@@ -510,19 +565,21 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
   }
   
   /**
-   * 根据数据匹配步骤
+   * 根据数据匹配所有符合条件的步骤
    * @param {Object} dataItem - 数据项
    * @param {Array} customSteps - 自定义步骤配置
    * @param {String} dataType - 数据类型 ('visit' 或 'click')
-   * @returns {String} 匹配的步骤名称
+   * @returns {Array} 匹配的步骤名称数组
    */
-  matchStepFromData(dataItem, customSteps, dataType) {
+  matchAllStepsFromData(dataItem, customSteps, dataType) {
+    const matchedSteps = []
+    
     for (const step of customSteps) {
       if (step.type === 'page' && dataType === 'visit') {
         // 页面访问匹配
         if (step.pageBehavior === '任意' || step.pageBehavior === dataItem.pageBehavior) {
           if (step.targetPage === '任意页面' || step.targetPage === dataItem.pageName) {
-            return step.name
+            matchedSteps.push(step.name)
           }
         }
       } else if (step.type === 'button' && dataType === 'click') {
@@ -535,16 +592,29 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
               dataItem.content.includes(condition)
             )
             if (hasMatchingCondition) {
-              return step.name
+              matchedSteps.push(step.name)
             }
           } else {
             // 没有内容条件，直接匹配
-            return step.name
+            matchedSteps.push(step.name)
           }
         }
       }
     }
-    return null
+    
+    return matchedSteps
+  }
+
+  /**
+   * 根据数据匹配步骤（保留原方法用于兼容）
+   * @param {Object} dataItem - 数据项
+   * @param {Array} customSteps - 自定义步骤配置
+   * @param {String} dataType - 数据类型 ('visit' 或 'click')
+   * @returns {String} 匹配的步骤名称
+   */
+  matchStepFromData(dataItem, customSteps, dataType) {
+    const matchedSteps = this.matchAllStepsFromData(dataItem, customSteps, dataType)
+    return matchedSteps.length > 0 ? matchedSteps[0] : null
   }
   
   /**
@@ -800,3 +870,4 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     return aggregatedData
   }
 }
+

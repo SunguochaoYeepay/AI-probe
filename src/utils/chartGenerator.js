@@ -2885,7 +2885,7 @@ export class ChartGenerator {
     const option = {
       title: {
         text: funnelData.funnelName || '用户行为转化漏斗',
-        subtext: `总参与人数: ${funnelData.totalParticipants} | 整体转化率: ${funnelData.overallConversionRate}%`,
+        subtext: `总参与人数: ${funnelData.totalParticipants} (UV) | 整体转化率: ${funnelData.overallConversionRate}%`,
         left: 'center',
         textStyle: {
           fontSize: 18,
@@ -2920,7 +2920,7 @@ export class ChartGenerator {
         max: funnelData.totalParticipants,
         minSize: '5%',
         maxSize: '100%',
-        sort: 'descending',
+        sort: 'none', // 🚀 修复：不按数据值排序，保持步骤原始顺序
         gap: 12,
         label: {
           show: true,
@@ -2931,7 +2931,7 @@ export class ChartGenerator {
             // 🚀 修复：优化标签显示格式
             const stepName = step.stepName.length > 8 ? 
               step.stepName.substring(0, 6) + '...' : step.stepName
-            return `${stepName}\n${step.participantCount}人\n${step.conversionRate}%`
+            return `${stepName}\n${step.participantCount}人(UV)\n${step.conversionRate}%`
           },
           fontSize: 11,
           fontWeight: 'bold',

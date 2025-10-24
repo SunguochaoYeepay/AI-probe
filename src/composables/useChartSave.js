@@ -47,13 +47,29 @@ export function useChartSave() {
       
       // 从数据中提取日期范围
       let uniqueDates = []
-      if (chartData && typeof chartData === 'object' && !Array.isArray(chartData) && chartData.categories) {
-        uniqueDates = [...new Set(chartData.categories)].sort()
-        console.log('🗓️ [Home] 使用图表对象中的categories作为日期范围', uniqueDates)
-      } else {
+      if (chartData && typeof chartData === 'object' && !Array.isArray(chartData)) {
+        if (chartData.categories) {
+          // 标准图表对象（有categories字段）
+          uniqueDates = [...new Set(chartData.categories)].sort()
+          console.log('🗓️ [Home] 使用图表对象中的categories作为日期范围', uniqueDates)
+        } else if (chartData.steps && Array.isArray(chartData.steps)) {
+          // 漏斗图数据对象（有steps字段）
+          console.log('🗓️ [Home] 检测到漏斗图数据，使用当前日期作为日期范围')
+          uniqueDates = [dayjs().format('YYYY-MM-DD')]
+        } else {
+          // 其他对象类型，使用当前日期
+          console.log('🗓️ [Home] 检测到其他对象类型，使用当前日期作为日期范围')
+          uniqueDates = [dayjs().format('YYYY-MM-DD')]
+        }
+      } else if (Array.isArray(chartData)) {
+        // 数组类型数据
         const dates = chartData.map(d => dayjs(d.createdAt).format('YYYY-MM-DD')).filter(d => d)
         uniqueDates = [...new Set(dates)].sort()
         console.log('🗓️ [Home] 使用原始数组数据提取的日期范围', uniqueDates)
+      } else {
+        // 其他情况，使用当前日期
+        console.log('🗓️ [Home] 未知数据类型，使用当前日期作为日期范围')
+        uniqueDates = [dayjs().format('YYYY-MM-DD')]
       }
       
       // 优化策略：只保存最近7天的数据

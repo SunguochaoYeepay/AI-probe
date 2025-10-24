@@ -73,7 +73,6 @@
                 show-search
                 :filter-option="filterPageOption"
               >
-                <a-select-option value="任意页面">任意页面</a-select-option>
                 <a-select-option
                   v-for="page in availablePages"
                   :key="page"
@@ -95,7 +94,6 @@
                 :filter-option="filterPageOption"
                 @change="onTargetPageChange(step)"
               >
-                <a-select-option value="任意页面">任意页面</a-select-option>
                 <a-select-option
                   v-for="page in availablePages"
                   :key="page"
@@ -364,12 +362,16 @@ const onStepTypeChange = (step) => {
 
 // 页面过滤
 const filterPageOption = (input, option) => {
-  return option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+  // 🚀 修复：直接使用option.value进行搜索，避免option.children的类型问题
+  const searchText = option.value || ''
+  return searchText.toLowerCase().indexOf(input.toLowerCase()) >= 0
 }
 
 // 按钮过滤
 const filterButtonOption = (input, option) => {
-  return option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+  // 🚀 修复：直接使用option.value进行搜索，避免option.children的类型问题
+  const searchText = option.value || ''
+  return searchText.toLowerCase().indexOf(input.toLowerCase()) >= 0
 }
 
 // 获取指定页面的按钮列表

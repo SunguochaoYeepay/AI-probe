@@ -6,6 +6,7 @@ import router from './router'
 import store from './store'
 import * as echarts from 'echarts'
 import './services/scheduledUpdateService' // 启动定时更新服务
+import './utils/consoleFilter' // 过滤控制台警告
 
 // 配置ECharts以减少性能警告
 echarts.registerTheme('default', {
@@ -30,11 +31,18 @@ EventTarget.prototype.addEventListener = function(type, listener, options) {
 
 // 配置Ant Design Vue，减少控制台警告
 const originalConsoleWarn = console.warn
+const originalConsoleError = console.error
+
 console.warn = function(...args) {
   // 过滤掉passive事件监听器相关的警告
   const message = args.map(arg => {
     if (typeof arg === 'object' && arg !== null) {
-      return JSON.stringify(arg)
+      try {
+        return JSON.stringify(arg)
+      } catch (error) {
+        // 处理循环引用，返回对象的类型信息
+        return `[${arg.constructor?.name || 'Object'}]`
+      }
     }
     return String(arg)
   }).join(' ')
@@ -43,6 +51,26 @@ console.warn = function(...args) {
     return
   }
   originalConsoleWarn.apply(console, args)
+}
+
+console.error = function(...args) {
+  // 过滤掉passive事件监听器相关的错误
+  const message = args.map(arg => {
+    if (typeof arg === 'object' && arg !== null) {
+      try {
+        return JSON.stringify(arg)
+      } catch (error) {
+        // 处理循环引用，返回对象的类型信息
+        return `[${arg.constructor?.name || 'Object'}]`
+      }
+    }
+    return String(arg)
+  }).join(' ')
+  if (message.includes('Unable to preventDefault inside passive event listener') ||
+      message.includes('useFrameWheel')) {
+    return
+  }
+  originalConsoleError.apply(console, args)
 }
 
 const app = createApp(App)
