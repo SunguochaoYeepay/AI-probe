@@ -374,20 +374,196 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     })
 
     try {
-      // 1. 整合双埋点数据（传递自定义步骤配置）
+      // 1. 检查是否有自定义步骤配置
       const customSteps = options?.funnelSteps || null
-      const userPaths = this.dataOrganizer.organizeUserBehaviorPaths(data.visitData, data.clickData, customSteps)
       
-      // 2. 分析用户行为路径
-      const funnelData = this.analyzeUserBehaviorPaths(userPaths, options)
-      
-      console.log('✅ [BehaviorAnalysisDataProcessor] 用户行为分析完成:', funnelData)
-      
-      return funnelData
+      if (customSteps && customSteps.length > 0) {
+        // 🚀 修复：如果有自定义步骤配置，直接使用配置生成漏斗数据
+        console.log('🔧 [BehaviorAnalysisDataProcessor] 使用自定义步骤配置:', customSteps)
+        const funnelData = this.generateFunnelFromCustomSteps(customSteps, data, options)
+        console.log('✅ [BehaviorAnalysisDataProcessor] 自定义步骤漏斗生成完成:', funnelData)
+        return funnelData
+      } else {
+        // 2. 如果没有自定义步骤，使用原有逻辑
+        console.log('🔧 [BehaviorAnalysisDataProcessor] 使用默认步骤提取逻辑')
+        const userPaths = this.dataOrganizer.organizeUserBehaviorPaths(data.visitData, data.clickData, customSteps)
+        const funnelData = this.analyzeUserBehaviorPaths(userPaths, options)
+        console.log('✅ [BehaviorAnalysisDataProcessor] 默认步骤漏斗生成完成:', funnelData)
+        return funnelData
+      }
     } catch (error) {
       console.error('❌ [BehaviorAnalysisDataProcessor] 数据处理失败:', error)
       throw error
     }
+  }
+
+  /**
+   * 根据自定义步骤配置生成漏斗图数据
+   * @param {Array} customSteps - 自定义步骤配置
+   * @param {Object} data - 原始数据
+   * @param {Object} options - 处理选项
+   * @returns {Object} 漏斗图数据
+   */
+  generateFunnelFromCustomSteps(customSteps, data, options) {
+    console.log('🔧 [BehaviorAnalysisDataProcessor] 开始根据自定义步骤生成漏斗数据')
+    
+    // 1. 根据自定义步骤配置分析数据
+    const stepStats = new Map()
+    
+    // 初始化步骤统计
+    customSteps.forEach((step, index) => {
+      stepStats.set(step.name, {
+        stepName: step.name,
+        participantCount: 0,
+        totalDuration: 0,
+        durations: [],
+        stepOrder: index + 1,
+        stepConfig: step
+      })
+    })
+    
+    // 2. 分析数据，统计每个步骤的参与人数
+    const visitData = data.visitData || []
+    const clickData = data.clickData || []
+    
+    // 统计访问数据
+    visitData.forEach(visit => {
+      const stepName = this.matchStepFromData(visit, customSteps, 'visit')
+      if (stepName && stepStats.has(stepName)) {
+        const stats = stepStats.get(stepName)
+        stats.participantCount++
+        
+        // 计算停留时间
+        if (visit.stayTime) {
+          const duration = parseInt(visit.stayTime) || 0
+          stats.totalDuration += duration
+          stats.durations.push(duration)
+        }
+      }
+    })
+    
+    // 统计点击数据
+    clickData.forEach(click => {
+      const stepName = this.matchStepFromData(click, customSteps, 'click')
+      if (stepName && stepStats.has(stepName)) {
+        const stats = stepStats.get(stepName)
+        stats.participantCount++
+        
+        // 点击操作通常耗时较短
+        stats.totalDuration += 1
+        stats.durations.push(1)
+      }
+    })
+    
+    // 3. 转换为数组并排序
+    const steps = Array.from(stepStats.values())
+      .sort((a, b) => a.stepOrder - b.stepOrder)
+    
+    // 4. 计算转化率和平均耗时
+    const baseCount = steps[0]?.participantCount || 1
+    
+    const processedSteps = steps.map(step => ({
+      stepId: `step_${step.stepOrder}`,
+      stepName: step.stepName,
+      participantCount: step.participantCount,
+      conversionRate: Math.round((step.participantCount / baseCount) * 100 * 100) / 100,
+      averageDuration: step.participantCount > 0 ? Math.round(step.totalDuration / step.participantCount) : 0,
+      timeRange: this.getTimeRangeFromData(data),
+      description: this.getStepDescription(step.stepName)
+    }))
+    
+    // 5. 计算整体统计
+    const totalParticipants = baseCount
+    const overallConversionRate = processedSteps.length > 0 ? 
+      processedSteps[processedSteps.length - 1].conversionRate : 0
+    const averageTotalDuration = processedSteps.length > 0 ? 
+      Math.round(processedSteps.reduce((sum, step) => sum + step.averageDuration, 0) / processedSteps.length) : 0
+    
+    const result = {
+      funnelId: `funnel_${Date.now()}`,
+      funnelName: options.funnelName || '用户行为转化漏斗',
+      steps: processedSteps,
+      totalParticipants: totalParticipants,
+      overallConversionRate: overallConversionRate,
+      averageTotalDuration: averageTotalDuration
+    }
+    
+    // 6. 详细调试信息
+    console.log('📊 [BehaviorAnalysisDataProcessor] 自定义步骤漏斗详细数据:')
+    console.log('  - 漏斗ID:', result.funnelId)
+    console.log('  - 漏斗名称:', result.funnelName)
+    console.log('  - 总参与人数:', result.totalParticipants)
+    console.log('  - 整体转化率:', result.overallConversionRate + '%')
+    console.log('  - 平均总耗时:', result.averageTotalDuration + '秒')
+    console.log('  - 步骤数量:', result.steps.length)
+    
+    // 打印所有步骤的详细信息
+    console.log('📋 [BehaviorAnalysisDataProcessor] 自定义步骤详情:')
+    result.steps.forEach((step, index) => {
+      console.log(`  ${index + 1}. ${step.stepName}:`)
+      console.log(`     - 参与人数: ${step.participantCount}`)
+      console.log(`     - 转化率: ${step.conversionRate}%`)
+      console.log(`     - 平均耗时: ${step.averageDuration}秒`)
+    })
+    
+    return result
+  }
+  
+  /**
+   * 根据数据匹配步骤
+   * @param {Object} dataItem - 数据项
+   * @param {Array} customSteps - 自定义步骤配置
+   * @param {String} dataType - 数据类型 ('visit' 或 'click')
+   * @returns {String} 匹配的步骤名称
+   */
+  matchStepFromData(dataItem, customSteps, dataType) {
+    for (const step of customSteps) {
+      if (step.type === 'page' && dataType === 'visit') {
+        // 页面访问匹配
+        if (step.pageBehavior === '任意' || step.pageBehavior === dataItem.pageBehavior) {
+          if (step.targetPage === '任意页面' || step.targetPage === dataItem.pageName) {
+            return step.name
+          }
+        }
+      } else if (step.type === 'button' && dataType === 'click') {
+        // 按钮点击匹配
+        if (step.targetPage === '任意页面' || step.targetPage === dataItem.pageName) {
+          if (step.contentCondition && dataItem.content) {
+            // 检查内容条件
+            const conditions = step.contentCondition.split(',').map(c => c.trim())
+            const hasMatchingCondition = conditions.some(condition => 
+              dataItem.content.includes(condition)
+            )
+            if (hasMatchingCondition) {
+              return step.name
+            }
+          } else {
+            // 没有内容条件，直接匹配
+            return step.name
+          }
+        }
+      }
+    }
+    return null
+  }
+  
+  /**
+   * 从数据中获取时间范围
+   * @param {Object} data - 原始数据
+   * @returns {String} 时间范围字符串
+   */
+  getTimeRangeFromData(data) {
+    const allData = [...(data.visitData || []), ...(data.clickData || [])]
+    if (allData.length === 0) return '无数据'
+    
+    const dates = allData.map(item => item.createdAt || item.timestamp)
+      .filter(date => date)
+      .map(date => new Date(date).toISOString().split('T')[0])
+      .sort()
+    
+    if (dates.length === 0) return '无时间数据'
+    
+    return `${dates[0]} 到 ${dates[dates.length - 1]}`
   }
 
   /**
@@ -420,7 +596,18 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     
     limitedUserPaths.forEach(userPath => {
       userPath.behaviorPath.forEach(step => {
-        const stepKey = step.stepName
+        // 🚀 修复：过滤掉包含模板变量的步骤名称
+        let stepKey = step.stepName
+        if (stepKey && (stepKey.includes('{{') || stepKey.includes('}}'))) {
+          // 如果包含模板变量，使用默认名称
+          stepKey = '动态内容'
+        }
+        
+        // 🚀 修复：过滤掉"流程结束"步骤，它不应该在漏斗中
+        if (stepKey === '流程结束') {
+          return // 跳过流程结束步骤
+        }
+        
         if (!stepStats.has(stepKey)) {
           stepStats.set(stepKey, {
             stepName: stepKey,
@@ -456,8 +643,33 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     })
     
     // 2. 转换为数组并排序
-    const steps = Array.from(stepStats.values())
+    let steps = Array.from(stepStats.values())
       .sort((a, b) => a.stepOrder - b.stepOrder)
+    
+    // 🚀 修复：筛选关键步骤，避免步骤过多
+    console.log(`🔍 [BehaviorAnalysisDataProcessor] 原始步骤数量: ${steps.length}`)
+    
+    // 筛选策略：
+    // 1. 保留前5个步骤（通常是主要流程）
+    // 2. 保留参与人数大于等于10的步骤
+    // 3. 保留转化率有明显下降的步骤
+    const filteredSteps = steps.filter((step, index) => {
+      // 保留前5个步骤
+      if (index < 5) return true
+      
+      // 保留参与人数大于等于10的步骤
+      if (step.participantCount >= 10) return true
+      
+      // 保留转化率大于0.1%的步骤
+      const baseCount = steps[0]?.participantCount || 1
+      const conversionRate = (step.participantCount / baseCount) * 100
+      if (conversionRate > 0.1) return true
+      
+      return false
+    })
+    
+    console.log(`🔍 [BehaviorAnalysisDataProcessor] 筛选后步骤数量: ${filteredSteps.length}`)
+    steps = filteredSteps
     
     // 3. 计算转化率和平均耗时
     const baseCount = steps[0]?.participantCount || 1 // 起始步骤人数
@@ -482,7 +694,7 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     const averageTotalDuration = limitedUserPaths.length > 0 ? 
       Math.round(limitedUserPaths.reduce((sum, path) => sum + path.totalDuration, 0) / limitedUserPaths.length) : 0
     
-    return {
+    const result = {
       funnelId: `funnel_${Date.now()}`,
       funnelName: options.funnelName || '用户行为转化漏斗',
       steps: processedSteps,
@@ -490,6 +702,40 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
       overallConversionRate: overallConversionRate,
       averageTotalDuration: averageTotalDuration
     }
+    
+    // 🚀 详细调试信息：打印漏斗图数据
+    console.log('📊 [BehaviorAnalysisDataProcessor] 漏斗图详细数据:')
+    console.log('  - 漏斗ID:', result.funnelId)
+    console.log('  - 漏斗名称:', result.funnelName)
+    console.log('  - 总参与人数:', result.totalParticipants)
+    console.log('  - 整体转化率:', result.overallConversionRate + '%')
+    console.log('  - 平均总耗时:', result.averageTotalDuration + '秒')
+    console.log('  - 步骤数量:', result.steps.length)
+    
+    // 打印前10个步骤的详细信息
+    console.log('📋 [BehaviorAnalysisDataProcessor] 前10个步骤详情:')
+    result.steps.slice(0, 10).forEach((step, index) => {
+      console.log(`  ${index + 1}. ${step.stepName}:`)
+      console.log(`     - 参与人数: ${step.participantCount}`)
+      console.log(`     - 转化率: ${step.conversionRate}%`)
+      console.log(`     - 平均耗时: ${step.averageDuration}秒`)
+      console.log(`     - 时间范围: ${step.timeRange}`)
+    })
+    
+    // 打印最后5个步骤的详细信息
+    if (result.steps.length > 10) {
+      console.log('📋 [BehaviorAnalysisDataProcessor] 最后5个步骤详情:')
+      result.steps.slice(-5).forEach((step, index) => {
+        const actualIndex = result.steps.length - 5 + index + 1
+        console.log(`  ${actualIndex}. ${step.stepName}:`)
+        console.log(`     - 参与人数: ${step.participantCount}`)
+        console.log(`     - 转化率: ${step.conversionRate}%`)
+        console.log(`     - 平均耗时: ${step.averageDuration}秒`)
+        console.log(`     - 时间范围: ${step.timeRange}`)
+      })
+    }
+    
+    return result
   }
 
   /**

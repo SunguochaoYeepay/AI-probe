@@ -2821,6 +2821,35 @@ export class ChartGenerator {
       analysis,
       funnelData
     })
+    
+    // 🚀 详细调试信息：打印漏斗图数据
+    console.log('📊 [ChartGenerator] 漏斗图数据详情:')
+    console.log('  - 漏斗名称:', funnelData.funnelName)
+    console.log('  - 总参与人数:', funnelData.totalParticipants)
+    console.log('  - 整体转化率:', funnelData.overallConversionRate + '%')
+    console.log('  - 平均总耗时:', funnelData.averageTotalDuration + '秒')
+    console.log('  - 步骤数量:', funnelData.steps.length)
+    
+    // 打印前5个步骤的数据
+    console.log('📋 [ChartGenerator] 前5个步骤数据:')
+    funnelData.steps.slice(0, 5).forEach((step, index) => {
+      console.log(`  ${index + 1}. ${step.stepName}:`)
+      console.log(`     - 参与人数: ${step.participantCount}`)
+      console.log(`     - 转化率: ${step.conversionRate}%`)
+      console.log(`     - 平均耗时: ${step.averageDuration}秒`)
+    })
+    
+    // 打印最后5个步骤的数据
+    if (funnelData.steps.length > 5) {
+      console.log('📋 [ChartGenerator] 最后5个步骤数据:')
+      funnelData.steps.slice(-5).forEach((step, index) => {
+        const actualIndex = funnelData.steps.length - 5 + index + 1
+        console.log(`  ${actualIndex}. ${step.stepName}:`)
+        console.log(`     - 参与人数: ${step.participantCount}`)
+        console.log(`     - 转化率: ${step.conversionRate}%`)
+        console.log(`     - 平均耗时: ${step.averageDuration}秒`)
+      })
+    }
 
     if (!funnelData || !funnelData.steps || funnelData.steps.length === 0) {
       console.warn('⚠️ [ChartGenerator] 漏斗图数据为空，返回默认配置')
@@ -2883,27 +2912,31 @@ export class ChartGenerator {
       series: [{
         name: '行为转化漏斗',
         type: 'funnel',
-        left: '10%',
-        top: 80,
-        bottom: 60,
-        width: '80%',
+        left: '15%',
+        top: 120,
+        bottom: 80,
+        width: '70%',
         min: 0,
         max: funnelData.totalParticipants,
-        minSize: '0%',
+        minSize: '5%',
         maxSize: '100%',
         sort: 'descending',
-        gap: 2,
+        gap: 12,
         label: {
           show: true,
           position: 'inside',
           formatter: function(params) {
             const step = funnelData.steps[params.dataIndex]
             if (!step) return ''
-            return `${step.stepName}\n${step.participantCount} (${step.conversionRate}%)`
+            // 🚀 修复：优化标签显示格式
+            const stepName = step.stepName.length > 8 ? 
+              step.stepName.substring(0, 6) + '...' : step.stepName
+            return `${stepName}\n${step.participantCount}人\n${step.conversionRate}%`
           },
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: 'bold',
-          color: '#fff'
+          color: '#fff',
+          lineHeight: 14
         },
         labelLine: {
           length: 10,
@@ -2936,11 +2969,11 @@ export class ChartGenerator {
       // 添加时间信息显示
       graphic: funnelData.steps.map((step, index) => ({
         type: 'text',
-        left: '85%',
-        top: `${80 + (index * 15)}%`,
+        left: '90%',
+        top: `${120 + (index * 60)}px`,
         style: {
           text: `${step.averageDuration}秒`,
-          fontSize: 12,
+          fontSize: 11,
           fill: '#666',
           fontWeight: 'bold'
         }
@@ -2948,6 +2981,30 @@ export class ChartGenerator {
     }
 
     console.log('✅ [ChartGenerator] 用户行为分析漏斗图配置生成完成:', option)
+    
+    // 🚀 详细调试信息：验证ECharts配置数据
+    console.log('🔍 [ChartGenerator] ECharts配置数据验证:')
+    console.log('  - 标题:', option.title.text)
+    console.log('  - 副标题:', option.title.subtext)
+    console.log('  - 系列数量:', option.series.length)
+    console.log('  - 漏斗图数据点数量:', option.series[0].data.length)
+    console.log('  - 时间轴标签数量:', option.graphic.length)
+    
+    // 打印前3个数据点
+    console.log('📊 [ChartGenerator] 前3个数据点:')
+    option.series[0].data.slice(0, 3).forEach((item, index) => {
+      console.log(`  ${index + 1}. ${item.name}: ${item.value}`)
+    })
+    
+    // 打印最后3个数据点
+    if (option.series[0].data.length > 3) {
+      console.log('📊 [ChartGenerator] 最后3个数据点:')
+      option.series[0].data.slice(-3).forEach((item, index) => {
+        const actualIndex = option.series[0].data.length - 3 + index + 1
+        console.log(`  ${actualIndex}. ${item.name}: ${item.value}`)
+      })
+    }
+    
     return option
   }
 

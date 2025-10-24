@@ -648,6 +648,11 @@ export function useRequirementAnalysis() {
       
       // 使用数据处理器处理双埋点数据
       const { dataProcessorFactory } = await import('@/utils/dataProcessorFactory')
+      
+      // 🚀 调试：打印漏斗步骤配置
+      console.log('🔍 [useRequirementAnalysis] 漏斗步骤配置:', analysisRequest?.funnelSteps)
+      console.log('🔍 [useRequirementAnalysis] 分析请求对象:', analysisRequest)
+      
       const funnelData = dataProcessorFactory.process('behavior_funnel_analysis', {
         visitData: visitData || [],
         clickData: clickData || []
@@ -658,7 +663,8 @@ export function useRequirementAnalysis() {
           startDate: dayjs(dateRange[0]).format('YYYY-MM-DD'),
           endDate: dayjs(dateRange[1]).format('YYYY-MM-DD')
         },
-        funnelName: analysis.description || '用户行为转化漏斗'
+        funnelName: analysis.description || '用户行为转化漏斗',
+        funnelSteps: analysisRequest?.funnelSteps || null // 🚀 修复：传递漏斗步骤配置
       })
       
       console.log('🎯 用户行为分析漏斗数据:', funnelData)
