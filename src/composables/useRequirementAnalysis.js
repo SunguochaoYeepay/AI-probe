@@ -679,6 +679,19 @@ export function useRequirementAnalysis() {
       // 生成图表
       await generateChart(analysis, funnelData, 'chart-container')
       
+      // 保存图表配置到 store，包括漏斗步骤数据
+      const chartConfig = {
+        analysis: {
+          ...analysis,
+          funnelSteps: analysisRequest?.funnelSteps || null // 保存漏斗步骤配置
+        },
+        data: funnelData,
+        rawData: funnelData,
+        timestamp: new Date().toISOString()
+      }
+      store.commit('SET_CHART_CONFIG', chartConfig)
+      console.log('图表配置已保存到 store:', chartConfig)
+      
       // 完成图表生成
       store.dispatch('updateChartGenerationStatus', {
         isGenerating: false,

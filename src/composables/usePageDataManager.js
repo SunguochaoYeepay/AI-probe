@@ -413,6 +413,21 @@ export function usePageDataManager() {
       
       // 清空待执行请求
       pendingFunnelAnalysis.value = null
+    } else {
+      // 如果没有待执行的请求，说明是编辑配置，需要重新生成图表
+      // 创建一个新的分析请求来重新生成图表
+      const analysisRequest = {
+        type: 'behavior_funnel',
+        scope: 'funnel',
+        funnelSteps: steps,
+        description: '用户行为转化漏斗分析'
+      }
+      
+      // 触发分析
+      emit('analyze-requirement', analysisRequest)
+      
+      // 添加确认消息
+      addMessage('配置已保存，正在重新生成图表...', 'ai')
     }
   }
 

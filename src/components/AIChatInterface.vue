@@ -7,7 +7,6 @@
           :available-pages="availablePages"
           :page-buttons="pageButtons"
           @save="handleFunnelStepsSaveWrapper"
-          @reload-button-data="reloadButtonData"
         />
     <!-- 配置选择区域 -->
     <div class="config-section">
@@ -184,7 +183,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { 
   RobotOutlined, 
   UserOutlined, 
@@ -376,7 +375,7 @@ const sendMessage = async (text = null) => {
       console.log('AI回复内容:', aiResponse?.content)
       const fallbackResponse = await handleFallbackRecognition(messageText, addMessage, emit)
       if (fallbackResponse) {
-        addMessage(fallbackResponse.content, 'ai', fallbackResponse.actions)
+      addMessage(fallbackResponse.content, 'ai', fallbackResponse.actions)
       }
     }
     
@@ -387,7 +386,7 @@ const sendMessage = async (text = null) => {
     try {
       const fallbackResponse = await handleFallbackRecognition(messageText, addMessage, emit)
       if (fallbackResponse) {
-        addMessage(fallbackResponse.content, 'ai', fallbackResponse.actions)
+      addMessage(fallbackResponse.content, 'ai', fallbackResponse.actions)
       }
     } catch (fallbackError) {
       console.error('编码识别也失败:', fallbackError)
@@ -774,6 +773,26 @@ onMounted(() => {
     console.log('初始化埋点选择完成:', initialBuryPointId)
   }
   
+  // 如果是行为分析模式，初始化多选埋点
+  if (selectedAnalysisType.value === 'behavior_analysis') {
+    const defaultSelectedIds = []
+    
+    // 添加页面访问埋点
+    if (projectConfig.visitBuryPointId) {
+      defaultSelectedIds.push(projectConfig.visitBuryPointId)
+    }
+    
+    // 添加按钮点击埋点
+    if (projectConfig.clickBuryPointId) {
+      defaultSelectedIds.push(projectConfig.clickBuryPointId)
+    }
+    
+    if (defaultSelectedIds.length > 0) {
+      selectedBuryPointIds.value = defaultSelectedIds
+      console.log('行为分析模式初始化多选埋点:', defaultSelectedIds)
+    }
+  }
+  
   // 加载聊天历史，如果没有历史记录则根据默认埋点类型显示提示词
   const hasHistory = loadChatHistory()
   console.log('onMounted - 是否有聊天历史:', hasHistory)
@@ -806,6 +825,23 @@ const handleButtonSelectionModalClose = () => {
 const handleFunnelConfigClose = () => {
   showFunnelConfig.value = false
 }
+
+// 监听 store 中的漏斗配置抽屉状态
+watch(() => store.state.funnelConfigDrawerVisible, (newValue) => {
+  if (newValue) {
+    // 从当前图表配置中提取漏斗步骤数据
+    const chartConfig = store.state.chartConfig
+    if (chartConfig && chartConfig.analysis && chartConfig.analysis.funnelSteps) {
+      // 将图表配置中的漏斗步骤数据设置到 funnelSteps 中
+      funnelSteps.value = chartConfig.analysis.funnelSteps
+      console.log('从图表配置中提取漏斗步骤数据:', funnelSteps.value)
+    }
+    
+    showFunnelConfig.value = true
+    // 重置 store 状态
+    store.commit('SET_FUNNEL_CONFIG_DRAWER_VISIBLE', false)
+  }
+})
 
 // 导出必要的方法供模板使用
 defineExpose({

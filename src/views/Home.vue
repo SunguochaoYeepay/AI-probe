@@ -39,6 +39,7 @@
               :show-time-range-selector="false"
               @save-chart="saveChartToLibrary"
               @time-range-change="handleTimeRangeChange"
+              @edit-funnel-config="handleEditFunnelConfig"
             />
           </div>
         </a-col>
@@ -295,6 +296,22 @@ const fillPrompt = async (text) => {
 // saveChartToLibrary 方法已移动到 useChartSave composable
 
 // handleTimeRangeChange 方法已移动到 useChart composable
+
+// 处理编辑漏斗配置
+const handleEditFunnelConfig = () => {
+  
+  // 触发漏斗步骤配置抽屉打开
+  // 这里需要与 AIChatInterface 组件通信
+  // 由于 AIChatInterface 在左侧，我们需要通过事件或状态管理来打开抽屉
+  
+  // 方案1：通过 store 状态管理
+  store.commit('SET_FUNNEL_CONFIG_DRAWER_VISIBLE', true)
+  
+  // 方案2：通过事件总线（如果需要的话）
+  // eventBus.emit('open-funnel-config-drawer')
+  
+  message.info('正在打开漏斗配置编辑器...')
+}
 
 // fetchDataForDateRange 和 fetchDayData 方法已移动到 useDataFetch composable
 

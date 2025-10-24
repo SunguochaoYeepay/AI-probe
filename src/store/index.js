@@ -68,7 +68,10 @@ export default createStore({
       pageName: null,
       queryCondition: null,
       queryData: null
-    }
+    },
+    
+    // 漏斗配置抽屉可见性
+    funnelConfigDrawerVisible: false
   },
   
   mutations: {
@@ -126,6 +129,10 @@ export default createStore({
     
     SET_QUERY_CONDITION_ANALYSIS_PARAMS(state, params) {
       state.queryConditionAnalysisParams = { ...state.queryConditionAnalysisParams, ...params }
+    },
+    
+    SET_FUNNEL_CONFIG_DRAWER_VISIBLE(state, visible) {
+      state.funnelConfigDrawerVisible = visible
     }
   },
   

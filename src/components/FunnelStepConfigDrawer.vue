@@ -8,13 +8,7 @@
   >
     <div class="funnel-step-config">
       <!-- 配置说明 -->
-      <a-alert
-        message="配置说明"
-        description="请按顺序配置转化步骤，每个步骤可以基于页面访问或按钮点击来定义。系统将根据您的配置分析用户行为路径。"
-        type="info"
-        show-icon
-        style="margin-bottom: 16px"
-      />
+     
 
       <!-- 步骤列表 -->
       <div class="steps-container">
@@ -107,10 +101,6 @@
         <!-- 按钮选择（根据目标页面动态加载） -->
         <div v-if="step.type === 'button' && step.targetPage && step.targetPage !== '任意页面'" class="config-row">
           <span class="label">按钮操作:</span>
-          <!-- 调试信息 -->
-          <div style="font-size: 12px; color: #666; margin-bottom: 4px;">
-            调试: 按钮数量={{ getButtonsForPage(step.targetPage).length }}, 页面="{{ step.targetPage }}"
-          </div>
           <a-select
             v-if="getCurrentStepButtons(step).length > 0"
             v-model:value="step.contentCondition"
@@ -160,42 +150,7 @@
         添加步骤
       </a-button>
 
-      <!-- 调试按钮 -->
-      <a-button
-        type="link"
-        size="small"
-        @click="debugButtons"
-        style="margin-bottom: 16px"
-      >
-        🔍 调试按钮数据
-      </a-button>
-      
-      <!-- 重新加载按钮数据 -->
-      <a-button
-        type="link"
-        size="small"
-        @click="reloadButtonData"
-        style="margin-bottom: 16px; margin-left: 8px;"
-      >
-        🔄 重新加载按钮数据
-      </a-button>
-      
-      <!-- 显示有按钮数据的页面 -->
-      <div style="margin-bottom: 16px; padding: 8px; background: #f5f5f5; border-radius: 4px;">
-        <div style="font-weight: bold; margin-bottom: 4px;">有按钮数据的页面：</div>
-        <div v-if="pageButtons.size === 0" style="color: #999;">暂无按钮数据</div>
-        <div v-else>
-          <div v-for="[pageName, buttons] in pageButtons" :key="pageName" style="margin-bottom: 2px;">
-            <span style="color: #1890ff;">{{ pageName }}</span>: {{ buttons.length }}个按钮
-          </div>
-        </div>
-      </div>
 
-      <!-- 预览配置 -->
-      <div class="config-preview">
-        <h4>配置预览:</h4>
-        <pre>{{ JSON.stringify(steps, null, 2) }}</pre>
-      </div>
     </div>
 
     <!-- 底部操作按钮 -->
@@ -238,7 +193,7 @@ const props = defineProps({
 })
 
 // Emits
-const emit = defineEmits(['update:open', 'save', 'reload-button-data'])
+const emit = defineEmits(['update:open', 'save'])
 
 // 响应式数据
 const visible = computed({
@@ -417,7 +372,6 @@ const onTargetPageChange = (step) => {
   // 如果选择了具体页面，可以在这里预加载该页面的按钮
   if (step.targetPage && step.targetPage !== '任意页面') {
     // 这里可以触发按钮数据的加载
-    console.log(`🔍 页面变化: ${step.targetPage}，准备加载按钮列表`)
   }
 }
 
@@ -453,40 +407,7 @@ const handleSave = () => {
   handleClose()
 }
 
-// 调试按钮数据
-const debugButtons = () => {
-  console.log('🔍 [FunnelStepConfigDrawer] 调试按钮数据:')
-  console.log('📊 页面按钮映射:', pageButtons.value)
-  console.log('📊 页面按钮映射大小:', pageButtons.value.size)
-  
-  // 检查所有页面
-  pageButtons.value.forEach((buttons, pageName) => {
-    console.log(`📄 页面 "${pageName}" 的按钮:`, buttons)
-  })
-  
-  // 特别检查目标页面
-  const targetPage = '下级商户查询-appid 配置'
-  const buttons = getButtonsForPage(targetPage)
-  console.log(`🎯 目标页面 "${targetPage}" 的按钮:`, buttons)
-}
 
-// 重新加载按钮数据
-const reloadButtonData = async () => {
-  console.log('🔄 [FunnelStepConfigDrawer] 重新加载按钮数据...')
-  
-  // 触发父组件重新加载按钮数据
-  emit('reload-button-data')
-  
-  // 等待一下再检查
-  setTimeout(() => {
-    console.log('🔄 重新加载完成，当前页面按钮映射大小:', pageButtons.value.size)
-    if (pageButtons.value.size > 0) {
-      console.log('✅ 重新加载成功，页面按钮映射:', pageButtons.value)
-    } else {
-      console.log('❌ 重新加载后仍然没有按钮数据')
-    }
-  }, 1000)
-}
 
 // 关闭抽屉
 const handleClose = () => {
@@ -500,7 +421,6 @@ const handleClose = () => {
 }
 
 .steps-container {
-  max-height: 500px;
   overflow-y: auto;
 }
 

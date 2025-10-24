@@ -19,6 +19,16 @@
           <a-radio-button value="60">近60天</a-radio-button>
         </a-radio-group>
         
+        <!-- 编辑漏斗配置按钮 -->
+        <a-button 
+          v-if="hasChart && isFunnelChart" 
+          size="small" 
+          @click="editFunnelConfig"
+        >
+          <EditOutlined />
+          编辑配置
+        </a-button>
+        
         <!-- 保存图表按钮 -->
         <a-button v-if="hasChart" size="small" type="primary" @click="() => { console.log('🟦 [ChartSection] 点击保存图表按钮'); saveChart(); }">
           <SaveOutlined />
@@ -59,7 +69,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { SaveOutlined, BarChartOutlined } from '@ant-design/icons-vue'
+import { SaveOutlined, BarChartOutlined, EditOutlined } from '@ant-design/icons-vue'
 import { useStore } from 'vuex'
 import dayjs from 'dayjs'
 
@@ -81,7 +91,8 @@ const props = defineProps({
 // Emits
 const emit = defineEmits([
   'save-chart',
-  'time-range-change'
+  'time-range-change',
+  'edit-funnel-config'
 ])
 
 // 时间范围选择
@@ -105,6 +116,17 @@ const generationStep = computed(() => store.state.chartGeneration.currentStep ||
 const generationTip = computed(() => {
   const step = store.state.chartGeneration.currentStep
   return step || '正在生成图表，请稍候...'
+})
+
+// 判断是否为漏斗图
+const isFunnelChart = computed(() => {
+  const chartConfig = store.state.chartConfig
+  if (!chartConfig || !chartConfig.analysis) {
+    return false
+  }
+  
+  const analysis = chartConfig.analysis
+  return analysis.chartType === 'behavior_funnel' || analysis.intent === 'behavior_funnel'
 })
 
 // 图表标题
@@ -176,6 +198,13 @@ const saveChart = () => {
 }
 
 // 时间范围变化处理
+// 编辑漏斗配置
+const editFunnelConfig = () => {
+  
+  // 向父组件发送编辑漏斗配置事件
+  emit('edit-funnel-config')
+}
+
 const onTimeRangeChange = (e) => {
   const newTimeRange = e.target.value
   console.log('🕒 [ChartSection] 时间范围变化:', newTimeRange)
