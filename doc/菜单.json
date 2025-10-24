@@ -1,0 +1,2177 @@
+{
+    "status": "success",
+    "errMsg": "success",
+    "data": {
+        "menus": [
+            {
+                "menuId": 2180,
+                "menuName": "首页",
+                "url": "/mp-galaxy/mp-portal/index.html#/?menuId=2180",
+                "subMenus": [
+                    {
+                        "menuId": 2181,
+                        "menuName": "首页",
+                        "url": "/portal",
+                        "parentId": 2180,
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_self",
+                "module": "/mp-portal",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 2615,
+                "menuName": "数字政务",
+                "url": "/mp-galaxy/mp-electronic-government/index.html#/?menuId=2615",
+                "subMenus": [
+                    {
+                        "menuId": 2638,
+                        "menuName": "交易中心",
+                        "url": "/tradeCenter",
+                        "parentId": 2615,
+                        "subMenus": [
+                            {
+                                "menuId": 2639,
+                                "menuName": "交易查询",
+                                "url": "/tradeCenter/tradeQuery",
+                                "parentId": 2638,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-electronic-government",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2715,
+                                "menuName": "单笔退款查询",
+                                "url": "/tradeCenter/singleRefundQuery",
+                                "parentId": 2638,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-electronic-government",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2716,
+                                "menuName": "批量退款查询",
+                                "url": "/tradeCenter/batchRefundQuery",
+                                "parentId": 2638,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-electronic-government",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2717,
+                                "menuName": "批量退款",
+                                "url": "/tradeCenter/batchRefund",
+                                "parentId": 2638,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-electronic-government",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2718,
+                                "menuName": "单笔退款复核",
+                                "url": "/tradeCenter/singleRefundReview",
+                                "parentId": 2638,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-electronic-government",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2719,
+                                "menuName": "批量退款复核",
+                                "url": "/tradeCenter/batchRefundReview",
+                                "parentId": 2638,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-electronic-government",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "/mp-electronic-government",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_self",
+                "module": "/mp-electronic-government",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 2182,
+                "menuName": "账号管理",
+                "url": "/mp-galaxy/mp-account/index.html#/?menuId=2182",
+                "subMenus": [
+                    {
+                        "menuId": 2629,
+                        "menuName": "我的管理",
+                        "url": "/myManage",
+                        "parentId": 2182,
+                        "subMenus": [
+                            {
+                                "menuId": 2634,
+                                "menuName": "我的信息",
+                                "url": "/myManage/myInfo",
+                                "parentId": 2629,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2632,
+                                "menuName": "我的聚合支付设置",
+                                "url": "/myManage/paymentConfig",
+                                "parentId": 2629,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2635,
+                                "menuName": "复核功能管理",
+                                "url": "/myManage/recheckManage",
+                                "parentId": 2629,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2841,
+                                "menuName": "安全设置",
+                                "url": "/myManage/securitySettings",
+                                "parentId": 2629,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2633,
+                                "menuName": "我的变更申请",
+                                "url": "/myManage/my_change_request",
+                                "parentId": 2629,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2631,
+                                "menuName": "我的限额",
+                                "url": "/myManage/myQuota",
+                                "parentId": 2629,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2630,
+                                "menuName": "我的投诉",
+                                "url": "/myManage/myComplaint",
+                                "parentId": 2629,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2207,
+                        "menuName": "账号管理",
+                        "url": "/accountManage",
+                        "parentId": 2182,
+                        "subMenus": [
+                            {
+                                "menuId": 2183,
+                                "menuName": "我的账号",
+                                "url": "/accountManage/account",
+                                "parentId": 2207,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2205,
+                                "menuName": "员工管理",
+                                "url": "/accountManage/operator",
+                                "parentId": 2207,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "e66e",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2426,
+                                "menuName": "员工绑定门店终端",
+                                "url": "/accountManage/operatorBindShopTerminal",
+                                "parentId": 2207,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2206,
+                                "menuName": "角色管理",
+                                "url": "/accountManage/role",
+                                "parentId": 2207,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2538,
+                                "menuName": "下载中心",
+                                "url": "/accountManage/downloadCenter",
+                                "parentId": 2207,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2596,
+                                "menuName": "消息中心",
+                                "url": "/accountManage/messageList",
+                                "parentId": 2207,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_self",
+                "module": "/mp-account",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 2392,
+                "menuName": "易分账",
+                "url": "/mp-galaxy/mp-separate-account/index.html#/?menuId=2392",
+                "subMenus": [
+                    {
+                        "menuId": 2508,
+                        "menuName": "入账方管理",
+                        "url": "/receiverManage",
+                        "parentId": 2392,
+                        "subMenus": [
+                            {
+                                "menuId": 2212,
+                                "menuName": "我的入账方",
+                                "url": "/receiverManage/myReceiver",
+                                "parentId": 2508,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2501,
+                                "menuName": "子商户入账方查询",
+                                "url": "/receiverManage/querySubRecevier",
+                                "parentId": 2508,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2331,
+                                "menuName": "子商户套餐订单查询",
+                                "url": "/receiverManage/querySubSetMealOrder",
+                                "parentId": 2508,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2329,
+                                "menuName": "我的套餐",
+                                "url": "/receiverManage/mySetMeal",
+                                "parentId": 2508,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_blank",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2393,
+                        "menuName": "余额分账（原分账管理）",
+                        "url": "/ledgerManage",
+                        "parentId": 2392,
+                        "subMenus": [
+                            {
+                                "menuId": 2620,
+                                "menuName": "子商户分账授权",
+                                "url": "/ledgerManage/ledgerAuthority",
+                                "parentId": 2393,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2805,
+                        "menuName": "余额分账",
+                        "url": "",
+                        "parentId": 2392,
+                        "subMenus": [
+                            {
+                                "menuId": 2806,
+                                "menuName": "发起余额分账",
+                                "url": "/ledgerManage/init_ledger",
+                                "parentId": 2805,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-new-separate-account",
+                                "iconCode": "",
+                                "moduleId": 20,
+                                "currentVersion": "v2",
+                                "allowSwitchVersion": true,
+                                "switchVersionList": [
+                                    {
+                                        "version": "v1",
+                                        "versionFlag": "OLD"
+                                    },
+                                    {
+                                        "version": "v2",
+                                        "versionFlag": "NEW"
+                                    }
+                                ]
+                            },
+                            {
+                                "menuId": 2808,
+                                "menuName": "余额分账规则设置",
+                                "url": "/ledgerManage/appointment_rule",
+                                "parentId": 2805,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-new-separate-account",
+                                "iconCode": "",
+                                "moduleId": 20,
+                                "currentVersion": "v2",
+                                "allowSwitchVersion": true,
+                                "switchVersionList": [
+                                    {
+                                        "version": "v1",
+                                        "versionFlag": "OLD"
+                                    },
+                                    {
+                                        "version": "v2",
+                                        "versionFlag": "NEW"
+                                    }
+                                ]
+                            },
+                            {
+                                "menuId": 2809,
+                                "menuName": "余额分账查询",
+                                "url": "/ledgerManage/ledger_query",
+                                "parentId": 2805,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-new-separate-account",
+                                "iconCode": "",
+                                "moduleId": 20,
+                                "currentVersion": "v2",
+                                "allowSwitchVersion": true,
+                                "switchVersionList": [
+                                    {
+                                        "version": "v1",
+                                        "versionFlag": "OLD"
+                                    },
+                                    {
+                                        "version": "v2",
+                                        "versionFlag": "NEW"
+                                    }
+                                ]
+                            },
+                            {
+                                "menuId": 2836,
+                                "menuName": "接收方到账查询",
+                                "url": "/divideManage/queryReceiptInformation",
+                                "parentId": 2805,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "moduleId": 20,
+                                "currentVersion": "v2",
+                                "allowSwitchVersion": true,
+                                "switchVersionList": [
+                                    {
+                                        "version": "v1",
+                                        "versionFlag": "OLD"
+                                    },
+                                    {
+                                        "version": "v2",
+                                        "versionFlag": "NEW"
+                                    }
+                                ]
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "moduleId": 20,
+                        "currentVersion": "v2",
+                        "allowSwitchVersion": true,
+                        "switchVersionList": [
+                            {
+                                "version": "v1",
+                                "versionFlag": "OLD"
+                            },
+                            {
+                                "version": "v2",
+                                "versionFlag": "NEW"
+                            }
+                        ]
+                    },
+                    {
+                        "menuId": 2827,
+                        "menuName": "订单分账",
+                        "url": "/ledgerManage",
+                        "parentId": 2392,
+                        "subMenus": [
+                            {
+                                "menuId": 2828,
+                                "menuName": "订单分账查询",
+                                "url": "/ledgerManage/queryTradeMerchantDivide",
+                                "parentId": 2827,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2433,
+                                "menuName": "子商户订单分账查询",
+                                "url": "/ledgerManage/queryTradeSubMerchantDivide",
+                                "parentId": 2827,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2834,
+                                "menuName": "子商户订单分账规则设置",
+                                "url": "/ledgerManage/order_ledger_rule",
+                                "parentId": 2827,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2810,
+                        "menuName": "余额分账-订单",
+                        "url": "/ledgerManage",
+                        "parentId": 2392,
+                        "subMenus": [
+                            {
+                                "menuId": 2811,
+                                "menuName": "发起余额分账-订单",
+                                "url": "/divideManage/queryDivide",
+                                "parentId": 2810,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2812,
+                                "menuName": "余额分账-订单查询",
+                                "url": "/ledgerManage/ledger_query",
+                                "parentId": 2810,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-separate-account",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2816,
+                        "menuName": "分账复核",
+                        "url": "/ledgerManage",
+                        "parentId": 2392,
+                        "subMenus": [
+                            {
+                                "menuId": 2817,
+                                "menuName": "分账复核",
+                                "url": "/ledgerManage/ledger_review",
+                                "parentId": 2816,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "moduleId": 20,
+                                "currentVersion": "v2",
+                                "allowSwitchVersion": true,
+                                "switchVersionList": [
+                                    {
+                                        "version": "v1",
+                                        "versionFlag": "OLD"
+                                    },
+                                    {
+                                        "version": "v2",
+                                        "versionFlag": "NEW"
+                                    }
+                                ]
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "moduleId": 20,
+                        "currentVersion": "v2",
+                        "allowSwitchVersion": true,
+                        "switchVersionList": [
+                            {
+                                "version": "v1",
+                                "versionFlag": "OLD"
+                            },
+                            {
+                                "version": "v2",
+                                "versionFlag": "NEW"
+                            }
+                        ]
+                    },
+                    {
+                        "menuId": 2395,
+                        "menuName": "代扣管理",
+                        "url": "/withholdingManage",
+                        "parentId": 2392,
+                        "subMenus": [
+                            {
+                                "menuId": 2401,
+                                "menuName": "发起代扣",
+                                "url": "/withholdingManage/initiating_withholding",
+                                "parentId": 2395,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2402,
+                                "menuName": "代扣查询",
+                                "url": "/withholdingManage/withholding_query",
+                                "parentId": 2395,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2403,
+                                "menuName": "子商户代扣查询",
+                                "url": "/withholdingManage/submerchant_withholding_query",
+                                "parentId": 2395,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2404,
+                                "menuName": "代扣复核",
+                                "url": "/withholdingManage/withhold_review",
+                                "parentId": 2395,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2405,
+                                "menuName": "自动代扣规则查询",
+                                "url": "/withholdingManage/auto_withholding",
+                                "parentId": 2395,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2407,
+                                "menuName": "子商户自动代扣规则",
+                                "url": "/withholdingManage/submerchant_withholding_rule_query",
+                                "parentId": 2395,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2406,
+                                "menuName": "代扣关系管理",
+                                "url": "/withholdingManage/withhold_relation_manage",
+                                "parentId": 2395,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_self",
+                "module": "/mp-separate-account",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 2456,
+                "menuName": "资金管理",
+                "url": "/mp-galaxy/mp-boss-fundmanage/index.html#/?menuId=2456",
+                "subMenus": [
+                    {
+                        "menuId": 2457,
+                        "menuName": "资金总览",
+                        "url": "/fundManage",
+                        "parentId": 2456,
+                        "subMenus": [
+                            {
+                                "menuId": 2463,
+                                "menuName": "资金总览",
+                                "url": "/fundManage/fundingOverview",
+                                "parentId": 2457,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2540,
+                                "menuName": "资金流水",
+                                "url": "/fundManage/fundingFlow",
+                                "parentId": 2457,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2764,
+                                "menuName": "电子凭证",
+                                "url": "/fundManage/electronicCertificates",
+                                "parentId": 2457,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2725,
+                        "menuName": "政务提现",
+                        "url": "/govWithdraw",
+                        "parentId": 2456,
+                        "subMenus": [
+                            {
+                                "menuId": 2726,
+                                "menuName": "发起提现",
+                                "url": "/govWithdraw/withdraw",
+                                "parentId": 2725,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2727,
+                                "menuName": "提现记录",
+                                "url": "/govWithdraw/withdrawRecord",
+                                "parentId": 2725,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2728,
+                                "menuName": "提现复核",
+                                "url": "/govWithdraw/withdrawReview",
+                                "parentId": 2725,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "e607",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2480,
+                        "menuName": "企业付款",
+                        "url": "/companyPay",
+                        "parentId": 2456,
+                        "subMenus": [
+                            {
+                                "menuId": 2481,
+                                "menuName": "单笔付款",
+                                "url": "/companyPay/singlePay",
+                                "parentId": 2480,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2482,
+                                "menuName": "付款记录",
+                                "url": "/companyPay/queryRecord",
+                                "parentId": 2480,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2483,
+                                "menuName": "常用收款人",
+                                "url": "/companyPay/contacts",
+                                "parentId": 2480,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2484,
+                                "menuName": "复核申请",
+                                "url": "/companyPay/apply",
+                                "parentId": 2480,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2485,
+                                "menuName": "付款复核",
+                                "url": "/companyPay/check",
+                                "parentId": 2480,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2525,
+                                "menuName": "批量付款",
+                                "url": "/companyPay/batchPayment",
+                                "parentId": 2480,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2486,
+                        "menuName": "常用个人付款",
+                        "url": "/personPay",
+                        "parentId": 2456,
+                        "subMenus": [
+                            {
+                                "menuId": 2487,
+                                "menuName": "常用个人管理",
+                                "url": "/personPay/personManage",
+                                "parentId": 2486,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2488,
+                                "menuName": "常用个人付款",
+                                "url": "/personPay/payToPerson",
+                                "parentId": 2486,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2489,
+                                "menuName": "常用个人付款记录",
+                                "url": "/personPay/personRecord",
+                                "parentId": 2486,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2490,
+                        "menuName": "账户提现",
+                        "url": "/accountWithdrawal",
+                        "parentId": 2456,
+                        "subMenus": [
+                            {
+                                "menuId": 2491,
+                                "menuName": "发起提现",
+                                "url": "/accountWithdrawal/withdrawal",
+                                "parentId": 2490,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2492,
+                                "menuName": "提现记录",
+                                "url": "/accountWithdrawal/withdrawalRecord",
+                                "parentId": 2490,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2523,
+                                "menuName": "自动提现",
+                                "url": "/accountWithdrawal/subAutoWithdraw",
+                                "parentId": 2490,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2524,
+                                "menuName": "提现卡管理",
+                                "url": "/accountWithdrawal/subCardManage",
+                                "parentId": 2490,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2509,
+                        "menuName": "账户转账",
+                        "url": "/accountTransfer",
+                        "parentId": 2456,
+                        "subMenus": [
+                            {
+                                "menuId": 2510,
+                                "menuName": "发起转账",
+                                "url": "/accountTransfer/transfer",
+                                "parentId": 2509,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2511,
+                                "menuName": "转账记录",
+                                "url": "/accountTransfer/transferRecord",
+                                "parentId": 2509,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2512,
+                                "menuName": "复核申请单",
+                                "url": "/accountTransfer/transferAuditList",
+                                "parentId": 2509,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2513,
+                                "menuName": "转账复核",
+                                "url": "/accountTransfer/transferAudit",
+                                "parentId": 2509,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2529,
+                        "menuName": "账户充值",
+                        "url": "/accountRecharge",
+                        "parentId": 2456,
+                        "subMenus": [
+                            {
+                                "menuId": 2530,
+                                "menuName": "充值",
+                                "url": "/accountRecharge/recharge",
+                                "parentId": 2529,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2531,
+                                "menuName": "充值记录",
+                                "url": "/accountRecharge/rechargeRecord",
+                                "parentId": 2529,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_self",
+                "module": "/mp-boss-fundmanage",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 2795,
+                "menuName": "本地生活",
+                "url": "/mp-local-merchant#/?menuId=2795",
+                "subMenus": [
+                    {
+                        "menuId": 2796,
+                        "menuName": "佣金管理",
+                        "url": "/",
+                        "parentId": 2795,
+                        "subMenus": [
+                            {
+                                "menuId": 2797,
+                                "menuName": "门店管理",
+                                "url": "/commissionManagement/storeManagement",
+                                "parentId": 2796,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2798,
+                                "menuName": "授权管理",
+                                "url": "/commissionManagement/authorizationManagement",
+                                "parentId": 2796,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2799,
+                                "menuName": "规则管理",
+                                "url": "/commissionManagement/ruleManagement",
+                                "parentId": 2796,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2800,
+                                "menuName": "抽佣订单",
+                                "url": "/commissionManagement/commissionOrders",
+                                "parentId": 2796,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_self",
+                "module": "/mp-local-merchant",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 2578,
+                "menuName": "银行活动",
+                "url": "/mp-galaxy/mp-marketing-center/index.html#/?menuId=2578",
+                "subMenus": [
+                    {
+                        "menuId": 2697,
+                        "menuName": "银行营销活动",
+                        "url": "/bankSubsidies",
+                        "parentId": 2578,
+                        "subMenus": [
+                            {
+                                "menuId": 2698,
+                                "menuName": "活动查看",
+                                "url": "/bankSubsidies/queryActivityList",
+                                "parentId": 2697,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2699,
+                                "menuName": "报名管理",
+                                "url": "/bankSubsidies/querySignActivityList",
+                                "parentId": 2697,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2700,
+                                "menuName": "批量报名结果",
+                                "url": "/bankSubsidies/queryBatchActivityList",
+                                "parentId": 2697,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2710,
+                                "menuName": "补贴信息查询",
+                                "url": "/bankSubsidies/querySubsidyInfoList",
+                                "parentId": 2697,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "e620",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2712,
+                        "menuName": "商户活动红版",
+                        "url": "/subsidy/querySubsidyVerifyList",
+                        "parentId": 2578,
+                        "subMenus": [
+                            {
+                                "menuId": 2713,
+                                "menuName": "补贴核销订单明细红版",
+                                "url": "/subsidy/querySubsidyVerifyList",
+                                "parentId": 2712,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2714,
+                                "menuName": "补贴退款订单明细红版",
+                                "url": "/subsidy/querySubsidyRefundList",
+                                "parentId": 2712,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_self",
+                "module": "/mp-marketing-center",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 1906,
+                "menuName": "商户管理",
+                "url": "/mp-galaxy/mp-merchant-access/index.html#/?menuId=1906",
+                "subMenus": [
+                    {
+                        "menuId": 2098,
+                        "menuName": "下级商户管理",
+                        "url": "/standardMerchantManage",
+                        "parentId": 1906,
+                        "subMenus": [
+                            {
+                                "menuId": 2103,
+                                "menuName": "商户查询",
+                                "url": "/standardMerchantManage/queryMerchant",
+                                "parentId": 2098,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2101,
+                                "menuName": "新增商户",
+                                "url": "/standardMerchantManage/addMerchant",
+                                "parentId": 2098,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2102,
+                                "menuName": "入网草稿",
+                                "url": "/standardMerchantManage/queryDraft",
+                                "parentId": 2098,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2755,
+                                "menuName": "入网进度",
+                                "url": "/standardMerchantManage/queryProgress",
+                                "parentId": 2098,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2271,
+                                "menuName": "商户变更申请",
+                                "url": "/standardMerchantManage/querySubMerchantChange",
+                                "parentId": 2098,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2330,
+                                "menuName": "下级套餐查询",
+                                "url": "/standardMerchantManage/querySubSetMeal",
+                                "parentId": 2098,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2787,
+                                "menuName": "实名报备查询",
+                                "url": "/standardMerchantManage/queryReportInfo",
+                                "parentId": 2098,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2743,
+                                "menuName": "商户转移",
+                                "url": "/standardMerchantManage/merchantTransfer",
+                                "parentId": 2098,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2497,
+                                "menuName": "商户额度查询",
+                                "url": "/standardMerchantManage/subMerchantQuota",
+                                "parentId": 2098,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2650,
+                                "menuName": "整改协查管理",
+                                "url": "/standardMerchantManage/rectification",
+                                "parentId": 2098,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2676,
+                                "menuName": "费率模板配置",
+                                "url": "/standardMerchantManage/queryRateTemplate",
+                                "parentId": 2098,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "\\ue6d4",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2554,
+                        "menuName": "交易商户号管理",
+                        "url": "/tradeMerchantMange",
+                        "parentId": 1906,
+                        "subMenus": [
+                            {
+                                "menuId": 2555,
+                                "menuName": "交易商户号查询",
+                                "url": "/tradeMerchantMange/queryMerchant",
+                                "parentId": 2554,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2723,
+                        "menuName": "商户风控管理",
+                        "url": "/merchantRiskControlManage",
+                        "parentId": 1906,
+                        "subMenus": [
+                            {
+                                "menuId": 2786,
+                                "menuName": "微信处置查询",
+                                "url": "/merchantRiskControlManage/weChatDispose",
+                                "parentId": 2723,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2702,
+                                "menuName": "用户投诉管理",
+                                "url": "/merchantRiskControlManage/myComplaint",
+                                "parentId": 2723,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2729,
+                                "menuName": "调单管理",
+                                "url": "/merchantRiskControlManage/riskAdjustment",
+                                "parentId": 2723,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2724,
+                                "menuName": "风险处置查询",
+                                "url": "/merchantRiskControlManage/riskDispositionQuery",
+                                "parentId": 2723,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "e82b",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2618,
+                        "menuName": "应用集市",
+                        "url": "/applicationMarket",
+                        "parentId": 1906,
+                        "subMenus": [
+                            {
+                                "menuId": 2619,
+                                "menuName": "开通应用记录",
+                                "url": "/applicationMarket/applicationOpenRecord",
+                                "parentId": 2618,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "e81e",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2627,
+                        "menuName": "门店管理",
+                        "url": "/shopManage",
+                        "parentId": 1906,
+                        "subMenus": [
+                            {
+                                "menuId": 2628,
+                                "menuName": "门店查询",
+                                "url": "/shopManage/shopList",
+                                "parentId": 2627,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-merchant-access",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "/mp-merchant-access",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2325,
+                        "menuName": "台牌管理",
+                        "url": "/terminalManage",
+                        "parentId": 1906,
+                        "subMenus": [
+                            {
+                                "menuId": 2327,
+                                "menuName": "台牌终端查询",
+                                "url": "/terminalManage/terminalQuery",
+                                "parentId": 2325,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2326,
+                        "menuName": "网点管理",
+                        "url": "/shopManage",
+                        "parentId": 1906,
+                        "subMenus": [
+                            {
+                                "menuId": 2328,
+                                "menuName": "网点查询",
+                                "url": "/shopManage/shopQuery",
+                                "parentId": 2326,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_blank",
+                "module": "/mp-merchant-access",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 1959,
+                "menuName": "UED服务",
+                "url": "/mp-ued/index.html#/?menuId=1959",
+                "subMenus": [
+                    {
+                        "menuId": 1960,
+                        "menuName": "模板测试",
+                        "url": "/templateTest",
+                        "parentId": 1959,
+                        "subMenus": [
+                            {
+                                "menuId": 1961,
+                                "menuName": "详情模板",
+                                "url": "/templateTest/detail",
+                                "parentId": 1960,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 1962,
+                                "menuName": "表单模板",
+                                "url": "/templateTest/form",
+                                "parentId": 1960,
+                                "displayType": "default",
+                                "skipType": "_blank",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 1963,
+                                "menuName": "查询模板",
+                                "url": "/templateTest/search",
+                                "parentId": 1960,
+                                "displayType": "default",
+                                "skipType": "_blank",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 1987,
+                                "menuName": "自定义模板",
+                                "url": "/templateTest/customTemplate",
+                                "parentId": 1960,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 1988,
+                                "menuName": "结果模板",
+                                "url": "/templateTest/resultTemplate",
+                                "parentId": 1960,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 1989,
+                                "menuName": "高级表单模板",
+                                "url": "/templateTest/advancedFormTemplate",
+                                "parentId": 1960,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_blank",
+                "module": "/mp-ued",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 2234,
+                "menuName": "对账管理",
+                "url": "/mp-galaxy/mp-merchant-access/index.html#/?menuId=2234",
+                "subMenus": [
+                    {
+                        "menuId": 2107,
+                        "menuName": "对账中心",
+                        "url": "/tradeManage",
+                        "parentId": 2234,
+                        "subMenus": [
+                            {
+                                "menuId": 2108,
+                                "menuName": "交易汇总",
+                                "url": "/tradeManage/queryMerchantCollect",
+                                "parentId": 2107,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2765,
+                                "menuName": "订单查询",
+                                "url": "/tradeManage/queryOrderList",
+                                "parentId": 2107,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2110,
+                                "menuName": "交易查询",
+                                "url": "/tradeManage/queryMerchant",
+                                "parentId": 2107,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2332,
+                                "menuName": "结算查询",
+                                "url": "/bossSettleManage/querySettle",
+                                "parentId": 2107,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2109,
+                                "menuName": "子商户交易汇总",
+                                "url": "/tradeManage/querySubMerchantCollect",
+                                "parentId": 2107,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2111,
+                                "menuName": "子商户交易查询",
+                                "url": "/tradeManage/querySubMerchant",
+                                "parentId": 2107,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2333,
+                                "menuName": "子商户结算查询",
+                                "url": "/bossSettleManage/querySubSettle",
+                                "parentId": 2107,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2450,
+                                "menuName": "待结算查询",
+                                "url": "/tradeManage/queryWaitClearing",
+                                "parentId": 2107,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_blank",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2442,
+                        "menuName": "对账管理",
+                        "url": "/reconciliationManage",
+                        "parentId": 2234,
+                        "subMenus": [
+                            {
+                                "menuId": 2447,
+                                "menuName": "交易查询",
+                                "url": "/reconciliationManage/tradeSearch",
+                                "parentId": 2442,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2444,
+                                "menuName": "交易汇总",
+                                "url": "/reconciliationManage/tradeSummarySearch",
+                                "parentId": 2442,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2445,
+                                "menuName": "分账查询",
+                                "url": "/reconciliationManage/divideSearch",
+                                "parentId": 2442,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2446,
+                                "menuName": "结算查询",
+                                "url": "/reconciliationManage/settlementSearch",
+                                "parentId": 2442,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_blank",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2730,
+                        "menuName": "账单下载",
+                        "url": "/tradeCheck",
+                        "parentId": 2234,
+                        "subMenus": [
+                            {
+                                "menuId": 2732,
+                                "menuName": "交易账单",
+                                "url": "/billDownload/tradeBill",
+                                "parentId": 2730,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2733,
+                                "menuName": "分账账单",
+                                "url": "/billDownload/divideBill",
+                                "parentId": 2730,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2734,
+                                "menuName": "分账接收方账单",
+                                "url": "/billDownload/divideReceiverBill",
+                                "parentId": 2730,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "e623",
+                        "allowSwitchVersion": false
+                    },
+                    {
+                        "menuId": 2338,
+                        "menuName": "发票管理",
+                        "url": "/invoiceManage",
+                        "parentId": 2234,
+                        "subMenus": [
+                            {
+                                "menuId": 2683,
+                                "menuName": "商户发票信息管理",
+                                "url": "/invoiceManage/invoiceChildManage",
+                                "parentId": 2338,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2684,
+                                "menuName": "商户开票记录",
+                                "url": "/invoiceManage/invoiceChildListManager",
+                                "parentId": 2338,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2339,
+                                "menuName": "发票信息管理",
+                                "url": "/invoiceManage/invoiceInfoManage",
+                                "parentId": 2338,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2350,
+                                "menuName": "申请开票",
+                                "url": "/invoiceManage/invoiceApply",
+                                "parentId": 2338,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2351,
+                                "menuName": "开票记录管理",
+                                "url": "/invoiceManage/invoiceRecords",
+                                "parentId": 2338,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "e7de",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_blank",
+                "module": "/mp-merchant-access",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 2235,
+                "menuName": "分账管理",
+                "url": "/mp-galaxy/mp-merchant-access/index.html#/?menuId=2235",
+                "subMenus": [
+                    {
+                        "menuId": 2104,
+                        "menuName": "分账管理",
+                        "url": "/divideManage",
+                        "parentId": 2235,
+                        "subMenus": [
+                            {
+                                "menuId": 2311,
+                                "menuName": "分账执行(按资金)",
+                                "url": "/divideManage/divideFund",
+                                "parentId": 2104,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2369,
+                                "menuName": "分账复核查询（不知道干啥用的）",
+                                "url": "/tradeManage/queryDivideRecheck",
+                                "parentId": 2104,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_blank",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_blank",
+                "module": "/mp-merchant-access",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 2475,
+                "menuName": "经营分析",
+                "url": "/mp-galaxy/mp-data-report/index.html#/?menuId=2475",
+                "subMenus": [
+                    {
+                        "menuId": 2823,
+                        "menuName": "经营分析",
+                        "url": "/dataReport",
+                        "parentId": 2475,
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_self",
+                "module": "/mp-data-report",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 2416,
+                "menuName": "终端服务",
+                "url": "/mp-galaxy/mp-offline/index.html#/?menuId=2416",
+                "subMenus": [
+                    {
+                        "menuId": 2417,
+                        "menuName": "终端信息",
+                        "url": "/terminalManage",
+                        "parentId": 2416,
+                        "subMenus": [
+                            {
+                                "menuId": 2418,
+                                "menuName": "终端管理",
+                                "url": "/terminalManage/terminalList",
+                                "parentId": 2417,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-offline",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2419,
+                                "menuName": "台牌绑定播报设备",
+                                "url": "/terminalManage/bindBroadcastList",
+                                "parentId": 2417,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "mp-offline",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2537,
+                                "menuName": "业务参数配置",
+                                "url": "/terminalManage/setting",
+                                "parentId": 2417,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "/mp-offline",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_self",
+                "module": "/mp-offline",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 2760,
+                "menuName": "渠道前返",
+                "url": "/mp-galaxy/mp-advance-commission/index.html#/?menuId=2760",
+                "subMenus": [
+                    {
+                        "menuId": 2763,
+                        "menuName": "结算",
+                        "url": "/settlement",
+                        "parentId": 2760,
+                        "subMenus": [
+                            {
+                                "menuId": 2761,
+                                "menuName": "结算明细数据",
+                                "url": "/settlement/orderDetails",
+                                "parentId": 2763,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-advance-commission",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            },
+                            {
+                                "menuId": 2762,
+                                "menuName": "结算记录",
+                                "url": "/settlement/settlementRecords",
+                                "parentId": 2763,
+                                "displayType": "default",
+                                "skipType": "_self",
+                                "module": "/mp-advance-commission",
+                                "iconCode": "",
+                                "allowSwitchVersion": false
+                            }
+                        ],
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "/mp-advance-commission",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_self",
+                "module": "/mp-advance-commission",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            },
+            {
+                "menuId": 2448,
+                "menuName": "开发者中心",
+                "url": "/mp-boss-develop-center/index.html#/?menuId=2448",
+                "subMenus": [
+                    {
+                        "menuId": 2449,
+                        "menuName": "开发者中心",
+                        "url": "/developCenter",
+                        "parentId": 2448,
+                        "displayType": "default",
+                        "skipType": "_self",
+                        "module": "",
+                        "iconCode": "",
+                        "allowSwitchVersion": false
+                    }
+                ],
+                "displayType": "default",
+                "skipType": "_self",
+                "module": "/mp-boss-develop-center",
+                "iconCode": "",
+                "allowSwitchVersion": false
+            }
+        ]
+    }
+}

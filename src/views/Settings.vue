@@ -31,6 +31,11 @@
         <a-tab-pane key="charts" tab="图表管理">
           <ChartManagementTab />
         </a-tab-pane>
+        
+        <!-- 页面菜单维护 -->
+        <a-tab-pane key="page-menu" tab="页面菜单">
+          <PageMenuTab />
+        </a-tab-pane>
       </a-tabs>
     </div>
   </AppLayout>
@@ -45,6 +50,7 @@ import ProjectConfigTab from '@/components/settings/ProjectConfigTab.vue'
 import ApiConfigTab from '@/components/settings/ApiConfigTab.vue'
 import AiConfigTab from '@/components/settings/AiConfigTab.vue'
 import ChartManagementTab from '@/components/settings/ChartManagementTab.vue'
+import PageMenuTab from '@/components/settings/PageMenuTab.vue'
 
 const activeTab = ref('project')
 </script>

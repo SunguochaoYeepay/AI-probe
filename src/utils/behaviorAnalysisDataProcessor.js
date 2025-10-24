@@ -14,12 +14,14 @@ class DualBuryPointDataOrganizer {
    * @param {Array} visitData - 访问埋点数据
    * @param {Array} clickData - 点击埋点数据（用户行为路径分析中不使用）
    * @param {Array} customSteps - 自定义步骤配置
+   * @param {Object} pageMenuData - 页面菜单数据
    * @returns {Array} 用户行为路径数组
    */
-  organizeUserBehaviorPaths(visitData, clickData, customSteps = null) {
+  organizeUserBehaviorPaths(visitData, clickData, customSteps = null, pageMenuData = null) {
     console.log('🔄 [DualBuryPointDataOrganizer] 开始整合访问埋点数据:', {
       visitDataCount: visitData?.length || 0,
-      clickDataCount: 0 // 用户行为路径分析不使用点击数据
+      clickDataCount: 0, // 用户行为路径分析不使用点击数据
+      hasPageMenuData: !!pageMenuData
     })
 
     // 1. 数据预处理和清洗（只处理访问数据）
@@ -63,8 +65,8 @@ class DualBuryPointDataOrganizer {
       // 按时间排序所有行为
       userData.actions.sort((a, b) => a.timestamp - b.timestamp)
       
-      // 构建行为路径（传递自定义步骤配置）
-      const behaviorPath = this.buildBehaviorPath(userData.actions, customSteps)
+      // 构建行为路径（传递自定义步骤配置和页面菜单数据）
+      const behaviorPath = this.buildBehaviorPath(userData.actions, customSteps, pageMenuData)
       
       userPaths.push({
         weCustomerKey: userKey,
@@ -88,9 +90,10 @@ class DualBuryPointDataOrganizer {
    * 构建用户行为路径
    * @param {Array} actions - 按时间排序的用户行为
    * @param {Array} customSteps - 自定义步骤配置
+   * @param {Object} pageMenuData - 页面菜单数据
    * @returns {Array} 行为路径
    */
-  buildBehaviorPath(actions, customSteps = null) {
+  buildBehaviorPath(actions, customSteps = null, pageMenuData = null) {
     const path = []
     let stepCounter = 1
     
@@ -98,8 +101,8 @@ class DualBuryPointDataOrganizer {
       const action = actions[i]
       const nextAction = actions[i + 1]
       
-      // 识别步骤名称（传递自定义步骤配置）
-      const stepName = this.identifyStepName(action, nextAction, customSteps)
+      // 识别步骤名称（传递自定义步骤配置和页面菜单数据）
+      const stepName = this.identifyStepName(action, nextAction, customSteps, pageMenuData)
       
       path.push({
         step: stepCounter++,
@@ -120,31 +123,103 @@ class DualBuryPointDataOrganizer {
   }
   
   /**
-   * 识别步骤名称（基于页面访问数据）
+   * 识别步骤名称（基于页面菜单数据优化）
    * @param {Object} currentAction - 当前行为
    * @param {Object} nextAction - 下一个行为
    * @param {Array} customSteps - 自定义步骤配置
+   * @param {Object} pageMenuData - 页面菜单数据
    * @returns {String} 步骤名称
    */
-  identifyStepName(currentAction, nextAction, customSteps = null) {
+  identifyStepName(currentAction, nextAction, customSteps = null, pageMenuData = null) {
     // 如果提供了自定义步骤配置，使用自定义逻辑
     if (customSteps && customSteps.length > 0) {
       return this.identifyStepWithCustomConfig(currentAction, customSteps)
     }
     
-    // 基于页面访问的步骤识别逻辑
+    // 基于页面菜单数据优化步骤名称
     if (currentAction.type === 'visit') {
-      if (currentAction.pageBehavior === '打开') {
-        return '流程开始'
-      } else if (currentAction.pageBehavior === '关闭') {
-        return '流程结束'
-      } else {
-        // 使用页面名称作为步骤名称
-        return currentAction.pageName || '未知页面'
+      const pageName = currentAction.pageName || '未知页面'
+      const cleanPageName = pageName.trim()
+      
+      // 如果有页面菜单数据，尝试匹配和优化页面名称
+      if (pageMenuData && pageMenuData.data && pageMenuData.data.menus) {
+        const optimizedName = this.optimizePageNameWithMenu(cleanPageName, pageMenuData)
+        if (optimizedName) {
+          return optimizedName
+        }
       }
+      
+      // 直接返回页面名称
+      return cleanPageName
     }
     
     return '未知步骤'
+  }
+
+  /**
+   * 基于页面菜单数据优化页面名称
+   * @param {String} pageName - 原始页面名称
+   * @param {Object} pageMenuData - 页面菜单数据
+   * @returns {String} 优化后的页面名称
+   */
+  optimizePageNameWithMenu(pageName, pageMenuData) {
+    // 递归搜索菜单项
+    const findMenuByPageName = (menus, targetName) => {
+      for (const menu of menus) {
+        // 检查当前菜单项
+        if (menu.menuName === targetName || menu.url === targetName) {
+          return menu
+        }
+        
+        // 递归检查子菜单
+        if (menu.subMenus && menu.subMenus.length > 0) {
+          const found = findMenuByPageName(menu.subMenus, targetName)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    
+    // 尝试匹配菜单项
+    const matchedMenu = findMenuByPageName(pageMenuData.data.menus, pageName)
+    
+    if (matchedMenu) {
+      // 构建层级路径：一级菜单 > 二级菜单 > 三级菜单
+      const buildMenuPath = (menu, menus) => {
+        const path = [menu.menuName]
+        
+        // 查找父菜单
+        const findParent = (parentMenus, childMenu) => {
+          for (const parent of parentMenus) {
+            if (parent.subMenus && parent.subMenus.some(sub => sub.menuId === childMenu.menuId)) {
+              return parent
+            }
+            if (parent.subMenus) {
+              const found = findParent(parent.subMenus, childMenu)
+              if (found) return found
+            }
+          }
+          return null
+        }
+        
+        let currentMenu = menu
+        while (currentMenu.parentId) {
+          const parent = findParent(menus, currentMenu)
+          if (parent) {
+            path.unshift(parent.menuName)
+            currentMenu = parent
+          } else {
+            break
+          }
+        }
+        
+        return path.join(' > ')
+      }
+      
+      return buildMenuPath(matchedMenu, pageMenuData.data.menus)
+    }
+    
+    return null
   }
 
   /**
@@ -696,8 +771,9 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
       options
     })
 
-    // 1. 整合用户行为路径
-    const userPaths = this.dataOrganizer.organizeUserBehaviorPaths(data.visitData, data.clickData, null)
+    // 1. 整合用户行为路径（传递页面菜单数据）
+    const pageMenuData = options?.pageMenuData || null
+    const userPaths = this.dataOrganizer.organizeUserBehaviorPaths(data.visitData, data.clickData, null, pageMenuData)
     
     // 2. 分析路径模式
     const pathAnalysis = this.analyzePathPatterns(userPaths)
@@ -728,7 +804,7 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
   }
 
   /**
-   * 分析路径模式
+   * 分析路径模式（基于页面名称去重和路径统计）
    * @param {Array} userPaths - 用户路径数据
    * @returns {Object} 路径分析结果
    */
@@ -737,8 +813,10 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     const nodeCounts = new Map()
     let totalUsers = 0
 
+    console.log('🔍 [analyzePathPatterns] 开始分析路径模式，用户数量:', userPaths.length)
+
     // 统计路径和节点
-    userPaths.forEach(path => {
+    userPaths.forEach((path, index) => {
       totalUsers++
       
       // 检查路径数据是否存在
@@ -747,15 +825,37 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
         return
       }
       
-      // 统计完整路径
-      const pathKey = path.behaviorPath.map(step => step.stepName).join(' → ')
-      pathCounts.set(pathKey, (pathCounts.get(pathKey) || 0) + 1)
+      // 清理路径：移除相邻重复的页面，保留用户的实际访问路径
+      const cleanedSteps = []
+      let lastStepName = null
       
-      // 统计节点
       path.behaviorPath.forEach(step => {
-        const nodeKey = step.stepName
-        nodeCounts.set(nodeKey, (nodeCounts.get(nodeKey) || 0) + 1)
+        const currentStepName = step.stepName
+        // 只移除相邻的重复步骤，保留用户的实际访问路径
+        if (currentStepName !== lastStepName) {
+          cleanedSteps.push(currentStepName)
+          lastStepName = currentStepName
+        }
       })
+      
+      // 统计清理后的完整路径
+      if (cleanedSteps.length > 0) {
+        const pathKey = cleanedSteps.join(' → ')
+        pathCounts.set(pathKey, (pathCounts.get(pathKey) || 0) + 1)
+        
+        // 统计每个页面节点（去重）
+        cleanedSteps.forEach(stepName => {
+          nodeCounts.set(stepName, (nodeCounts.get(stepName) || 0) + 1)
+        })
+      }
+      
+      // 调试：打印前几个用户的路径
+      if (index < 3) {
+        console.log(`🔍 [analyzePathPatterns] 用户${index + 1}路径:`, {
+          原始路径: path.behaviorPath.map(s => s.stepName),
+          清理后路径: cleanedSteps
+        })
+      }
     })
 
     // 生成路径列表（按频次排序）
@@ -772,7 +872,8 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
       totalUsers,
       pathCount: paths.length,
       nodeCount: nodeCounts.size,
-      topPaths: paths.slice(0, 5).map(p => `${p.path} (${p.count})`)
+      topPaths: paths.slice(0, 5).map(p => `${p.path} (${p.count})`),
+      allNodes: Array.from(nodeCounts.keys())
     })
 
     return {
@@ -783,65 +884,43 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
   }
 
   /**
-   * 生成桑基图数据
+   * 生成桑基图数据（基于页面名称去重和路径连接）
    * @param {Object} pathAnalysis - 路径分析结果
    * @returns {Object} 桑基图数据
    */
   generateSankeyData(pathAnalysis) {
     console.log('🔧 [generateSankeyData] 开始生成桑基图数据:', {
       pathCount: pathAnalysis.paths.length,
-      nodeCounts: pathAnalysis.nodeCounts.size
+      nodeCounts: pathAnalysis.nodeCounts.size,
+      allNodes: Array.from(pathAnalysis.nodeCounts.keys())
     })
     
     const nodes = []
     const links = []
     const nodeMap = new Map()
 
-    // 生成节点
-    pathAnalysis.paths.forEach((pathData, index) => {
-      const steps = pathData.path.split(' → ')
-      console.log(`🔍 [generateSankeyData] 处理路径 ${index + 1}:`, {
-        path: pathData.path,
-        steps: steps,
-        count: pathData.count
-      })
-      
-      steps.forEach((step, stepIndex) => {
-        if (!nodeMap.has(step)) {
-          const node = {
-            name: step,
-            value: pathAnalysis.nodeCounts.get(step) || 0
-          }
-          nodes.push(node)
-          nodeMap.set(step, node)
-        }
-      })
+    // 1. 生成所有页面节点（基于nodeCounts去重）
+    pathAnalysis.nodeCounts.forEach((count, nodeName) => {
+      const node = {
+        name: nodeName,
+        value: count
+      }
+      nodes.push(node)
+      nodeMap.set(nodeName, node)
     })
 
-    // 生成连接
+    console.log('🔍 [generateSankeyData] 生成的节点:', nodes.map(n => `${n.name}(${n.value})`))
+
+    // 2. 生成页面间的连接（基于路径数据）
     pathAnalysis.paths.forEach((pathData, index) => {
       const steps = pathData.path.split(' → ')
       
-      console.log(`🔍 [generateSankeyData] 处理路径: ${steps.join(' → ')}`)
+      console.log(`🔍 [generateSankeyData] 处理路径 ${index + 1}: ${pathData.path} (${pathData.count}用户)`)
       
-      // 🚀 修复：只移除相邻重复，保留完整路径
-      const cleanedSteps = []
-      for (let i = 0; i < steps.length; i++) {
-        const currentStep = steps[i]
-        // 只移除相邻的重复步骤，保留用户的实际访问路径
-        if (i === 0 || currentStep !== steps[i - 1]) {
-          cleanedSteps.push(currentStep)
-        }
-      }
-      
-      console.log(`🔍 [generateSankeyData] 清理相邻重复: ${steps.join(' → ')} → ${cleanedSteps.join(' → ')}`)
-      
-      // 使用清理后的步骤生成连接
-      for (let i = 0; i < cleanedSteps.length - 1; i++) {
-        const source = cleanedSteps[i]
-        const target = cleanedSteps[i + 1]
-        
-        console.log(`🔗 [generateSankeyData] 生成连接: ${source} → ${target}`)
+      // 生成页面间的连接
+      for (let i = 0; i < steps.length - 1; i++) {
+        const source = steps[i]
+        const target = steps[i + 1]
         
         // 检查是否已存在相同的连接
         const existingLink = links.find(link => 
@@ -850,19 +929,22 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
         
         if (existingLink) {
           existingLink.value += pathData.count
-          console.log(`🔄 [generateSankeyData] 更新现有连接: ${source} → ${target}, 新值: ${existingLink.value}`)
+          console.log(`🔄 [generateSankeyData] 更新连接: ${source} → ${target}, 新值: ${existingLink.value}`)
         } else {
           links.push({
             source,
             target,
             value: pathData.count
           })
-          console.log(`➕ [generateSankeyData] 添加新连接: ${source} → ${target}, 值: ${pathData.count}`)
+          console.log(`➕ [generateSankeyData] 添加连接: ${source} → ${target}, 值: ${pathData.count}`)
         }
       }
     })
 
-    // 🚀 修复：检测并移除循环连接
+    // 3. 按连接值排序，优先显示重要的连接
+    links.sort((a, b) => b.value - a.value)
+
+    // 4. 检测并移除循环连接，确保桑基图数据无环
     const acyclicLinks = this.removeCycles(links, nodes)
     console.log('🔧 [generateSankeyData] 循环检测完成:', {
       原始连接数: links.length,
@@ -873,8 +955,8 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     console.log('✅ [generateSankeyData] 桑基图数据生成完成:', {
       nodeCount: nodes.length,
       linkCount: acyclicLinks.length,
-      nodes: nodes.map(n => n.name),
-      links: acyclicLinks.map(l => `${l.source} → ${l.target} (${l.value})`)
+      nodes: nodes.map(n => `${n.name}(${n.value})`),
+      topLinks: acyclicLinks.slice(0, 10).map(l => `${l.source} → ${l.target} (${l.value})`)
     })
 
     return { nodes, links: acyclicLinks }
@@ -894,74 +976,12 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
       return links
     }
     
-    // 🚀 智能循环检测：使用拓扑排序检测真正的循环
-    const nodeNames = nodes.map(n => n.name)
-    const nodeSet = new Set(nodeNames)
-    
-    // 构建邻接表
-    const adjacencyList = new Map()
-    nodeNames.forEach(nodeName => {
-      adjacencyList.set(nodeName, [])
-    })
-    
-    links.forEach(link => {
-      if (nodeSet.has(link.source) && nodeSet.has(link.target)) {
-        adjacencyList.get(link.source).push(link.target)
-      }
-    })
-    
-    // 使用拓扑排序检测循环
-    const inDegree = new Map()
-    nodeNames.forEach(node => {
-      inDegree.set(node, 0)
-    })
-    
-    links.forEach(link => {
-      if (nodeSet.has(link.target)) {
-        inDegree.set(link.target, (inDegree.get(link.target) || 0) + 1)
-      }
-    })
-    
-    // 拓扑排序
-    const queue = []
-    const result = []
-    
-    nodeNames.forEach(node => {
-      if (inDegree.get(node) === 0) {
-        queue.push(node)
-      }
-    })
-    
-    while (queue.length > 0) {
-      const current = queue.shift()
-      result.push(current)
-      
-      const neighbors = adjacencyList.get(current) || []
-      neighbors.forEach(neighbor => {
-        const newInDegree = inDegree.get(neighbor) - 1
-        inDegree.set(neighbor, newInDegree)
-        if (newInDegree === 0) {
-          queue.push(neighbor)
-        }
-      })
-    }
-    
-    // 如果拓扑排序结果长度小于节点数，说明存在循环
-    const hasCycle = result.length < nodeNames.length
-    console.log('🔍 [removeCycles] 是否存在循环:', hasCycle)
-    
-    if (!hasCycle) {
-      console.log('✅ [removeCycles] 无循环，返回原始连接')
-      return links
-    }
-    
-    // 🚀 如果存在循环，智能移除：保留重要连接，移除次要循环
-    console.log('🔧 [removeCycles] 检测到循环，智能移除')
+    // 🚀 简化的循环检测：直接移除明显的循环连接
+    const acyclicLinks = []
+    const processedPairs = new Set()
     
     // 按连接值排序，优先保留重要的连接
     const sortedLinks = [...links].sort((a, b) => b.value - a.value)
-    const acyclicLinks = []
-    const processedPairs = new Set()
     
     for (const link of sortedLinks) {
       const pairKey = `${link.source}-${link.target}`
@@ -979,19 +999,89 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
         continue
       }
       
+      // 检查是否会造成复杂循环（简化版）
+      if (this.wouldCreateComplexCycle(acyclicLinks, link)) {
+        console.log(`🗑️ [removeCycles] 移除复杂循环: ${link.source} → ${link.target}`)
+        continue
+      }
+      
       acyclicLinks.push(link)
       processedPairs.add(pairKey)
     }
     
-    console.log('🔍 [removeCycles] 智能去环后连接:', acyclicLinks.map(l => `${l.source} → ${l.target} (${l.value})`))
+    console.log('🔍 [removeCycles] 去环后连接:', acyclicLinks.map(l => `${l.source} → ${l.target} (${l.value})`))
     
-    // 如果移除后连接数为0，保留第一个连接
+    // 如果移除后连接数为0，保留前几个最重要的连接
     if (acyclicLinks.length === 0 && links.length > 0) {
-      console.log('⚠️ [removeCycles] 移除循环后无连接，保留第一个连接')
-      return [links[0]]
+      console.log('⚠️ [removeCycles] 移除循环后无连接，保留前3个重要连接')
+      return links.slice(0, 3)
     }
     
     return acyclicLinks
+  }
+
+  /**
+   * 检查添加连接是否会创建复杂循环
+   * @param {Array} existingLinks - 现有连接
+   * @param {Object} newLink - 新连接
+   * @returns {Boolean} 是否会创建循环
+   */
+  wouldCreateComplexCycle(existingLinks, newLink) {
+    // 使用深度优先搜索检测循环
+    const visited = new Set()
+    const recursionStack = new Set()
+    
+    // 构建邻接表
+    const adjacencyList = new Map()
+    
+    // 添加现有连接
+    existingLinks.forEach(link => {
+      if (!adjacencyList.has(link.source)) {
+        adjacencyList.set(link.source, [])
+      }
+      adjacencyList.get(link.source).push(link.target)
+    })
+    
+    // 添加新连接
+    if (!adjacencyList.has(newLink.source)) {
+      adjacencyList.set(newLink.source, [])
+    }
+    adjacencyList.get(newLink.source).push(newLink.target)
+    
+    // DFS检测循环
+    const hasCycle = (node) => {
+      if (recursionStack.has(node)) {
+        return true // 发现循环
+      }
+      
+      if (visited.has(node)) {
+        return false // 已经访问过，无循环
+      }
+      
+      visited.add(node)
+      recursionStack.add(node)
+      
+      const neighbors = adjacencyList.get(node) || []
+      for (const neighbor of neighbors) {
+        if (hasCycle(neighbor)) {
+          return true
+        }
+      }
+      
+      recursionStack.delete(node)
+      return false
+    }
+    
+    // 检查所有节点
+    for (const node of adjacencyList.keys()) {
+      if (!visited.has(node)) {
+        if (hasCycle(node)) {
+          return true
+        }
+      }
+    }
+    
+    return false
   }
 }
 

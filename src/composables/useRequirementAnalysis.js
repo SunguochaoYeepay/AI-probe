@@ -666,6 +666,9 @@ export function useRequirementAnalysis() {
       const requestType = analysisRequest?.type || 'behavior_funnel'
       const processorType = requestType === 'behavior_path' ? 'behavior_path_analysis' : 'behavior_funnel_analysis'
       
+      // 获取页面菜单数据
+      const pageMenuData = store.state.projectConfig?.pageMenuData || null
+      
       const processedData = dataProcessorFactory.process(processorType, {
         visitData: visitData || [],
         clickData: clickData || []
@@ -678,7 +681,8 @@ export function useRequirementAnalysis() {
           endDate: dayjs(dateRange[1]).format('YYYY-MM-DD')
         },
         funnelName: analysis.description || (requestType === 'behavior_path' ? '用户行为路径分析' : '用户行为转化漏斗'),
-        funnelSteps: analysisRequest?.funnelSteps || null // 🚀 修复：传递漏斗步骤配置
+        funnelSteps: analysisRequest?.funnelSteps || null, // 🚀 修复：传递漏斗步骤配置
+        pageMenuData: pageMenuData // 传递页面菜单数据
       })
       
       console.log('🎯 用户行为分析数据:', processedData)

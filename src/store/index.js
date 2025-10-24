@@ -22,7 +22,8 @@ export default createStore({
       selectedBuryPointIds: JSON.parse(localStorage.getItem('selectedBuryPointIds') || '[]'), // 用户选中的埋点ID列表，从localStorage加载
       visitBuryPointId: JSON.parse(localStorage.getItem('visitBuryPointId') || 'null'), // 访问埋点ID
       clickBuryPointId: JSON.parse(localStorage.getItem('clickBuryPointId') || 'null'), // 点击埋点ID
-      behaviorBuryPointIds: JSON.parse(localStorage.getItem('behaviorBuryPointIds') || '[]') // 行为分析埋点ID列表
+      behaviorBuryPointIds: JSON.parse(localStorage.getItem('behaviorBuryPointIds') || '[]'), // 行为分析埋点ID列表
+      pageMenuData: JSON.parse(localStorage.getItem('pageMenuData') || 'null') // 页面菜单数据，从localStorage加载
     },
     
     // Ollama AI 配置
@@ -96,6 +97,14 @@ export default createStore({
       // 持久化行为分析埋点到localStorage
       if (config.behaviorBuryPointIds !== undefined) {
         localStorage.setItem('behaviorBuryPointIds', JSON.stringify(config.behaviorBuryPointIds))
+      }
+      // 持久化页面菜单数据到localStorage
+      if (config.pageMenuData !== undefined) {
+        if (config.pageMenuData === null) {
+          localStorage.removeItem('pageMenuData')
+        } else {
+          localStorage.setItem('pageMenuData', JSON.stringify(config.pageMenuData))
+        }
       }
     },
     
