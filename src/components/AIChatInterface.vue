@@ -762,17 +762,28 @@ onMounted(() => {
         initialBuryPointId = projectConfig.behaviorBuryPointIds[0]
         console.log('使用用户偏好的行为分析埋点:', initialBuryPointId)
       } else {
-        // 默认优先使用访问埋点，如果没有则使用点击埋点，最后使用行为分析埋点
-        initialBuryPointId = projectConfig.visitBuryPointId || 
-                           projectConfig.clickBuryPointId || 
+        // 默认优先使用点击埋点，如果没有则使用访问埋点，最后使用行为分析埋点
+        initialBuryPointId = projectConfig.clickBuryPointId || 
+                           projectConfig.visitBuryPointId || 
                            (projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds[0])
-        console.log('使用默认埋点选择:', initialBuryPointId)
-        console.log('偏好设置无效的原因:', {
+        console.log('使用默认埋点选择（优先点击埋点）:', initialBuryPointId)
+        console.log('埋点配置详情:', {
           defaultBuryPointType,
+          clickBuryPointId: projectConfig.clickBuryPointId,
+          visitBuryPointId: projectConfig.visitBuryPointId,
+          behaviorBuryPointIds: projectConfig.behaviorBuryPointIds,
           hasClickPoint: !!projectConfig.clickBuryPointId,
           hasVisitPoint: !!projectConfig.visitBuryPointId,
           hasBehaviorPoints: !!(projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.length > 0)
         })
+        
+        // 如果选择了点击埋点，立即更新store
+        if (initialBuryPointId === projectConfig.clickBuryPointId) {
+          store.dispatch('updateApiConfig', {
+            selectedPointId: initialBuryPointId
+          })
+          console.log('✅ 已更新store中的selectedPointId为点击埋点:', initialBuryPointId)
+        }
       }
     }
   } else {
@@ -788,25 +799,53 @@ onMounted(() => {
   if (initialBuryPointId) {
     selectedBuryPointId.value = initialBuryPointId
     console.log('初始化埋点选择完成:', initialBuryPointId)
+  } else {
+    // 如果没有找到合适的埋点，强制设置默认选择点击埋点
+    console.log('未找到合适的埋点，尝试强制设置默认选择')
+    
+    // 检查是否有点击埋点可用
+    if (projectConfig.clickBuryPointId) {
+      selectedBuryPointId.value = projectConfig.clickBuryPointId
+      console.log('强制设置点击埋点为默认选择:', projectConfig.clickBuryPointId)
+      
+      // 同时更新store中的选择
+      store.dispatch('updateApiConfig', {
+        selectedPointId: projectConfig.clickBuryPointId
+      })
+    } else if (projectConfig.visitBuryPointId) {
+      selectedBuryPointId.value = projectConfig.visitBuryPointId
+      console.log('强制设置访问埋点为默认选择:', projectConfig.visitBuryPointId)
+      
+      // 同时更新store中的选择
+      store.dispatch('updateApiConfig', {
+        selectedPointId: projectConfig.visitBuryPointId
+      })
+    }
   }
   
   // 如果是行为分析模式，初始化多选埋点
   if (selectedAnalysisType.value === 'behavior_analysis') {
     const defaultSelectedIds = []
     
+    // 优先添加按钮点击埋点
+    if (projectConfig.clickBuryPointId) {
+      defaultSelectedIds.push(projectConfig.clickBuryPointId)
+    }
+    
     // 添加页面访问埋点
     if (projectConfig.visitBuryPointId) {
       defaultSelectedIds.push(projectConfig.visitBuryPointId)
     }
     
-    // 添加按钮点击埋点
-    if (projectConfig.clickBuryPointId) {
-      defaultSelectedIds.push(projectConfig.clickBuryPointId)
-    }
-    
     if (defaultSelectedIds.length > 0) {
       selectedBuryPointIds.value = defaultSelectedIds
-      console.log('行为分析模式初始化多选埋点:', defaultSelectedIds)
+      console.log('行为分析模式初始化多选埋点（优先点击埋点）:', defaultSelectedIds)
+      
+      // 同时设置单选埋点为点击埋点（用于显示）
+      if (projectConfig.clickBuryPointId) {
+        selectedBuryPointId.value = projectConfig.clickBuryPointId
+        console.log('✅ 行为分析模式：设置单选埋点为点击埋点:', projectConfig.clickBuryPointId)
+      }
     }
   }
   

@@ -71,10 +71,23 @@ export function useBuryPointConfig(addMessage) {
           break
           
         case 'behavior_analysis':
-          // 行为分析只显示页面访问埋点（用户行为路径分析只使用页面浏览数据）
+          // 行为分析显示访问埋点和点击埋点（支持用户行为路径分析和转化漏斗分析）
           if (projectConfig.visitBuryPointId) {
             const visitPoint = getBuryPointInfo(projectConfig.visitBuryPointId)
             configuredPoints.push({ ...visitPoint, type: '访问' })
+          }
+          if (projectConfig.clickBuryPointId && projectConfig.clickBuryPointId !== projectConfig.visitBuryPointId) {
+            const clickPoint = getBuryPointInfo(projectConfig.clickBuryPointId)
+            configuredPoints.push({ ...clickPoint, type: '点击' })
+          }
+          // 如果配置了行为分析埋点，也包含进来
+          if (projectConfig.behaviorBuryPointIds && projectConfig.behaviorBuryPointIds.length > 0) {
+            projectConfig.behaviorBuryPointIds.forEach(pointId => {
+              if (pointId !== projectConfig.visitBuryPointId && pointId !== projectConfig.clickBuryPointId) {
+                const behaviorPoint = getBuryPointInfo(pointId)
+                configuredPoints.push({ ...behaviorPoint, type: '行为' })
+              }
+            })
           }
           break
           
@@ -311,17 +324,28 @@ export function useBuryPointConfig(addMessage) {
       // 切换到行为分析模式，清空单选埋点，初始化多选埋点
       selectedBuryPointId.value = null
       if (filteredPoints.length > 0 && selectedBuryPointIds.value.length === 0) {
-        // 默认只选择页面访问埋点（用户行为路径分析只使用页面浏览数据）
+        // 默认优先选择点击埋点，然后选择访问埋点
         const defaultSelectedIds = []
         const projectConfig = store.state.projectConfig
         
-        // 只添加页面访问埋点
+        // 优先添加点击埋点
+        if (projectConfig.clickBuryPointId) {
+          defaultSelectedIds.push(projectConfig.clickBuryPointId)
+        }
+        
+        // 添加页面访问埋点
         if (projectConfig.visitBuryPointId) {
           defaultSelectedIds.push(projectConfig.visitBuryPointId)
         }
         
         selectedBuryPointIds.value = defaultSelectedIds
-        console.log(`行为分析模式默认选择埋点: ${defaultSelectedIds.join(', ')}`)
+        console.log(`行为分析模式默认选择埋点（优先点击埋点）: ${defaultSelectedIds.join(', ')}`)
+        
+        // 同时设置单选埋点为点击埋点（用于显示）
+        if (projectConfig.clickBuryPointId) {
+          selectedBuryPointId.value = projectConfig.clickBuryPointId
+          console.log('✅ 行为分析模式：设置单选埋点为点击埋点:', projectConfig.clickBuryPointId)
+        }
       }
       
       // 更新store中的多选埋点和分析类型

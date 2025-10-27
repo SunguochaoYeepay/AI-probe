@@ -661,18 +661,52 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     const buttonContent = dataItem.content || ''
     const contentCondition = step.contentCondition.toLowerCase()
     
-    // 检查按钮内容是否包含条件关键词
-    if (contentCondition.includes('查询') && buttonContent.includes('查询')) {
-      return true
-    }
-    if (contentCondition.includes('申请') && buttonContent.includes('申请')) {
-      return true
-    }
-    if (contentCondition.includes('管理') && buttonContent.includes('管理')) {
-      return true
-    }
-    if (contentCondition.includes('配置') && buttonContent.includes('配置')) {
-      return true
+    // 🚀 修复：使用更灵活的匹配逻辑，避免硬编码
+    const conditionKeywords = contentCondition.split(',').map(keyword => keyword.trim().toLowerCase())
+    
+    // 检查是否匹配任何条件关键词
+    for (const keyword of conditionKeywords) {
+      if (keyword === '') continue
+      
+      // 1. 直接文本匹配
+      if (buttonContent.toLowerCase().includes(keyword)) {
+        return true
+      }
+      
+      // 2. 检查数据类型匹配
+      if (dataItem.type === keyword) {
+        return true
+      }
+      
+      // 3. 检查JSON内容中的字段名匹配
+      try {
+        const jsonContent = JSON.parse(buttonContent)
+        if (jsonContent && typeof jsonContent === 'object') {
+          const hasMatchingFields = Object.keys(jsonContent).some(key => 
+            key.toLowerCase().includes(keyword)
+          )
+          if (hasMatchingFields) {
+            return true
+          }
+        }
+      } catch (e) {
+        // JSON解析失败，继续其他匹配方式
+      }
+      
+      // 4. 检查JSON内容中的值匹配
+      try {
+        const jsonContent = JSON.parse(buttonContent)
+        if (jsonContent && typeof jsonContent === 'object') {
+          const hasMatchingValues = Object.values(jsonContent).some(value => 
+            String(value).toLowerCase().includes(keyword)
+          )
+          if (hasMatchingValues) {
+            return true
+          }
+        }
+      } catch (e) {
+        // JSON解析失败，继续其他匹配方式
+      }
     }
     
     // 默认不匹配（更严格）

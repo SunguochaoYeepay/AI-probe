@@ -93,8 +93,24 @@ export function useProjectConfig() {
         clickPoint: config.clickPoint,
         hasVisitPoint: config.hasVisitPoint,
         hasClickPoint: config.hasClickPoint,
-        supportDualBuryPoint: config.supportDualBuryPoint
+        supportDualBuryPoint: config.supportDualBuryPoint,
+        // 设置埋点ID
+        visitBuryPointId: config.visitPoint?.id || null,
+        clickBuryPointId: config.clickPoint?.id || null
       })
+      
+      // 强制设置默认选择点击埋点
+      if (config.clickPoint?.id) {
+        store.dispatch('updateApiConfig', {
+          selectedPointId: config.clickPoint.id
+        })
+        console.log('✅ 强制设置默认选择点击埋点:', config.clickPoint.id)
+      } else if (config.visitPoint?.id) {
+        store.dispatch('updateApiConfig', {
+          selectedPointId: config.visitPoint.id
+        })
+        console.log('✅ 强制设置默认选择访问埋点:', config.visitPoint.id)
+      }
       
       console.log('项目配置更新成功:', {
         projectId,

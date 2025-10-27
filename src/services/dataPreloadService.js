@@ -536,8 +536,8 @@ class DataPreloadService {
     // 从store的projectConfig获取新的分离配置
     const projectConfig = store.state.projectConfig
     if (projectConfig && (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId)) {
-      // 优先使用访问埋点，如果没有则使用点击埋点
-      const selectedPointId = projectConfig.visitBuryPointId || projectConfig.clickBuryPointId
+      // 优先使用点击埋点，如果没有则使用访问埋点
+      const selectedPointId = projectConfig.clickBuryPointId || projectConfig.visitBuryPointId
       return {
         selectedPointId: selectedPointId,
         projectId: storeConfig?.projectId || 'event1021'
