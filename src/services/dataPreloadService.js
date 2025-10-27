@@ -374,41 +374,80 @@ class DataPreloadService {
     console.log(`  📊 总记录数: ${total}`)
     console.log(`  📄 第1页: ${firstPageData.length}条`)
     
-    // 如果总数为0或第一页就是全部数据，直接返回
-    if (total === 0 || total <= pageSize) {
-      console.log(`  ✅ 数据获取完成: ${allData.length}/${total} 条`)
+    // 🔧 修复：更严格的分页判断逻辑
+    console.log(`  🔍 分页判断: total=${total}, pageSize=${pageSize}, 第一页数据=${firstPageData.length}`)
+    
+    // 如果总数为0，直接返回
+    if (total === 0) {
+      console.log(`  ✅ 无数据，直接返回`)
+      return this.filterDataByDate(allData, date)
+    }
+    
+    // 如果第一页数据量等于total，说明只有一页数据
+    if (firstPageData.length === total) {
+      console.log(`  ✅ 只有一页数据: ${allData.length}/${total} 条`)
       return this.filterDataByDate(allData, date)
     }
     
     // 计算总页数
     const totalPages = Math.ceil(total / pageSize)
-    console.log(`  📄 需要获取 ${totalPages} 页`)
+    console.log(`  📄 需要获取 ${totalPages} 页 (total=${total}, pageSize=${pageSize})`)
+    
+    // 🔧 添加安全检查：如果total异常大，限制最大页数
+    const maxPages = 50 // 最多获取50页，防止无限循环
+    if (totalPages > maxPages) {
+      console.warn(`  ⚠️ 总页数过多(${totalPages}页)，限制为${maxPages}页`)
+      const limitedTotal = maxPages * pageSize
+      console.log(`  📊 限制后预期数据量: ${limitedTotal} 条`)
+    }
     
     // 获取剩余页面
-    for (let page = 2; page <= totalPages; page++) {
-      console.log(`  📡 获取第${page}/${totalPages}页...`)
+    const actualPages = Math.min(totalPages, maxPages)
+    for (let page = 2; page <= actualPages; page++) {
+      console.log(`  📡 获取第${page}/${actualPages}页...`)
       
-      const response = await yeepayAPI.searchBuryPointData({
-        pageSize,
-        page,
-        date,
-        selectedPointId: pointId
-      })
+      try {
+        const response = await yeepayAPI.searchBuryPointData({
+          pageSize,
+          page,
+          date,
+          selectedPointId: pointId
+        })
 
-      const dataList = response.data?.dataList || []
-      allData.push(...dataList)
+        const dataList = response.data?.dataList || []
+        allData.push(...dataList)
 
-      console.log(`  📄 第${page}页: ${dataList.length}条`)
-      
-      // 防止请求过快
-      await new Promise(resolve => setTimeout(resolve, 100))
+        console.log(`  📄 第${page}页: ${dataList.length}条`)
+        
+        // 如果某一页返回的数据为空，可能已经到达最后一页
+        if (dataList.length === 0) {
+          console.log(`  ⚠️ 第${page}页无数据，可能已到达最后一页`)
+          break
+        }
+        
+        // 防止请求过快
+        await new Promise(resolve => setTimeout(resolve, 100))
+      } catch (error) {
+        console.error(`  ❌ 获取第${page}页失败:`, error)
+        // 继续获取下一页，不中断整个流程
+      }
     }
     
     // 验证数据完整性
+    console.log(`  📊 数据完整性检查: 实际获取${allData.length}条，API total=${total}条`)
+    
     if (allData.length !== total) {
-      console.warn(`  ⚠️ 数据不完整: 期望${total}条，实际${allData.length}条`)
+      const difference = Math.abs(allData.length - total)
+      const differencePercent = (difference / total * 100).toFixed(2)
+      
+      if (differencePercent > 5) {
+        console.warn(`  ⚠️ 数据不完整: 期望${total}条，实际${allData.length}条，差异${differencePercent}%`)
+        console.warn(`  💡 可能原因: API total字段不准确，或分页获取不完整`)
+      } else {
+        console.log(`  ✅ 数据基本完整: 差异${differencePercent}%在可接受范围内`)
+      }
     } else {
-      console.log(`  ✅ 数据获取完成: ${allData.length}/${total} 条`)
+      console.log(`  ✅ 数据完全一致: ${allData.length}/${total} 条`)
     }
 
     // 🔧 关键修复：严格按日期过滤数据

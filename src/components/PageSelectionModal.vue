@@ -1,10 +1,10 @@
 <template>
-  <a-modal
+  <a-drawer
     v-model:open="visible"
     :title="modalTitle"
     width="800px"
-    :footer="null"
-    @cancel="handleCancel"
+    placement="right"
+    @close="handleCancel"
   >
     <div class="page-selection-content">
       <p style="margin-bottom: 16px; color: #666;">
@@ -93,7 +93,7 @@
         <a-empty description="暂无可用页面数据" />
       </div>
     </div>
-  </a-modal>
+  </a-drawer>
 </template>
 
 <script setup>
@@ -232,7 +232,6 @@ const highlightSearchKeyword = (pageName) => {
 }
 
 .page-list-modal {
-  max-height: 400px;
   overflow-y: auto;
   border: 1px solid #f0f0f0;
   border-radius: 6px;
@@ -327,9 +326,7 @@ const highlightSearchKeyword = (pageName) => {
     max-height: 500px;
   }
   
-  .page-list-modal {
-    max-height: 300px;
-  }
+ 
   
   .page-item {
     padding: 10px 12px;

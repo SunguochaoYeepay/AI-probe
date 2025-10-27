@@ -51,7 +51,7 @@
       v-model:open="pageSelectionModalVisible"
       :available-pages="modalAvailablePages"
       :analysis-type="modalAnalysisType"
-      @select-page="selectPageForAnalysis"
+      @select-page="(pageName) => selectPageForAnalysis(pageName, modalAnalysisType)"
     />
     </div>
   </AppLayout>

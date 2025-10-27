@@ -178,12 +178,13 @@
       :selection-type="currentSelectionType"
       @select-button="handleButtonSelectionWrapper"
       @select-multiple-conditions="handleMultipleConditionsSelectionWrapper"
+      @update:open="handleButtonSelectionModalClose"
     />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { 
   RobotOutlined, 
   UserOutlined, 
@@ -483,6 +484,40 @@ const handleFunnelStepsSaveWrapper = (steps) => {
   onFunnelStepsSave(steps, emit, addMessage)
 }
 
+// 处理页面选择按钮分析事件
+const handleSelectPageForButtonsEvent = async (event) => {
+  const { pageName } = event.detail
+  console.log('收到按钮分析页面选择事件:', pageName)
+  
+  // 调用按钮分析处理函数
+  await handleSelectPageForButtons(
+    { pageName }, 
+    selectedPageName, 
+    availableButtons, 
+    currentSelectionType, 
+    buttonSelectionModalVisible, 
+    dateRange, 
+    addMessage
+  )
+}
+
+// 处理页面选择查询条件分析事件
+const handleSelectPageForQueriesEvent = async (event) => {
+  const { pageName } = event.detail
+  console.log('收到查询条件分析页面选择事件:', pageName)
+  
+  // 调用查询条件分析处理函数
+  await handleSelectPageForQueries(
+    { pageName }, 
+    selectedPageName, 
+    availableButtons, 
+    currentSelectionType, 
+    buttonSelectionModalVisible, 
+    dateRange, 
+    addMessage
+  )
+}
+
 // 初始化欢迎消息
 const showWelcomeMessage = () => {
   console.log('showWelcomeMessage - 开始显示欢迎消息')
@@ -504,11 +539,6 @@ const showWelcomeMessage = () => {
 请选择您要分析的页面范围：`
         
         welcomeActions = [
-          { 
-            text: '整体页面访问量', 
-            type: 'analyze', 
-            params: { type: 'page_visits', scope: 'all', description: '分析所有页面的访问量、UV/PV趋势等' } 
-          },
           { 
             text: '选择页面分析', 
             type: 'show_page_list', 
@@ -576,11 +606,6 @@ const showWelcomeMessage = () => {
 
           welcomeActions = [
             { 
-              text: '整体页面访问量', 
-              type: 'analyze', 
-              params: { type: 'page_visits', scope: 'all' } 
-            },
-            { 
               text: '选择页面分析', 
               type: 'show_page_list', 
               params: { type: 'page_visits', scope: 'specific' } 
@@ -642,11 +667,6 @@ const showWelcomeMessage = () => {
 请选择您要分析的页面范围：`
 
     welcomeActions = [
-      { 
-        text: '整体页面访问量', 
-        type: 'analyze', 
-        params: { type: 'page_visits', scope: 'all' } 
-      },
       { 
         text: '选择页面分析', 
         type: 'show_page_list', 
@@ -799,6 +819,16 @@ onMounted(() => {
   } else {
     console.log('onMounted - 有聊天历史，跳过显示欢迎消息')
   }
+  
+  // 添加事件监听器
+  window.addEventListener('select-page-for-buttons', handleSelectPageForButtonsEvent)
+  window.addEventListener('select-page-for-queries', handleSelectPageForQueriesEvent)
+})
+
+// 组件卸载时清理事件监听器
+onUnmounted(() => {
+  window.removeEventListener('select-page-for-buttons', handleSelectPageForButtonsEvent)
+  window.removeEventListener('select-page-for-queries', handleSelectPageForQueriesEvent)
 })
 
 

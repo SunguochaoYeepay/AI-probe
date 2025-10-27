@@ -537,29 +537,46 @@ export function useRequirementAnalysis() {
   /**
    * 选择页面进行分析
    */
-  const selectPageForAnalysis = async (pageName) => {
+  const selectPageForAnalysis = async (pageName, analysisType = 'page_analysis') => {
     // 通过事件通知Home.vue关闭弹窗
     window.dispatchEvent(new CustomEvent('close-page-selection-modal'))
     
-    // 设置需求文本 - 页面访问量（UV/PV）
-    if (pageName === '__ALL__') {
-      // 全部页面：不添加页面过滤，查看整站UV/PV
-      currentRequirement.value = '整站UV/PV趋势分析'
-      message.success('开始分析整站UV/PV')
+    // 根据分析类型决定后续操作
+    if (analysisType === 'user_click') {
+      // 按钮分析：触发按钮选择弹窗
+      console.log('触发按钮分析，页面:', pageName)
+      window.dispatchEvent(new CustomEvent('select-page-for-buttons', {
+        detail: { pageName }
+      }))
+      message.success(`正在加载页面 "${pageName}" 的按钮数据...`)
+    } else if (analysisType === 'query_condition') {
+      // 查询条件分析：触发查询条件选择弹窗
+      console.log('触发查询条件分析，页面:', pageName)
+      window.dispatchEvent(new CustomEvent('select-page-for-queries', {
+        detail: { pageName }
+      }))
+      message.success(`正在加载页面 "${pageName}" 的查询条件数据...`)
     } else {
-      // 单个页面：添加页面标识符
-      currentRequirement.value = `#${pageName} 页面访问量`
-      message.success(`开始分析页面：${pageName}`)
-    }
-    
-    // 自动开始分析
-    try {
-      // 使用默认日期范围（最近7天）
-      const defaultDateRange = [dayjs().subtract(6, 'day'), dayjs()]
-      await analyzeRequirement(defaultDateRange)
-    } catch (error) {
-      console.error('自动分析失败:', error)
-      message.error('分析失败，请手动点击智能分析按钮')
+      // 页面访问分析：设置需求文本并开始分析
+      if (pageName === '__ALL__') {
+        // 全部页面：不添加页面过滤，查看整站UV/PV
+        currentRequirement.value = '整站UV/PV趋势分析'
+        message.success('开始分析整站UV/PV')
+      } else {
+        // 单个页面：添加页面标识符
+        currentRequirement.value = `#${pageName} 页面访问量`
+        message.success(`开始分析页面：${pageName}`)
+      }
+      
+      // 自动开始分析
+      try {
+        // 使用默认日期范围（最近7天）
+        const defaultDateRange = [dayjs().subtract(6, 'day'), dayjs()]
+        await analyzeRequirement(defaultDateRange)
+      } catch (error) {
+        console.error('自动分析失败:', error)
+        message.error('分析失败，请手动点击智能分析按钮')
+      }
     }
   }
 

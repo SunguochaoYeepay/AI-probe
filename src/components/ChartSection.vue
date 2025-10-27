@@ -221,7 +221,7 @@ const onTimeRangeChange = (e) => {
 .chart-card {
   width: 100%;
   /* 确保卡片有足够的高度 */
-  min-height: 700px;
+  min-height:100vh;
 }
 
 /* 卡片标题栏样式优化 */
@@ -268,7 +268,7 @@ const onTimeRangeChange = (e) => {
   align-items: center;
   justify-content: center;
   flex: 1;
-  min-height: 600px;
+  min-height:100vh;
 }
 
 .chart-content {
@@ -302,7 +302,7 @@ const onTimeRangeChange = (e) => {
   
   
   .empty-chart {
-    min-height: 500px;
+    min-height: 100vh;
   }
 }
 

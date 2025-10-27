@@ -40,7 +40,6 @@ export function useActionHandler(selectedBuryPointId) {
 请选择您要分析的页面范围：`
 
     const actions = [
-      { text: '整体页面访问量', type: 'analyze', params: { type: 'page_visits', scope: 'all' } },
       { text: '选择页面分析', type: 'show_page_list', params: { type: 'page_visits', scope: 'specific' } }
     ]
 

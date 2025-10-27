@@ -375,11 +375,6 @@ export function useBuryPointConfig(addMessage) {
         
         newActions = [
           { 
-            text: '整体页面访问量', 
-            type: 'analyze', 
-            params: { type: 'page_visits', scope: 'all', description: '分析所有页面的访问量、UV/PV趋势等' } 
-          },
-          { 
             text: '选择页面分析', 
             type: 'show_page_list', 
             params: { type: 'page_visits', scope: 'specific', description: '分析特定页面的访问趋势' } 

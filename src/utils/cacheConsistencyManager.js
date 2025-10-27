@@ -127,56 +127,62 @@ class CacheConsistencyManager {
           // 获取缓存数据
           const cachedData = await dataPreloadService.getCachedRawData(date, pointId)
           
-          // 获取API数据（第一页作为样本）
-          const apiResponse = await yeepayAPI.searchBuryPointData({
-            pageSize: 1000,
-            page: 1,
-            date,
-            selectedPointId: pointId
-          })
+          // 🔧 修复：获取完整的API数据（所有页）
+          console.log(`  📡 开始获取完整API数据...`)
+          const { apiData, apiTotal } = await this.fetchCompleteApiData(date, pointId)
           
-          const apiData = apiResponse.data?.dataList || []
-          const apiTotal = apiResponse.data?.total || 0
+          // 🔧 修复：智能数据量对比 - 详细调试信息
+          console.log(`🔍 [数据一致性检查] ${date} - 埋点${pointId}:`)
+          console.log(`  📦 缓存数据量: ${cachedData.length} 条`)
+          console.log(`  📡 API完整数据量: ${apiData.length} 条`)
+          console.log(`  📊 API total字段: ${apiTotal} 条`)
           
-          // 对比数据量
-          if (cachedData.length !== apiTotal) {
-            const difference = Math.abs(cachedData.length - apiTotal)
-            const differencePercent = (difference / apiTotal) * 100
+          // 检查是否有跨天数据
+          const filteredApiData = this.filterDataByDate(apiData, date)
+          const filteredApiCount = filteredApiData.length
+          const hasCrossDayData = apiData.length > filteredApiCount
+          
+          if (hasCrossDayData) {
+            console.log(`  🧹 发现跨天数据: API原始${apiData.length}条，过滤后${filteredApiCount}条`)
+            console.log(`  📅 过滤掉的跨天数据: ${apiData.length - filteredApiCount}条`)
+          } else {
+            console.log(`  ✅ 无跨天数据: API数据${apiData.length}条全部为目标日期`)
+          }
+          
+          // 🔧 修复：使用过滤后的完整API数据进行对比
+          let compareCount = filteredApiCount
+          let compareSource = 'API过滤后'
+          
+          // 验证API数据完整性
+          if (apiTotal !== apiData.length) {
+            const difference = Math.abs(apiTotal - apiData.length)
+            const differencePercent = (difference / apiTotal * 100).toFixed(2)
+            console.log(`  ⚠️ API数据不完整: 期望${apiTotal}条，实际${apiData.length}条，差异${differencePercent}%`)
+          } else {
+            console.log(`  ✅ API数据完整: ${apiData.length}/${apiTotal} 条`)
+          }
+          
+          console.log(`  🔧 使用过滤后的API数据进行比较: ${filteredApiCount}条`)
+          
+          // 使用过滤后的API数据量进行对比
+          if (cachedData.length !== compareCount) {
+            const difference = Math.abs(cachedData.length - compareCount)
+            const differencePercent = compareCount > 0 ? (difference / compareCount) * 100 : 0
             
             // 判断是否是今天的日期
             const today = dayjs().format('YYYY-MM-DD')
             const isToday = date === today
             
-            // 检查第一页数据中是否有跨天的数据
-            let hasCrossDayData = false
-            if (apiData.length > 0 && isToday) {
-              // 检查第一页数据中是否包含非当天的数据
-              const crossDayCount = apiData.filter(item => {
-                if (!item.createdAt) return false
-                const itemDate = dayjs(item.createdAt).format('YYYY-MM-DD')
-                return itemDate !== date
-              }).length
-              
-              // 如果第一页中有跨天数据，说明API返回的total包含了跨天的数据
-              // 缓存的差异可能是由于过滤了跨天数据导致的
-              if (crossDayCount > 0) {
-                hasCrossDayData = true
-                console.log(`ℹ️ ${date} - 埋点${pointId}: 发现跨天数据，第一页中有 ${crossDayCount} 条`)
-              }
+            // 设置合理的差异阈值
+            let allowedDifferencePercent
+            if (isToday) {
+              allowedDifferencePercent = 5  // 今天的数据允许5%差异（实时增长）
+            } else {
+              allowedDifferencePercent = 1  // 历史数据要求更严格
             }
             
-            // 对于有跨天数据的情况，允许更大的差异（可能高达10-15%）
-            // 对于今天的实时数据，允许5%的差异（因为数据在不断增长）
-            // 对于历史数据，要求更严格，只允许1%的差异
-            let allowedDifferencePercent
-            if (hasCrossDayData && isToday) {
-              allowedDifferencePercent = 15  // 跨天数据可能导致较大差异
-              console.log(`ℹ️ ${date} - 埋点${pointId}: 允许15%差异（检测到跨天数据）`)
-            } else if (isToday) {
-              allowedDifferencePercent = 5
-            } else {
-              allowedDifferencePercent = 1
-            }
+            console.log(`  📈 数据量差异: ${cachedData.length} vs ${compareCount} (${compareSource})，差异${differencePercent.toFixed(2)}%`)
+            console.log(`  💡 说明: 缓存数据已按日期过滤，API数据也需要过滤后比较`)
             
             if (differencePercent > allowedDifferencePercent) {
               const severity = differencePercent > 10 ? 'HIGH' : 'MEDIUM'
@@ -187,18 +193,24 @@ class CacheConsistencyManager {
                 pointId,
                 date,
                 cachedCount: cachedData.length,
-                apiCount: apiTotal,
+                apiCount: compareCount,
+                apiFirstPageCount: apiData.length,
+                apiTotal: apiTotal,
                 difference: difference,
                 differencePercent: differencePercent.toFixed(2),
                 isToday: isToday,
                 hasCrossDayData,
-                description: `埋点 ${pointId} 在 ${date} 的数据量不一致：缓存 ${cachedData.length} 条，API ${apiTotal} 条（差异 ${differencePercent.toFixed(2)}%）${hasCrossDayData ? '，包含跨天数据' : ''}`,
+                crossDayCount: apiData.length - filteredApiCount,
+                compareSource: compareSource,
+                description: `埋点 ${pointId} 在 ${date} 的数据量不一致：缓存 ${cachedData.length} 条，${compareSource} ${compareCount} 条（差异 ${differencePercent.toFixed(2)}%）${hasCrossDayData ? `，过滤掉${apiData.length - filteredApiCount}条跨天数据` : ''}`,
                 solution: 'REFRESH_SPECIFIC_CACHE'
               })
             } else {
               // 差异在可接受范围内，不报告为问题
-              console.log(`✅ ${date} - 埋点${pointId}: 数据量差异 ${differencePercent.toFixed(2)}% 在可接受范围内${hasCrossDayData ? '（包含跨天数据）' : ''}`)
+              console.log(`  ✅ 数据量差异 ${differencePercent.toFixed(2)}% 在可接受范围内${hasCrossDayData ? `（过滤掉${apiData.length - filteredApiCount}条跨天数据）` : ''}`)
             }
+          } else {
+            console.log(`  ✅ 数据量完全一致 ${cachedData.length} 条${hasCrossDayData ? `（过滤掉${apiData.length - filteredApiCount}条跨天数据）` : ''}`)
           }
           
           // 对比数据新鲜度（如果有数据的话）
@@ -661,6 +673,101 @@ class CacheConsistencyManager {
       console.error('强制刷新失败:', error)
       return { success: false, error: error.message }
     }
+  }
+
+  /**
+   * 获取完整的API数据（所有页）
+   */
+  async fetchCompleteApiData(date, pointId) {
+    let allData = []
+    const pageSize = 1000
+    
+    // 先获取第一页，确定总数
+    console.log(`    📡 获取第1页...`)
+    const firstResponse = await yeepayAPI.searchBuryPointData({
+      pageSize,
+      page: 1,
+      date,
+      selectedPointId: pointId
+    })
+    
+    const total = firstResponse.data?.total || 0
+    const firstPageData = firstResponse.data?.dataList || []
+    allData.push(...firstPageData)
+    
+    console.log(`    📊 API总记录数: ${total}`)
+    console.log(`    📄 第1页: ${firstPageData.length}条`)
+    
+    // 如果总数为0或第一页就是全部数据，直接返回
+    if (total === 0 || firstPageData.length === total) {
+      console.log(`    ✅ API数据获取完成: ${allData.length}/${total} 条`)
+      return { apiData: allData, apiTotal: total }
+    }
+    
+    // 计算总页数
+    const totalPages = Math.ceil(total / pageSize)
+    console.log(`    📄 需要获取 ${totalPages} 页`)
+    
+    // 限制最大页数，防止无限循环
+    const maxPages = Math.min(totalPages, 50)
+    
+    // 获取剩余页面
+    for (let page = 2; page <= maxPages; page++) {
+      console.log(`    📡 获取第${page}/${maxPages}页...`)
+      
+      try {
+        const response = await yeepayAPI.searchBuryPointData({
+          pageSize,
+          page,
+          date,
+          selectedPointId: pointId
+        })
+
+        const dataList = response.data?.dataList || []
+        allData.push(...dataList)
+
+        console.log(`    📄 第${page}页: ${dataList.length}条`)
+        
+        // 如果某一页返回的数据为空，可能已经到达最后一页
+        if (dataList.length === 0) {
+          console.log(`    ⚠️ 第${page}页无数据，可能已到达最后一页`)
+          break
+        }
+        
+        // 防止请求过快
+        await new Promise(resolve => setTimeout(resolve, 100))
+      } catch (error) {
+        console.error(`    ❌ 获取第${page}页失败:`, error)
+        // 继续获取下一页，不中断整个流程
+      }
+    }
+    
+    console.log(`    ✅ API数据获取完成: ${allData.length}/${total} 条`)
+    return { apiData: allData, apiTotal: total }
+  }
+
+  /**
+   * 按日期过滤数据（与dataPreloadService保持一致）
+   */
+  filterDataByDate(data, targetDate) {
+    if (!data || data.length === 0) {
+      return data
+    }
+
+    const filteredData = data.filter(item => {
+      if (!item.createdAt) {
+        return false
+      }
+
+      try {
+        const itemDate = new Date(item.createdAt).toISOString().split('T')[0]
+        return itemDate === targetDate
+      } catch (error) {
+        return false
+      }
+    })
+
+    return filteredData
   }
 
   /**
