@@ -130,30 +130,51 @@ class DataPreloadService {
     const today = dayjs().format('YYYY-MM-DD')
     const lastPreload = localStorage.getItem('lastPreloadDate')
     
-    // 获取当前配置的埋点ID
-    const config = this.getCurrentConfig()
-    if (!config.selectedPointId) {
+    // 获取当前配置的埋点ID列表（与init方法保持一致）
+    const projectConfig = store.state.projectConfig
+    let selectedPointIds = []
+    
+    // 优先使用新的分离配置
+    if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId) {
+      if (projectConfig.visitBuryPointId) {
+        selectedPointIds.push(projectConfig.visitBuryPointId)
+      }
+      if (projectConfig.clickBuryPointId && projectConfig.clickBuryPointId !== projectConfig.visitBuryPointId) {
+        selectedPointIds.push(projectConfig.clickBuryPointId)
+      }
+    } else {
+      // 回退到旧的配置方式
+      selectedPointIds = projectConfig?.selectedBuryPointIds || []
+    }
+    
+    if (selectedPointIds.length === 0) {
       console.log('⚠️ 未配置埋点ID，跳过预加载检查')
       return false
     }
 
-    // 检查最近7天是否有缺失的数据（传递埋点ID参数）
+    // 检查最近7天是否有缺失的数据（检查所有埋点ID）
     const dates = this.getLast7Days()
     let hasMissingData = false
 
-    for (const date of dates) {
-      const hasData = await this.hasCachedData(date, config.selectedPointId)
-      if (!hasData) {
-        hasMissingData = true
-        break
+    for (const pointId of selectedPointIds) {
+      for (const date of dates) {
+        const hasData = await this.hasCachedData(date, pointId)
+        if (!hasData) {
+          hasMissingData = true
+          console.log(`📊 埋点ID ${pointId} 在 ${date} 缺少数据`)
+          break
+        }
       }
+      if (hasMissingData) break
     }
 
     // 如果今天已经预加载过且没有缺失数据，跳过
     if (lastPreload === today && !hasMissingData) {
+      console.log('✅ 今天已预加载且无缺失数据，跳过预加载')
       return false
     }
 
+    console.log(`🔍 预加载检查结果: 有缺失数据=${hasMissingData}, 埋点数量=${selectedPointIds.length}`)
     return hasMissingData
   }
 
@@ -714,6 +735,11 @@ class DataPreloadService {
    */
   async triggerPreload() {
     console.log('🔄 手动触发数据预加载...')
+    
+    // 强制清除预加载标记，确保执行预加载
+    localStorage.removeItem('lastPreloadDate')
+    console.log('🗑️ 已清除预加载标记，强制执行预加载')
+    
     await this.init()
   }
 

@@ -26,13 +26,7 @@ export function useBuryPointConfig(addMessage) {
       const storePoint = allBuryPoints.find(p => p.id === pointId)
       if (storePoint) return storePoint
       
-      // 备用方案：根据ID推断埋点信息
-      if (pointId === 110) {
-        return { id: 110, name: '低代码_页面浏览', type: '访问' }
-      } else if (pointId === 109) {
-        return { id: 109, name: '低代码_点击事件', type: '点击' }
-      }
-      
+      // 备用方案：根据ID推断埋点信息（移除硬编码，使用通用方案）
       return { id: pointId, name: `埋点 ${pointId}`, type: '未知' }
     }
     
@@ -303,11 +297,9 @@ export function useBuryPointConfig(addMessage) {
         }
       } else {
         console.log('埋点类型未发生变化，无需更新提示词')
-        console.log('🔍 当前聊天记录数量:', messages.value.length)
-        console.log('🔍 聊天记录内容:', messages.value)
         // 每次埋点切换都显示对应的提示词
         console.log('埋点切换完成，显示当前埋点的提示词')
-        showWelcomeMessage()
+        updateWelcomeMessageForBuryPointType()
       }
     }
   }
@@ -485,13 +477,7 @@ export function useBuryPointConfig(addMessage) {
 
   // 根据埋点类型更新欢迎消息
   const updateWelcomeMessageForBuryPointType = () => {
-    // 如果聊天记录为空，直接显示欢迎消息
-    if (messages.value.length === 0) {
-      showWelcomeMessage()
-      return
-    }
-    
-    // 如果已有聊天记录，添加一个提示消息告知用户埋点类型已切换
+    // 添加一个提示消息告知用户埋点类型已切换
     const currentBuryPointType = getCurrentBuryPointType()
     let typeChangeMessage = ''
     let newActions = []

@@ -6,7 +6,7 @@ export default createStore({
     // API配置
     apiConfig: {
       ...API_CONFIG.environments.development,
-      selectedPointId: JSON.parse(localStorage.getItem('selectedBuryPointIds') || '[]')[0] || null, // 从localStorage读取第一个选中的埋点ID
+      selectedPointId: null, // 初始化为null，等待项目配置加载
       defaults: API_CONFIG.defaults
     },
     
@@ -19,11 +19,11 @@ export default createStore({
       hasVisitPoint: false,
       hasClickPoint: false,
       supportDualBuryPoint: false,
-      selectedBuryPointIds: JSON.parse(localStorage.getItem('selectedBuryPointIds') || '[]'), // 用户选中的埋点ID列表，从localStorage加载
-      visitBuryPointId: JSON.parse(localStorage.getItem('visitBuryPointId') || 'null'), // 访问埋点ID
-      clickBuryPointId: JSON.parse(localStorage.getItem('clickBuryPointId') || 'null'), // 点击埋点ID
-      behaviorBuryPointIds: JSON.parse(localStorage.getItem('behaviorBuryPointIds') || '[]'), // 行为分析埋点ID列表
-      pageMenuData: JSON.parse(localStorage.getItem('pageMenuData') || 'null') // 页面菜单数据，从localStorage加载
+      selectedBuryPointIds: [], // 初始化为空数组，等待项目配置加载
+      visitBuryPointId: null, // 初始化为null，等待项目配置加载
+      clickBuryPointId: null, // 初始化为null，等待项目配置加载
+      behaviorBuryPointIds: [], // 初始化为空数组，等待项目配置加载
+      pageMenuData: null // 初始化为null，等待项目配置加载
     },
     
     // Ollama AI 配置
