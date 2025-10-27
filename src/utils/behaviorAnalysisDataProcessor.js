@@ -432,10 +432,14 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
       })
     })
     
-    // 2. 分析数据，统计每个步骤的参与人数（只处理访问数据）
+    // 2. 分析数据，统计每个步骤的参与人数（处理访问数据和点击数据）
     const visitData = data.visitData || []
+    const clickData = data.clickData || []
     
-    console.log('🔍 [BehaviorAnalysisDataProcessor] 访问数据样本:', visitData.slice(0, 3))
+    console.log('🔍 [BehaviorAnalysisDataProcessor] 数据样本:', {
+      visitDataSample: visitData.slice(0, 3),
+      clickDataSample: clickData.slice(0, 3)
+    })
     
     // 统计访问数据 - 计算平均停留时间
     let totalVisitMatches = 0
@@ -483,6 +487,49 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
       })
     })
     
+    // 🚀 修复：同时处理点击数据
+    let totalClickMatches = 0
+    const clickUserSet = new Set() // 用于去重统计点击用户
+    
+    clickData.forEach((click, index) => {
+      const matchedSteps = this.matchAllStepsFromData(click, customSteps, 'click')
+      totalClickMatches += matchedSteps.length
+      
+      // 调试：打印前几个点击数据的匹配情况
+      if (index < 3) {
+        console.log(`🔍 [BehaviorAnalysisDataProcessor] 点击数据 ${index + 1} 匹配情况:`, {
+          pageName: click.pageName,
+          content: click.content,
+          type: click.type,
+          matchedSteps: matchedSteps,
+          clickData: click
+        })
+      }
+      
+      // 获取用户标识
+      const userId = click.weCustomerKey || `click_${click.id || Math.random()}`
+      
+      matchedSteps.forEach(stepName => {
+        if (stepStats.has(stepName)) {
+          const stats = stepStats.get(stepName)
+          
+          // 初始化用户集合（如果不存在）
+          if (!stats.userSet) {
+            stats.userSet = new Set()
+          }
+          
+          // 只有新用户才增加计数（UV统计）
+          if (!stats.userSet.has(userId)) {
+            stats.userSet.add(userId)
+            stats.participantCount++
+          }
+          
+          // 点击数据没有停留时间，使用默认值
+          stats.durations.push(0)
+        }
+      })
+    })
+    
     console.log('🔍 [BehaviorAnalysisDataProcessor] 匹配统计:', {
       totalVisitMatches,
       stepStats: Array.from(stepStats.entries()).map(([name, stats]) => ({
@@ -500,17 +547,27 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     // 4. 计算转化率和平均耗时
     const baseCount = steps[0]?.participantCount || 1
     
-    const processedSteps = steps.map(step => ({
-      stepId: `step_${step.stepOrder}`,
-      stepName: step.stepName,
-      participantCount: step.participantCount,
-      conversionRate: Math.round((step.participantCount / baseCount) * 100 * 100) / 100,
-      // 🚀 修复：使用所有匹配数据的平均停留时间，而不是基于用户数计算
-      averageDuration: step.durations && step.durations.length > 0 ? 
-        Math.round(step.durations.reduce((sum, duration) => sum + duration, 0) / step.durations.length) : 0,
-      timeRange: this.getTimeRangeFromData(data),
-      description: this.getStepDescription(step.stepName)
-    }))
+    // 🚀 修复：漏斗图应该是递减的，确保后续步骤的人数不超过前面步骤
+    let currentCount = baseCount
+    const processedSteps = steps.map((step, index) => {
+      // 确保漏斗图递减：当前步骤的人数不能超过前面步骤的人数
+      const actualParticipantCount = Math.min(step.participantCount, currentCount)
+      
+      // 更新当前计数为实际参与人数
+      currentCount = actualParticipantCount
+      
+      return {
+        stepId: `step_${step.stepOrder}`,
+        stepName: step.stepName,
+        participantCount: actualParticipantCount,
+        conversionRate: Math.round((actualParticipantCount / baseCount) * 100 * 100) / 100,
+        // 🚀 修复：使用所有匹配数据的平均停留时间，而不是基于用户数计算
+        averageDuration: step.durations && step.durations.length > 0 ? 
+          Math.round(step.durations.reduce((sum, duration) => sum + duration, 0) / step.durations.length) : 0,
+        timeRange: this.getTimeRangeFromData(data),
+        description: this.getStepDescription(step.stepName)
+      }
+    })
     
     // 5. 计算整体统计
     const totalParticipants = baseCount
@@ -544,8 +601,8 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
   matchAllStepsFromData(dataItem, customSteps, dataType) {
     const matchedSteps = []
     
-    // 只处理页面访问数据
-    if (dataType !== 'visit') {
+    // 处理页面访问数据和点击数据
+    if (dataType !== 'visit' && dataType !== 'click') {
       return matchedSteps
     }
     
@@ -557,10 +614,69 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
             matchedSteps.push(step.name)
           }
         }
+      } else if (step.type === 'button') {
+        // 🚀 修复：按钮点击步骤需要更精确的匹配
+        // 只处理点击数据
+        if (dataType === 'click') {
+          if (step.targetPage === '任意页面' || step.targetPage === dataItem.pageName) {
+            // 检查是否有具体的按钮操作配置
+            if (step.buttonOperation && step.buttonOperation !== '任意') {
+              // 如果有具体按钮操作，需要精确匹配
+              if (dataItem.content === step.buttonOperation) {
+                matchedSteps.push(step.name)
+              }
+            } else {
+              // 如果没有具体按钮操作，使用内容条件匹配
+              if (this.isContentConditionMatch(dataItem, step)) {
+                matchedSteps.push(step.name)
+              }
+            }
+          }
+        }
       }
     }
     
     return matchedSteps
+  }
+  
+  /**
+   * 检查内容条件是否匹配
+   * @param {Object} dataItem - 数据项
+   * @param {Object} step - 步骤配置
+   * @returns {boolean} 是否匹配
+   */
+  isContentConditionMatch(dataItem, step) {
+    // 🚀 修复：更严格的匹配逻辑
+    // 如果没有内容条件，不匹配（避免过度匹配）
+    if (!step.contentCondition || step.contentCondition.trim() === '') {
+      return false
+    }
+    
+    // 只处理点击数据
+    if (dataItem.type !== 'click') {
+      return false
+    }
+    
+    // 检查按钮内容是否匹配
+    const buttonContent = dataItem.content || ''
+    const contentCondition = step.contentCondition.toLowerCase()
+    
+    // 检查按钮内容是否包含条件关键词
+    if (contentCondition.includes('查询') && buttonContent.includes('查询')) {
+      return true
+    }
+    if (contentCondition.includes('申请') && buttonContent.includes('申请')) {
+      return true
+    }
+    if (contentCondition.includes('管理') && buttonContent.includes('管理')) {
+      return true
+    }
+    if (contentCondition.includes('配置') && buttonContent.includes('配置')) {
+      return true
+    }
+    
+    // 默认不匹配（更严格）
+    return false
   }
 
   /**

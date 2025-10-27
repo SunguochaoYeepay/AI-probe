@@ -538,11 +538,8 @@ export function useRequirementAnalysis() {
    * 选择页面进行分析
    */
   const selectPageForAnalysis = async (pageName) => {
-    // 关闭弹窗
-    const { pageSelectionModalVisible } = await import('@/views/Home.vue')
-    if (pageSelectionModalVisible) {
-      pageSelectionModalVisible.value = false
-    }
+    // 通过事件通知Home.vue关闭弹窗
+    window.dispatchEvent(new CustomEvent('close-page-selection-modal'))
     
     // 设置需求文本 - 页面访问量（UV/PV）
     if (pageName === '__ALL__') {
@@ -557,7 +554,9 @@ export function useRequirementAnalysis() {
     
     // 自动开始分析
     try {
-      await analyzeRequirement()
+      // 使用默认日期范围（最近7天）
+      const defaultDateRange = [dayjs().subtract(6, 'day'), dayjs()]
+      await analyzeRequirement(defaultDateRange)
     } catch (error) {
       console.error('自动分析失败:', error)
       message.error('分析失败，请手动点击智能分析按钮')
@@ -639,13 +638,16 @@ export function useRequirementAnalysis() {
       // 获取访问埋点数据（用户行为路径分析只使用页面浏览数据）
       const visitDataResult = await fetchMultiDayData(110, dateRange) // 访问埋点ID: 110
       
+      // 🚀 修复：漏斗图分析需要同时获取点击数据
+      const clickDataResult = await fetchMultiDayData(109, dateRange) // 点击埋点ID: 109
+      
       // 提取数据数组
       const visitData = visitDataResult?.data || []
-      const clickData = [] // 用户行为路径分析不使用点击数据
+      const clickData = clickDataResult?.data || [] // 漏斗图分析需要点击数据
       
-      console.log('📊 获取到的访问埋点数据:', {
+      console.log('📊 获取到的埋点数据:', {
         visitDataCount: visitData?.length || 0,
-        clickDataCount: 0 // 不再使用点击数据
+        clickDataCount: clickData?.length || 0
       })
       
       // 更新图表生成状态

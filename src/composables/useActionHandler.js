@@ -306,85 +306,38 @@ export function useActionHandler(selectedBuryPointId) {
       }
       
       if (availablePages.length > 0) {
-        // 根据分析类型构建不同的页面选择界面
+        // 直接触发页面选择弹窗，不再显示前10个页面
+        console.log('🚀 直接触发页面选择弹窗，页面数量:', availablePages.length)
+        
+        // 根据分析类型显示不同的提示信息
         let content = ''
-        let actions = []
-        
         if (type === 'user_click') {
-          // 用户点击分析
-          content = `📄 可用页面列表 - 点击分析
+          content = `🖱️ 点击分析 - 页面选择
 
-我找到了 ${availablePages.length} 个可用页面，请选择您要分析点击行为的页面：`
-
-          const quickPages = availablePages.slice(0, 10)
-          actions = [
-            ...quickPages.map(page => ({
-              text: page.length > 20 ? page.substring(0, 17) + '...' : page,
-              type: 'select_page_for_buttons',
-              params: { type: 'user_click', scope: 'specific', pageName: page }
-            }))
-          ]
+我找到了 ${availablePages.length} 个可用页面，正在为您打开页面选择弹窗...`
         } else if (type === 'query_condition') {
-          // 查询条件分析 - 使用"查询"关键词过滤页面
-          const queryPages = availablePages.filter(page => 
-            page.toLowerCase().includes('查询') || 
-            page.toLowerCase().includes('query') ||
-            page.toLowerCase().includes('search')
-          )
-          
-          content = `📄 可用页面列表 - 查询条件分析
+          content = `🔍 查询条件分析 - 页面选择
 
-我找到了 ${queryPages.length} 个包含查询功能的页面，请选择您要分析查询条件的页面：`
-
-          const quickPages = queryPages.slice(0, 10)
-          actions = [
-            ...quickPages.map(page => ({
-              text: page.length > 20 ? page.substring(0, 17) + '...' : page,
-              type: 'select_page_for_queries',
-              params: { type: 'query_condition', scope: 'specific', pageName: page }
-            }))
-          ]
-          
-          // 如果过滤后的页面超过10个，添加查看更多选项
-          if (queryPages.length > 10) {
-            actions.push({
-              text: `查看更多查询页面 (${queryPages.length - 10}个)`,
-              type: 'show_all_pages',
-              params: { type: 'query_condition', scope: 'specific', allPages: queryPages }
-            })
-          }
+我找到了 ${availablePages.length} 个可用页面，正在为您打开页面选择弹窗...`
         } else {
-          // 页面访问分析
-          content = `📄 可用页面列表
+          content = `📄 页面访问分析 - 页面选择
 
-我找到了 ${availablePages.length} 个可用页面，请选择您要分析的页面：
-
-**推荐选项**：
-• 全部页面 - 查看整站UV/PV统计
-
-**具体页面**：`
-
-          const quickPages = availablePages.slice(0, 10)
-          actions = [
-            { text: '全部页面', type: 'analyze', params: { type: 'page_visits', scope: 'all', pageName: '__ALL__' } },
-            ...quickPages.map(page => ({
-              text: page.length > 20 ? page.substring(0, 17) + '...' : page,
-              type: 'analyze',
-              params: { type: 'page_visits', scope: 'specific', pageName: page }
-            }))
-          ]
+我找到了 ${availablePages.length} 个可用页面，正在为您打开页面选择弹窗...`
         }
         
-        // 如果页面超过10个，添加查看更多选项
-        if (availablePages.length > 10) {
-          actions.push({
-            text: `查看更多页面 (${availablePages.length - 10}个)`,
-            type: 'show_all_pages',
-            params: { type: 'page_visits', scope: 'specific', allPages: availablePages }
-          })
-        }
+        addMessage(content, 'ai')
         
-        addMessage(content, 'ai', actions)
+        // 直接触发弹窗显示
+        setTimeout(() => {
+          // 通过事件总线触发弹窗显示
+          window.dispatchEvent(new CustomEvent('show-page-selection-modal', {
+            detail: {
+              availablePages,
+              analysisType: type,
+              scope: scope
+            }
+          }))
+        }, 500) // 延迟500ms让用户看到提示信息
       } else {
         // 没有找到页面数据
         const content = `❌ 未找到页面数据

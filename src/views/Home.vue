@@ -49,7 +49,8 @@
     <!-- 页面选择弹窗 -->
     <PageSelectionModal
       v-model:open="pageSelectionModalVisible"
-      :available-pages="availablePages"
+      :available-pages="modalAvailablePages"
+      :analysis-type="modalAnalysisType"
       @select-page="selectPageForAnalysis"
     />
     </div>
@@ -57,7 +58,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
@@ -129,6 +130,8 @@ const dateRange = ref([dayjs().subtract(6, 'day'), dayjs()]) // 默认最近7天
 const pageSelectionModalVisible = ref(false) // 页面选择弹窗
 const currentAnalysisType = ref('') // 当前分析类型
 const isPreloading = ref(false) // 预加载状态
+const modalAnalysisType = ref('') // 弹窗中的分析类型
+const modalAvailablePages = ref([]) // 弹窗中的可用页面列表
 
 // 常用提示词
 const quickPrompts = ref([
@@ -165,13 +168,51 @@ const currentDate = computed(() => new Date().toLocaleDateString())
 // 需求解析器（会根据配置动态初始化）
 let requirementParser = null
 
+// 监听页面选择弹窗事件
+const handlePageSelectionModalEvent = (event) => {
+  console.log('收到页面选择弹窗事件:', event.detail)
+  const { availablePages, analysisType, scope } = event.detail
+  
+  // 设置分析类型
+  modalAnalysisType.value = analysisType
+  
+  // 更新弹窗中的可用页面列表
+  if (availablePages && availablePages.length > 0) {
+    console.log('更新弹窗可用页面列表，数量:', availablePages.length)
+    modalAvailablePages.value = availablePages
+  } else {
+    console.log('没有可用页面数据')
+    modalAvailablePages.value = []
+  }
+  
+  // 显示弹窗
+  pageSelectionModalVisible.value = true
+}
+
+// 监听关闭页面选择弹窗事件
+const handleClosePageSelectionModalEvent = () => {
+  console.log('收到关闭页面选择弹窗事件')
+  pageSelectionModalVisible.value = false
+}
+
 // 生命周期
 onMounted(() => {
   initializeSystem()
+  
+  // 添加事件监听器
+  window.addEventListener('show-page-selection-modal', handlePageSelectionModalEvent)
+  window.addEventListener('close-page-selection-modal', handleClosePageSelectionModalEvent)
+  
   // 🚀 临时禁用自动缓存健康检查，避免阻塞保存过程
   // setTimeout(() => {
   //   startAutoCheck()
   // }, 2000)
+})
+
+// 组件卸载时清理事件监听器
+onUnmounted(() => {
+  window.removeEventListener('show-page-selection-modal', handlePageSelectionModalEvent)
+  window.removeEventListener('close-page-selection-modal', handleClosePageSelectionModalEvent)
 })
 
 // initializeSystem 方法已移动到 useAppState composable
