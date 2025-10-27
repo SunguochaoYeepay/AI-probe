@@ -46,7 +46,6 @@
           </div>
           <div class="generating-text">
             <h3>正在生成图表</h3>
-            <p>{{ generationStep }}</p>
           </div>
         </div>
       </a-spin>

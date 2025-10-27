@@ -282,8 +282,29 @@ export function useChartSave() {
       })
     } else {
       console.log('🔧 [Home] 按钮点击分析：直接从原始数据聚合UV/PV')
+      
+      // 🚀 修复：处理不同的数据格式
+      let dataArray = chartData
+      if (!Array.isArray(chartData)) {
+        console.log('🔧 [Home] 按钮点击分析 - chartData不是数组，尝试转换:', typeof chartData, chartData)
+        
+        // 如果是对象，尝试提取数组数据
+        if (chartData && typeof chartData === 'object') {
+          if (chartData.rawData && Array.isArray(chartData.rawData)) {
+            console.log('🔧 [Home] 按钮点击分析 - 使用rawData字段')
+            dataArray = chartData.rawData
+          } else {
+            console.error('❌ [Home] 按钮点击分析 - 无法识别的数据格式:', chartData)
+            return
+          }
+        } else {
+          console.error('❌ [Home] 按钮点击分析 - chartData不是数组也不是对象:', typeof chartData, chartData)
+          return
+        }
+      }
+      
       for (const date of recentDates) {
-        const dayData = chartData.filter(d => 
+        const dayData = dataArray.filter(d => 
           dayjs(d.createdAt).format('YYYY-MM-DD') === date
         )
         
@@ -563,8 +584,41 @@ export function useChartSave() {
    */
   const processStandardData = async (chartData, chartConfig, recentDates, initialData) => {
     console.log('📈 [Home] 非按钮点击/查询条件图表，使用标准聚合')
+    console.log('🔧 [Home] processStandardData - chartData类型:', typeof chartData, '是否为数组:', Array.isArray(chartData))
+    
+    // 🚀 修复：处理不同的数据格式
+    let dataArray = chartData
+    if (!Array.isArray(chartData)) {
+      console.log('🔧 [Home] chartData不是数组，尝试转换:', typeof chartData, chartData)
+      
+      // 如果是对象，尝试提取数组数据
+      if (chartData && typeof chartData === 'object') {
+        // 检查是否有categories和uvData/pvData字段（聚合后的数据格式）
+        if (chartData.categories && chartData.uvData && chartData.pvData) {
+          console.log('🔧 [Home] 检测到聚合数据格式，转换为数组格式')
+          dataArray = chartData.categories.map((date, index) => ({
+            createdAt: date,
+            date: date,
+            uv: chartData.uvData[index] || 0,
+            pv: chartData.pvData[index] || 0
+          }))
+        } else if (chartData.rawData && Array.isArray(chartData.rawData)) {
+          console.log('🔧 [Home] 使用rawData字段')
+          dataArray = chartData.rawData
+        } else {
+          console.error('❌ [Home] 无法识别的数据格式:', chartData)
+          return
+        }
+      } else {
+        console.error('❌ [Home] chartData不是数组也不是对象:', typeof chartData, chartData)
+        return
+      }
+    }
+    
+    console.log('🔧 [Home] 处理后的数据数组长度:', dataArray.length)
+    
     for (const date of recentDates) {
-      const dayData = chartData.filter(d => 
+      const dayData = dataArray.filter(d => 
         dayjs(d.createdAt).format('YYYY-MM-DD') === date
       )
       

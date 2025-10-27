@@ -77,7 +77,7 @@
       
       <div class="config-actions">
         <a-tooltip title="清空对话">
-          <a-button size="small" @click="clearChat">
+          <a-button size="small" @click="clearChatWrapper">
             <ClearOutlined />
           </a-button>
         </a-tooltip>
