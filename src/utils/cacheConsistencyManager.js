@@ -140,19 +140,65 @@ class CacheConsistencyManager {
           
           // 对比数据量
           if (cachedData.length !== apiTotal) {
-            const severity = Math.abs(cachedData.length - apiTotal) > apiTotal * 0.1 ? 'HIGH' : 'MEDIUM'
+            const difference = Math.abs(cachedData.length - apiTotal)
+            const differencePercent = (difference / apiTotal) * 100
             
-            issues.push({
-              type: 'DATA_COUNT_MISMATCH',
-              severity,
-              pointId,
-              date,
-              cachedCount: cachedData.length,
-              apiCount: apiTotal,
-              difference: Math.abs(cachedData.length - apiTotal),
-              description: `埋点 ${pointId} 在 ${date} 的数据量不一致：缓存 ${cachedData.length} 条，API ${apiTotal} 条`,
-              solution: 'REFRESH_SPECIFIC_CACHE'
-            })
+            // 判断是否是今天的日期
+            const today = dayjs().format('YYYY-MM-DD')
+            const isToday = date === today
+            
+            // 检查第一页数据中是否有跨天的数据
+            let hasCrossDayData = false
+            if (apiData.length > 0 && isToday) {
+              // 检查第一页数据中是否包含非当天的数据
+              const crossDayCount = apiData.filter(item => {
+                if (!item.createdAt) return false
+                const itemDate = dayjs(item.createdAt).format('YYYY-MM-DD')
+                return itemDate !== date
+              }).length
+              
+              // 如果第一页中有跨天数据，说明API返回的total包含了跨天的数据
+              // 缓存的差异可能是由于过滤了跨天数据导致的
+              if (crossDayCount > 0) {
+                hasCrossDayData = true
+                console.log(`ℹ️ ${date} - 埋点${pointId}: 发现跨天数据，第一页中有 ${crossDayCount} 条`)
+              }
+            }
+            
+            // 对于有跨天数据的情况，允许更大的差异（可能高达10-15%）
+            // 对于今天的实时数据，允许5%的差异（因为数据在不断增长）
+            // 对于历史数据，要求更严格，只允许1%的差异
+            let allowedDifferencePercent
+            if (hasCrossDayData && isToday) {
+              allowedDifferencePercent = 15  // 跨天数据可能导致较大差异
+              console.log(`ℹ️ ${date} - 埋点${pointId}: 允许15%差异（检测到跨天数据）`)
+            } else if (isToday) {
+              allowedDifferencePercent = 5
+            } else {
+              allowedDifferencePercent = 1
+            }
+            
+            if (differencePercent > allowedDifferencePercent) {
+              const severity = differencePercent > 10 ? 'HIGH' : 'MEDIUM'
+              
+              issues.push({
+                type: 'DATA_COUNT_MISMATCH',
+                severity,
+                pointId,
+                date,
+                cachedCount: cachedData.length,
+                apiCount: apiTotal,
+                difference: difference,
+                differencePercent: differencePercent.toFixed(2),
+                isToday: isToday,
+                hasCrossDayData,
+                description: `埋点 ${pointId} 在 ${date} 的数据量不一致：缓存 ${cachedData.length} 条，API ${apiTotal} 条（差异 ${differencePercent.toFixed(2)}%）${hasCrossDayData ? '，包含跨天数据' : ''}`,
+                solution: 'REFRESH_SPECIFIC_CACHE'
+              })
+            } else {
+              // 差异在可接受范围内，不报告为问题
+              console.log(`✅ ${date} - 埋点${pointId}: 数据量差异 ${differencePercent.toFixed(2)}% 在可接受范围内${hasCrossDayData ? '（包含跨天数据）' : ''}`)
+            }
           }
           
           // 对比数据新鲜度（如果有数据的话）
@@ -329,57 +375,152 @@ class CacheConsistencyManager {
    */
   async autoFixIssues(issues, selectedPointIds) {
     console.log('🔧 开始自动修复问题...')
+    console.log(`🔍 待修复问题总数: ${issues.length}`)
     const results = []
     
     // 按优先级分组
     const criticalIssues = issues.filter(i => i.severity === 'HIGH')
     const moderateIssues = issues.filter(i => i.severity === 'MEDIUM')
+    const lowIssues = issues.filter(i => i.severity === 'LOW')
     
-    // 1. 处理严重问题
-    for (const issue of criticalIssues) {
+    console.log(`📊 问题统计: 严重(${criticalIssues.length}) 中等(${moderateIssues.length}) 轻微(${lowIssues.length})`)
+    
+    // 处理函数，用于修复单个问题
+    const processIssue = async (issue) => {
       try {
         let fixed = false
         
+        console.log(`🔍 处理问题: ${issue.type} - ${issue.description}`)
+        console.log(`   解决方案: ${issue.solution || '无'}`)
+        
+        if (!issue.solution) {
+          console.warn(`⚠️ 问题缺少解决方案: ${issue.type}`)
+          return {
+            issue: issue.type,
+            status: 'SKIPPED',
+            description: `无法修复: 缺少解决方案`,
+            reason: 'NO_SOLUTION'
+          }
+        }
+        
         switch (issue.solution) {
           case 'CLEAN_AND_REFRESH':
+            if (!issue.pointId || !issue.date) {
+              console.error(`❌ 缺少必要参数: pointId=${issue.pointId}, date=${issue.date}`)
+              return {
+                issue: issue.type,
+                status: 'FAILED',
+                description: `修复失败: 缺少必要参数`,
+                error: 'Missing pointId or date'
+              }
+            }
+            console.log(`🔄 清理并刷新缓存: 埋点${issue.pointId} - ${issue.date}`)
             await this.cleanAndRefreshCache(issue.pointId, issue.date)
             fixed = true
             break
             
           case 'REFRESH_CACHE':
-            if (issue.dates) {
-              for (const date of issue.dates) {
-                await dataPreloadService.preloadDateDataForPoint(date, issue.pointId)
+            if (!issue.pointId || !issue.dates) {
+              console.error(`❌ 缺少必要参数: pointId=${issue.pointId}, dates=${issue.dates}`)
+              return {
+                issue: issue.type,
+                status: 'FAILED',
+                description: `修复失败: 缺少必要参数`,
+                error: 'Missing pointId or dates'
               }
+            }
+            console.log(`🔄 刷新缓存: 埋点${issue.pointId} - ${issue.dates.join(', ')}`)
+            for (const date of issue.dates) {
+              await dataPreloadService.preloadDateDataForPoint(date, issue.pointId)
             }
             fixed = true
             break
             
           case 'REFRESH_SPECIFIC_CACHE':
-            await dataPreloadService.preloadDateDataForPoint(issue.date, issue.pointId)
+            if (!issue.pointId || !issue.date) {
+              console.error(`❌ 缺少必要参数: pointId=${issue.pointId}, date=${issue.date}`)
+              return {
+                issue: issue.type,
+                status: 'FAILED',
+                description: `修复失败: 缺少必要参数`,
+                error: 'Missing pointId or date'
+              }
+            }
+            // 对于REFRESH_SPECIFIC_CACHE，我们也应该清理旧缓存后重新加载
+            console.log(`🔄 刷新特定缓存: 埋点${issue.pointId} - ${issue.date}`)
+            await this.cleanAndRefreshCache(issue.pointId, issue.date)
             fixed = true
             break
+            
+          case 'SYNC_CONFIG':
+            console.log(`🔧 同步配置: 将Vuex store配置同步到localStorage`)
+            try {
+              localStorage.setItem('selectedBuryPointIds', JSON.stringify(selectedPointIds))
+              console.log(`✅ 配置已同步到localStorage: [${selectedPointIds.join(', ')}]`)
+              fixed = true
+            } catch (error) {
+              console.error(`❌ 同步配置失败:`, error)
+              throw error
+            }
+            break
+            
+          case 'RESET_CONFIG':
+            console.log(`🔧 重置配置: 清空localStorage中的配置`)
+            try {
+              localStorage.removeItem('selectedBuryPointIds')
+              console.log(`✅ 配置已重置`)
+              fixed = true
+            } catch (error) {
+              console.error(`❌ 重置配置失败:`, error)
+              throw error
+            }
+            break
+            
+          default:
+            console.warn(`⚠️ 未知的解决方案类型: ${issue.solution}`)
+            return {
+              issue: issue.type,
+              status: 'SKIPPED',
+              description: `无法修复: 未知的解决方案类型`,
+              reason: 'UNKNOWN_SOLUTION'
+            }
         }
         
         if (fixed) {
-          results.push({
+          return {
             issue: issue.type,
             status: 'FIXED',
             description: `已修复: ${issue.description}`
-          })
+          }
         }
         
+        return null
       } catch (error) {
-        results.push({
+        console.error(`❌ 修复失败: ${issue.description}`, error)
+        return {
           issue: issue.type,
           status: 'FAILED',
           description: `修复失败: ${issue.description}`,
           error: error.message
-        })
+        }
       }
     }
     
-    // 2. 全量刷新缓存（如果有多个严重问题）
+    // 1. 处理严重问题
+    console.log('🔴 处理严重问题...')
+    for (const issue of criticalIssues) {
+      const result = await processIssue(issue)
+      if (result) results.push(result)
+    }
+    
+    // 2. 处理中等严重问题
+    console.log('🟡 处理中等严重问题...')
+    for (const issue of moderateIssues) {
+      const result = await processIssue(issue)
+      if (result) results.push(result)
+    }
+    
+    // 3. 全量刷新缓存（如果有多个严重问题）
     if (criticalIssues.length > 3) {
       try {
         console.log('🔄 问题较多，执行全量缓存刷新...')
@@ -400,8 +541,15 @@ class CacheConsistencyManager {
     }
     
     console.log('🔧 自动修复完成！')
-    console.log(`✅ 成功修复: ${results.filter(r => r.status === 'FIXED').length} 个`)
-    console.log(`❌ 修复失败: ${results.filter(r => r.status === 'FAILED').length} 个`)
+    const fixedCount = results.filter(r => r.status === 'FIXED').length
+    const failedCount = results.filter(r => r.status === 'FAILED').length
+    const skippedCount = results.filter(r => r.status === 'SKIPPED').length
+    
+    console.log(`✅ 成功修复: ${fixedCount} 个`)
+    console.log(`❌ 修复失败: ${failedCount} 个`)
+    if (skippedCount > 0) {
+      console.log(`⏭️ 跳过修复: ${skippedCount} 个`)
+    }
     
     return results
   }
@@ -412,7 +560,9 @@ class CacheConsistencyManager {
   async cleanAndRefreshCache(pointId, date) {
     const cacheId = `raw_${pointId}_${date}`
     
-    // 删除旧缓存
+    console.log(`🔧 开始清理并刷新缓存: ${cacheId}`)
+    
+    // 1. 删除旧缓存（IndexedDB）
     try {
       await chartDB._executeTransaction('raw_data_cache', 'readwrite', (store) => {
         return store.delete(cacheId)
@@ -420,10 +570,32 @@ class CacheConsistencyManager {
       console.log(`🗑️ 已清理缓存: ${cacheId}`)
     } catch (error) {
       console.warn('清理缓存失败:', error)
+      // 继续执行，即使删除失败也要尝试重新加载
     }
     
-    // 重新加载数据（现在会自动进行日期过滤）
-    await dataPreloadService.preloadDateDataForPoint(date, pointId)
+    // 2. 清理内存缓存（如果有的话）
+    if (window.dataCache && typeof window.dataCache.delete === 'function') {
+      try {
+        // 尝试通过不同方式清理内存缓存
+        const cacheKey = `data_${pointId}_${date}`
+        window.dataCache.delete(cacheKey)
+        console.log(`🗑️ 已清理内存缓存: ${cacheKey}`)
+      } catch (error) {
+        // 忽略内存缓存清理错误
+      }
+    }
+    
+    // 3. 重新加载数据（现在会自动进行日期过滤）
+    try {
+      await dataPreloadService.preloadDateDataForPoint(date, pointId)
+      console.log(`✅ 缓存刷新完成: ${cacheId}`)
+      
+      // 4. 等待一下确保缓存写入完成
+      await new Promise(resolve => setTimeout(resolve, 500))
+    } catch (error) {
+      console.error(`❌ 刷新缓存失败: ${cacheId}`, error)
+      throw error
+    }
   }
 
   /**

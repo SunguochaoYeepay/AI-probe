@@ -266,11 +266,17 @@ class ScheduledUpdateService {
             // 为每个图表聚合数据
             for (const task of dayTasks) {
               try {
+                console.log(`🔧 开始聚合图表数据: ${task.chart.name} (${date})`)
+                console.log(`  - 原始数据量: ${rawData.length}条`)
+                console.log(`  - 图表配置:`, task.chart.config)
+                
                 const aggregated = aggregationService.aggregateForChart(
                   rawData,
                   task.chart.config,
                   date
                 )
+
+                console.log(`  - 聚合结果:`, aggregated)
 
                 await chartDB.saveChartData({
                   chartId: task.chart.id,
@@ -321,15 +327,21 @@ class ScheduledUpdateService {
   async fetchDayData({ date, projectId, selectedPointId }) {
     console.log(`📡 获取 ${date} 的原始数据...`)
     
+    // 🚀 修复：增加数据获取量，确保数据完整性
     const response = await yeepayAPI.searchBuryPointData({
       date: date,
-      pageSize: 1000,
+      pageSize: 10000, // 从1000增加到10000
       projectId: projectId,
       selectedPointId: selectedPointId
     })
     
     const data = response.data?.dataList || []
     console.log(`✅ 获取到 ${data.length} 条数据`)
+    
+    // 🚀 如果数据量达到10000条，可能需要分页获取更多数据
+    if (data.length >= 10000) {
+      console.warn(`⚠️ 数据量达到上限 (${data.length}条)，可能存在数据截断`)
+    }
     
     return data
   }

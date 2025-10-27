@@ -2901,27 +2901,31 @@ export class ChartGenerator {
     console.log('  - 总参与人数:', funnelData.totalParticipants)
     console.log('  - 整体转化率:', funnelData.overallConversionRate + '%')
     console.log('  - 平均总耗时:', funnelData.averageTotalDuration + '秒')
-    console.log('  - 步骤数量:', funnelData.steps.length)
+    console.log('  - 步骤数量:', funnelData.steps?.length || 0)
     
     // 打印前5个步骤的数据
     console.log('📋 [ChartGenerator] 前5个步骤数据:')
-    funnelData.steps.slice(0, 5).forEach((step, index) => {
-      console.log(`  ${index + 1}. ${step.stepName}:`)
-      console.log(`     - 参与人数: ${step.participantCount}`)
-      console.log(`     - 转化率: ${step.conversionRate}%`)
-      console.log(`     - 平均耗时: ${step.averageDuration}秒`)
-    })
-    
-    // 打印最后5个步骤的数据
-    if (funnelData.steps.length > 5) {
-      console.log('📋 [ChartGenerator] 最后5个步骤数据:')
-      funnelData.steps.slice(-5).forEach((step, index) => {
-        const actualIndex = funnelData.steps.length - 5 + index + 1
-        console.log(`  ${actualIndex}. ${step.stepName}:`)
+    if (funnelData.steps && funnelData.steps.length > 0) {
+      funnelData.steps.slice(0, 5).forEach((step, index) => {
+        console.log(`  ${index + 1}. ${step.stepName}:`)
         console.log(`     - 参与人数: ${step.participantCount}`)
         console.log(`     - 转化率: ${step.conversionRate}%`)
         console.log(`     - 平均耗时: ${step.averageDuration}秒`)
       })
+      
+      // 打印最后5个步骤的数据
+      if (funnelData.steps.length > 5) {
+        console.log('📋 [ChartGenerator] 最后5个步骤数据:')
+        funnelData.steps.slice(-5).forEach((step, index) => {
+          const actualIndex = funnelData.steps.length - 5 + index + 1
+          console.log(`  ${actualIndex}. ${step.stepName}:`)
+          console.log(`     - 参与人数: ${step.participantCount}`)
+          console.log(`     - 转化率: ${step.conversionRate}%`)
+          console.log(`     - 平均耗时: ${step.averageDuration}秒`)
+        })
+      }
+    } else {
+      console.log('  - 无步骤数据')
     }
 
     if (!funnelData || !funnelData.steps || funnelData.steps.length === 0) {

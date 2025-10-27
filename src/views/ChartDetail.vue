@@ -470,9 +470,16 @@ const renderChart = async () => {
     console.log('🔧 [ChartDetail] 调用generateChart:', {
       analysisConfig,
       dataLength: chartData.value?.length,
+      transformedDataLength: transformedData?.length,
       containerId: 'chart-container'
     })
-    chartInstance.value = await chartGenerator.generateChart(analysisConfig, chartData.value, 'chart-container')
+    
+    // 🚀 修复：对于漏斗图，传递转换后的数据
+    const dataToPass = (chart.value.config.chartType === 'behavior_funnel' || chart.value.config.chartType === 'conversion_funnel') 
+      ? transformedData 
+      : chartData.value
+    
+    chartInstance.value = await chartGenerator.generateChart(analysisConfig, dataToPass, 'chart-container')
     console.log('✅ [ChartDetail] generateChart调用完成')
     
     console.log('✅ 图表渲染成功')
@@ -559,6 +566,12 @@ const transformChartData = async (data, config, chartInfo = null) => {
           if (match) {
             pageName = match[1]
           }
+        } else if (description.startsWith('#') && description.includes('页面访问量')) {
+          // 处理 #页面名称 页面访问量 格式
+          const match = description.match(/#([^ ]+)/)
+          if (match) {
+            pageName = match[1]
+          }
         }
         
         console.log('🔍 [ChartDetail] 从描述中提取的页面名称:', pageName)
@@ -573,7 +586,7 @@ const transformChartData = async (data, config, chartInfo = null) => {
     
     // 🚀 关键修复：在详情时也进行页面数据过滤，与创建时保持一致
     let filteredData = data
-    if (analysisParameters.pageName && config.chartType === 'single_page_uv_pv_chart' && format === 'raw') {
+    if (analysisParameters.pageName && config.chartType === 'single_page_uv_pv_chart') {
       console.log('🔍 [ChartDetail] 开始页面数据过滤，目标页面:', analysisParameters.pageName)
       
       // 使用与创建时相同的智能匹配逻辑
@@ -648,10 +661,26 @@ const transformChartData = async (data, config, chartInfo = null) => {
       })
       
       // 过滤数据
-      filteredData = data.filter(item => {
-        const itemPageName = item.pageName || item.url || item.path || item.title
-        return smartMatch(analysisParameters.pageName, itemPageName)
-      })
+      if (format === 'raw') {
+        // 原始数据格式：按页面名称过滤
+        filteredData = data.filter(item => {
+          const itemPageName = item.pageName || item.url || item.path || item.title
+          return smartMatch(analysisParameters.pageName, itemPageName)
+        })
+      } else if (format === 'aggregated') {
+        // 聚合数据格式：检查数据是否已经按页面过滤过
+        // 如果数据中包含了页面信息，进行过滤
+        if (data.some(item => item.pageName || item.url || item.path || item.title)) {
+          filteredData = data.filter(item => {
+            const itemPageName = item.pageName || item.url || item.path || item.title
+            return smartMatch(analysisParameters.pageName, itemPageName)
+          })
+        } else {
+          // 如果聚合数据中没有页面信息，说明数据已经是按页面过滤过的
+          console.log('🔍 [ChartDetail] 聚合数据中无页面信息，使用原始数据')
+          filteredData = data
+        }
+      }
       
       console.log('🔍 [ChartDetail] 页面数据过滤结果:', {
         原始数据: data.length,
@@ -666,8 +695,9 @@ const transformChartData = async (data, config, chartInfo = null) => {
       }
     }
     
-    // 使用统一的数据处理逻辑
-    const result = dataProcessorFactory.process(config.chartType, filteredData, {
+    // 🚀 修复：为漏斗图提供正确的数据格式
+    let processedData = filteredData
+    let processedOptions = {
       format: format,
       analysis: {
         chartType: config.chartType,
@@ -681,10 +711,98 @@ const transformChartData = async (data, config, chartInfo = null) => {
         endDate: dateRange.value?.endDate
       },
       // 🚀 为查询条件分析传递原始数据
-      rawData: format === 'raw' ? data : null
-    })
+      rawData: format === 'raw' ? data : null,
+      // 🚀 修复：传递漏斗步骤配置
+      funnelSteps: config.funnelSteps || null
+    }
+
+    // 🚀 特殊处理：漏斗图直接使用保存的数据
+    if (config.chartType === 'behavior_funnel' || config.chartType === 'conversion_funnel') {
+      console.log('🔧 [ChartDetail] 漏斗图特殊处理：直接使用保存的漏斗图数据')
+      
+      // 检查是否有保存的漏斗图数据
+      if (format === 'aggregated' && filteredData.length > 0) {
+        // 从保存的数据中提取漏斗图数据
+        const firstDataItem = filteredData[0]
+        
+        console.log('🔍 [ChartDetail] 检查保存的数据结构:', {
+          hasDimensions: !!firstDataItem.dimensions,
+          hasMetadata: !!firstDataItem.metadata,
+          dimensionsKeys: firstDataItem.dimensions ? Object.keys(firstDataItem.dimensions) : [],
+          metadataKeys: firstDataItem.metadata ? Object.keys(firstDataItem.metadata) : [],
+          hasByStep: !!firstDataItem.dimensions?.byStep,
+          hasFunnelId: !!firstDataItem.metadata?.funnelId,
+          firstDataItem: firstDataItem
+        })
+        
+        if (firstDataItem.dimensions?.byStep && firstDataItem.metadata?.funnelId) {
+          console.log('🔍 [ChartDetail] 找到保存的漏斗图数据，直接使用')
+          
+          // 直接返回保存的漏斗图数据
+          const funnelData = {
+            funnelId: firstDataItem.metadata.funnelId,
+            funnelName: firstDataItem.metadata.funnelName || '用户行为转化漏斗',
+            steps: firstDataItem.dimensions.byStep || [],
+            totalParticipants: firstDataItem.metrics?.totalParticipants || 0,
+            overallConversionRate: firstDataItem.metrics?.overallConversionRate || 0,
+            averageTotalDuration: firstDataItem.metrics?.averageTotalDuration || 0,
+            funnelSteps: firstDataItem.metadata?.funnelSteps || null
+          }
+          
+          console.log('✅ [ChartDetail] 直接使用保存的漏斗图数据:', funnelData)
+          return funnelData
+        } else {
+          console.log('🔍 [ChartDetail] 数据格式不匹配，尝试其他格式')
+          
+          // 尝试其他可能的数据格式
+          if (firstDataItem.steps && firstDataItem.funnelId) {
+            console.log('🔍 [ChartDetail] 找到直接格式的漏斗图数据')
+            return firstDataItem
+          }
+        }
+      }
+      
+      // 如果没有保存的漏斗图数据，提示用户
+      console.warn('⚠️ [ChartDetail] 没有找到保存的漏斗图数据')
+      console.log('🔍 [ChartDetail] 建议：请重新生成漏斗图以保存数据')
+      
+      // 返回空的漏斗图数据
+      return {
+        funnelId: 'empty_funnel',
+        funnelName: '用户行为转化漏斗',
+        steps: [],
+        totalParticipants: 0,
+        overallConversionRate: 0,
+        averageTotalDuration: 0,
+        funnelSteps: null
+      }
+    }
+
+    // 使用统一的数据处理逻辑
+    const result = dataProcessorFactory.process(config.chartType, processedData, processedOptions)
     
     console.log('✅ [ChartDetail] 统一数据处理完成:', result)
+    
+    // 🚀 修复：漏斗图数据特殊处理
+    if (config.chartType === 'behavior_funnel' || config.chartType === 'conversion_funnel') {
+      // 漏斗图数据需要从保存的格式中提取原始数据
+      console.log('✅ 漏斗图数据，提取原始格式:', result)
+      
+      // 🚀 修复：直接使用 BehaviorAnalysisDataProcessor 返回的数据结构
+      const funnelData = {
+        funnelId: result.funnelId || 'empty_funnel',
+        funnelName: result.funnelName || '用户行为转化漏斗',
+        steps: result.steps || [],
+        totalParticipants: result.totalParticipants || 0,
+        overallConversionRate: result.overallConversionRate || 0,
+        averageTotalDuration: result.averageTotalDuration || 0,
+        // 🚀 修复：恢复漏斗步骤配置
+        funnelSteps: result.funnelSteps || null
+      }
+      
+      console.log('✅ 重建的漏斗图数据:', funnelData)
+      return funnelData
+    }
     
     // 转换为 ChartDetail 期望的格式
     const transformed = result.categories.map((date, index) => ({

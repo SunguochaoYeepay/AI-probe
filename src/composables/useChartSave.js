@@ -117,10 +117,16 @@ export function useChartSave() {
       }
       
       
+      // 🚀 修复：漏斗图使用正确的分类
+      let chartCategory = getCategoryByAnalysisType(store.state.apiConfig.selectedAnalysisType || 'page_analysis')
+      if (chartType === 'behavior_funnel' || chartType === 'conversion_funnel') {
+        chartCategory = '转化分析'
+      }
+      
       const chartConfig = {
         name: chartName,
         description: store.state.currentRequirement || effectiveAnalysis.description || chartName,
-        category: getCategoryByAnalysisType(store.state.apiConfig.selectedAnalysisType || 'page_analysis'),
+        category: chartCategory,
         chartType: chartType,
         mode: store.state.analysisMode || 'single',
         selectedPointId: store.state.apiConfig.selectedPointId,
@@ -195,6 +201,10 @@ export function useChartSave() {
           console.log('🔧 [Home] 使用原始数据重新处理查询条件')
           await processQueryConditionData(chartData, effectiveAnalysis, recentDates, initialData)
         }
+      } else if (chartType === 'behavior_funnel' || chartType === 'conversion_funnel') {
+        // 🚀 修复：漏斗图数据特殊处理
+        console.log('📊 [Home] 检测到漏斗图数据，使用特殊处理逻辑')
+        await processFunnelData(chartData, chartConfig, recentDates, initialData)
       } else {
         await processStandardData(chartData, chartConfig, recentDates, initialData)
       }
@@ -513,6 +523,42 @@ export function useChartSave() {
   }
 
   /**
+   * 处理漏斗图数据
+   */
+  const processFunnelData = async (chartData, chartConfig, recentDates, initialData) => {
+    console.log('📊 [Home] 处理漏斗图数据')
+    
+    // 漏斗图数据是对象类型，直接保存
+    if (chartData && typeof chartData === 'object' && chartData.steps) {
+      // 为每个日期创建相同的漏斗图数据
+      for (const date of recentDates) {
+        // 🚀 修复：确保所有数据都可以被序列化
+        initialData[date] = {
+          date: date,
+          metrics: {
+            totalParticipants: chartData.totalParticipants || 0,
+            overallConversionRate: chartData.overallConversionRate || 0,
+            averageTotalDuration: chartData.averageTotalDuration || 0
+          },
+          dimensions: {
+            byStep: JSON.parse(JSON.stringify(chartData.steps || []))
+          },
+          metadata: {
+            funnelId: chartData.funnelId || '',
+            funnelName: chartData.funnelName || '',
+            chartType: 'behavior_funnel',
+            // 🚀 修复：保存漏斗步骤配置
+            funnelSteps: chartData.funnelSteps || null
+          }
+        }
+      }
+      console.log('✅ [Home] 漏斗图数据处理完成')
+    } else {
+      console.warn('⚠️ [Home] 漏斗图数据格式不正确:', chartData)
+    }
+  }
+
+  /**
    * 处理标准数据
    */
   const processStandardData = async (chartData, chartConfig, recentDates, initialData) => {
@@ -542,7 +588,8 @@ export function useChartSave() {
       'page_analysis': '页面分析',
       'click_analysis': '用户行为',
       'behavior_analysis': '用户行为',
-      'query_condition_analysis': '查询条件分析'
+      'query_condition_analysis': '查询条件分析',
+      'conversion_analysis': '转化分析'
     }
     return categoryMap[analysisType] || '页面分析'
   }

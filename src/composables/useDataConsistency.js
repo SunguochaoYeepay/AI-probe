@@ -162,10 +162,11 @@ export function useDataConsistency() {
       if (fixedCount > 0) {
         message.success(`成功修复 ${fixedCount} 个问题`)
         
-        // 重新检查
+        // 重新检查（延迟3秒，确保缓存写入完成）
         setTimeout(() => {
+          console.log('🔄 修复完成，开始重新检查...')
           runFullCheck()
-        }, 1000)
+        }, 3000)
       }
       
       if (failedCount > 0) {

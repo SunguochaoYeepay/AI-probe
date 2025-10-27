@@ -328,8 +328,8 @@ class DualBuryPointDataOrganizer {
         return false
       }
       
-      // 检查页面行为
-      if (record.pageBehavior && !['打开', '关闭'].includes(record.pageBehavior)) {
+      // 检查页面行为 - 允许"任意"页面行为
+      if (record.pageBehavior && !['打开', '关闭', '任意'].includes(record.pageBehavior)) {
         console.warn('⚠️ [DualBuryPointDataOrganizer] 发现异常页面行为:', record)
         return false
       }
@@ -356,6 +356,13 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
    */
   process(data, options) {
     // 开始处理用户行为分析数据
+    console.log('🔍 [BehaviorAnalysisDataProcessor] 开始处理数据:', {
+      analysisType: options?.analysisType,
+      funnelSteps: options?.funnelSteps,
+      visitDataCount: data.visitData?.length || 0,
+      clickDataCount: data.clickData?.length || 0,
+      options: options
+    })
 
     try {
       // 检查分析类型
@@ -368,12 +375,20 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
         // 漏斗分析：基于配置或自动提取步骤
         const customSteps = options?.funnelSteps || null
         
+        console.log('🔍 [BehaviorAnalysisDataProcessor] 漏斗分析分支:', {
+          customSteps: customSteps,
+          customStepsLength: customSteps?.length || 0,
+          hasCustomSteps: customSteps && customSteps.length > 0
+        })
+        
         if (customSteps && customSteps.length > 0) {
           // 🚀 修复：如果有自定义步骤配置，直接使用配置生成漏斗数据
+          console.log('🔍 [BehaviorAnalysisDataProcessor] 使用自定义步骤生成漏斗数据')
           const funnelData = this.generateFunnelFromCustomSteps(customSteps, data, options)
           return funnelData
         } else {
           // 2. 如果没有自定义步骤，使用原有逻辑
+          console.log('🔍 [BehaviorAnalysisDataProcessor] 使用默认逻辑生成漏斗数据')
           // 使用默认步骤提取逻辑
           const userPaths = this.dataOrganizer.organizeUserBehaviorPaths(data.visitData, data.clickData, customSteps)
           const funnelData = this.analyzeUserBehaviorPaths(userPaths, options)
@@ -395,6 +410,12 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
    */
   generateFunnelFromCustomSteps(customSteps, data, options) {
     // 开始根据自定义步骤生成漏斗数据
+    console.log('🔍 [BehaviorAnalysisDataProcessor] 开始生成漏斗数据:', {
+      customStepsCount: customSteps?.length || 0,
+      visitDataCount: data.visitData?.length || 0,
+      clickDataCount: data.clickData?.length || 0,
+      customSteps: customSteps
+    })
     
     // 1. 根据自定义步骤配置分析数据
     const stepStats = new Map()
@@ -414,13 +435,25 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     // 2. 分析数据，统计每个步骤的参与人数（只处理访问数据）
     const visitData = data.visitData || []
     
+    console.log('🔍 [BehaviorAnalysisDataProcessor] 访问数据样本:', visitData.slice(0, 3))
+    
     // 统计访问数据 - 计算平均停留时间
     let totalVisitMatches = 0
     const visitUserSet = new Set() // 用于去重统计访问用户
     
-    visitData.forEach(visit => {
+    visitData.forEach((visit, index) => {
       const matchedSteps = this.matchAllStepsFromData(visit, customSteps, 'visit')
       totalVisitMatches += matchedSteps.length
+      
+      // 调试：打印前几个访问数据的匹配情况
+      if (index < 3) {
+        console.log(`🔍 [BehaviorAnalysisDataProcessor] 访问数据 ${index + 1} 匹配情况:`, {
+          pageName: visit.pageName,
+          pageBehavior: visit.pageBehavior,
+          matchedSteps: matchedSteps,
+          visitData: visit
+        })
+      }
       
       // 获取用户标识（weCustomerKey是系统内置的用户唯一标识）
       const userId = visit.weCustomerKey || `visit_${visit.id || Math.random()}`
@@ -448,6 +481,14 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
           }
         }
       })
+    })
+    
+    console.log('🔍 [BehaviorAnalysisDataProcessor] 匹配统计:', {
+      totalVisitMatches,
+      stepStats: Array.from(stepStats.entries()).map(([name, stats]) => ({
+        name,
+        participantCount: stats.participantCount
+      }))
     })
     
     // 3. 转换为数组并排序

@@ -226,7 +226,9 @@ import {
 } from '@ant-design/icons-vue'
 import { useDataConsistency } from '@/composables/useDataConsistency'
 import { dataPreloadService } from '@/services/dataPreloadService'
+import { cacheConsistencyManager } from '@/utils/cacheConsistencyManager'
 import dayjs from 'dayjs'
+import { useStore } from 'vuex'
 
 export default {
   name: 'CacheManagementPanel',
@@ -243,6 +245,8 @@ export default {
     InfoCircleOutlined
   },
   setup() {
+    const store = useStore()
+    
     const {
       isChecking,
       diagnosticResults,
@@ -266,6 +270,36 @@ export default {
     const statsModalVisible = ref(false)
     const detailedStats = ref(null)
     const fixingIssues = ref([])
+    
+    /**
+     * 获取所有配置的埋点ID
+     */
+    const getSelectedPointIds = () => {
+      const projectConfig = store.state.projectConfig
+      const pointIds = new Set()
+      
+      // 添加访问埋点
+      if (projectConfig.visitBuryPointId) {
+        pointIds.add(projectConfig.visitBuryPointId)
+      }
+      
+      // 添加点击埋点
+      if (projectConfig.clickBuryPointId) {
+        pointIds.add(projectConfig.clickBuryPointId)
+      }
+      
+      // 添加行为分析埋点
+      if (projectConfig.behaviorBuryPointIds && Array.isArray(projectConfig.behaviorBuryPointIds)) {
+        projectConfig.behaviorBuryPointIds.forEach(id => pointIds.add(id))
+      }
+      
+      // 兼容旧的配置格式
+      if (projectConfig.selectedBuryPointIds && Array.isArray(projectConfig.selectedBuryPointIds)) {
+        projectConfig.selectedBuryPointIds.forEach(id => pointIds.add(id))
+      }
+      
+      return Array.from(pointIds)
+    }
     
     // 设置
     const settings = ref({
@@ -316,9 +350,53 @@ export default {
      */
     const fixSingleIssue = async (issue) => {
       fixingIssues.value.push(issue)
+      
+      const hideLoading = message.loading(`正在修复: ${issue.description}...`, 0)
+      
       try {
-        // 这里可以实现单个问题的修复逻辑
-        message.info('单个问题修复功能开发中...')
+        // 获取所有配置的埋点ID
+        const selectedPointIds = getSelectedPointIds()
+        
+        if (selectedPointIds.length === 0) {
+          message.error('请先选择埋点')
+          return
+        }
+        
+        // 调用修复逻辑
+        const results = await cacheConsistencyManager.autoFixIssues([issue], selectedPointIds)
+        
+        hideLoading()
+        
+        const fixedCount = results.filter(r => r.status === 'FIXED').length
+        const failedCount = results.filter(r => r.status === 'FAILED').length
+        
+        if (fixedCount > 0) {
+          message.success(`修复成功！`)
+          
+          // 从列表中移除已修复的问题
+          const index = diagnosticResults.value.findIndex(i => 
+            i.type === issue.type && 
+            i.pointId === issue.pointId && 
+            i.date === issue.date
+          )
+          if (index > -1) {
+            diagnosticResults.value.splice(index, 1)
+          }
+          
+          // 延迟重新检查
+          setTimeout(() => {
+            quickHealthCheck()
+          }, 2000)
+        } else if (failedCount > 0) {
+          message.error(`修复失败，请查看控制台获取详细信息`)
+        } else {
+          message.warning(`无法修复此问题`)
+        }
+        
+      } catch (error) {
+        hideLoading()
+        message.error(`修复失败: ${error.message}`)
+        console.error('单个问题修复失败:', error)
       } finally {
         const index = fixingIssues.value.indexOf(issue)
         if (index > -1) {

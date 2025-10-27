@@ -608,17 +608,17 @@ export function useRequirementAnalysis() {
     })
     
     try {
+      // 根据分析请求类型设置分析参数
+      const analysisType = analysisRequest?.type || 'behavior_funnel'
+      const isPathAnalysis = analysisType === 'behavior_path'
+      
       // 构建上下文信息
       const context = {
-        analysisType: 'behavior_analysis'
+        analysisType: analysisType === 'behavior_funnel' ? 'conversion_analysis' : 'behavior_analysis'
       }
       
       // 解析需求
       let analysis = await requirementParser.parse(currentRequirement.value, context)
-      
-      // 根据分析请求类型设置分析参数
-      const analysisType = analysisRequest?.type || 'behavior_funnel'
-      const isPathAnalysis = analysisType === 'behavior_path'
       
       analysis = {
         ...analysis,
@@ -705,7 +705,9 @@ export function useRequirementAnalysis() {
         },
         data: processedData,
         rawData: processedData,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        // 🚀 修复：在顶层也保存漏斗步骤配置
+        funnelSteps: analysisRequest?.funnelSteps || null
       }
       store.commit('SET_CHART_CONFIG', chartConfig)
       console.log('图表配置已保存到 store:', chartConfig)

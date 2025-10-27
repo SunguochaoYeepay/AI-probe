@@ -120,7 +120,9 @@ export function useChartManager() {
           // 🚀 修复：保存查询条件分析参数
           queryConditionParams: chartConfig.queryConditionParams || null,
           // 🚀 修复：保存按钮点击分析参数
-          buttonParams: chartConfig.buttonParams || null
+          buttonParams: chartConfig.buttonParams || null,
+          // 🚀 修复：保存漏斗步骤配置
+          funnelSteps: chartConfig.funnelSteps || null
         },
         updateStrategy: {
           enabled: true,

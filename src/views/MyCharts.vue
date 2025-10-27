@@ -345,6 +345,8 @@ const displayCharts = computed(() => {
           return config.chartType === 'button_click_analysis' || config.chartType === 'button_click_daily'
         case 'query-conditions':
           return config.chartType === 'query_condition_analysis'
+        case 'conversion-funnel':
+          return config.chartType === 'behavior_funnel' || config.chartType === 'conversion_funnel'
         default:
           return true
       }
@@ -696,6 +698,12 @@ const getDisplayChartName = (record) => {
   const buttonClickMatch = description.match(/分析页面["'](.+?)["']的["'](.+?)["']按钮点击情况/)
   if (buttonClickMatch) {
     return `分析页面"${buttonClickMatch[1]}"的"${buttonClickMatch[2]}"按钮点击情况`
+  }
+  
+  // 匹配 "#页面名称 页面访问量" 格式
+  const hashPageMatch = description.match(/#([^ ]+) 页面访问量/)
+  if (hashPageMatch) {
+    return `分析页面"${hashPageMatch[1]}"的访问量数据`
   }
   
   // 尝试从filters中提取页面名称

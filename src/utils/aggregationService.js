@@ -50,6 +50,21 @@ class AggregationService {
       case 'conversion_funnel':
         result = this.aggregateForFunnel(filtered, chartConfig, date)
         break
+      case 'behavior_funnel':
+        // 🚀 修复：behavior_funnel 跳过聚合，保持原有数据格式
+        console.log('  ✓ behavior_funnel 跳过聚合，保持原有数据格式')
+        return {
+          metrics: {},
+          dimensions: {},
+          metadata: {
+            rawRecordCount: rawData.length,
+            filteredRecordCount: filtered.length,
+            processedAt: new Date().toISOString(),
+            dataQuality: 'preserved',
+            chartType: 'behavior_funnel',
+            skipAggregation: true
+          }
+        }
       case 'click_heatmap':
         result = this.aggregateForClickHeatmap(filtered, chartConfig, date)
         break
@@ -84,14 +99,20 @@ class AggregationService {
     
     let result = data
     
-    // 按单个页面过滤
+    // 按单个页面过滤 - 使用智能匹配逻辑
     if (filters.pageName) {
-      result = result.filter(d => d.pageName === filters.pageName)
+      result = result.filter(d => {
+        const itemPageName = d.pageName || d.url || d.path || d.title
+        return this.smartMatch(filters.pageName, itemPageName)
+      })
     }
     
     // 按多个页面过滤
     if (filters.pageNames && filters.pageNames.length > 0) {
-      result = result.filter(d => filters.pageNames.includes(d.pageName))
+      result = result.filter(d => {
+        const itemPageName = d.pageName || d.url || d.path || d.title
+        return filters.pageNames.some(pageName => this.smartMatch(pageName, itemPageName))
+      })
     }
     
     // 按类型过滤
@@ -105,6 +126,50 @@ class AggregationService {
     }
     
     return result
+  }
+
+  /**
+   * 智能匹配逻辑 - 与图表创建时保持一致
+   */
+  smartMatch(target, source) {
+    if (!source) return false
+    
+    // 1. 精确匹配
+    if (target === source) return true
+    
+    // 2. 去除常见后缀后的精确匹配
+    const cleanTarget = target.replace(/(的访问|访问|页面|page)$/gi, '').trim()
+    const cleanSource = source.replace(/(的访问|访问|页面|page)$/gi, '').trim()
+    if (cleanTarget === cleanSource) return true
+    
+    // 3. 去除横线字符后的精确匹配
+    const normalizedTarget = target.replace(/[—_\-]/g, '')
+    const normalizedSource = source.replace(/[—_\-]/g, '')
+    if (normalizedTarget === normalizedSource) return true
+    
+    // 4. 简单的包含匹配
+    if (source.includes(target) || target.includes(source)) {
+      return true
+    }
+    
+    // 5. 关键词匹配
+    const targetKeywords = target.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
+    const sourceKeywords = source.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
+    
+    let matchCount = 0
+    for (const targetKeyword of targetKeywords) {
+      if (sourceKeywords.some(sourceKeyword => 
+        sourceKeyword.includes(targetKeyword) || targetKeyword.includes(sourceKeyword)
+      )) {
+        matchCount++
+      }
+    }
+    
+    if (targetKeywords.length > 0 && matchCount === targetKeywords.length) {
+      return true
+    }
+    
+    return matchCount > 0
   }
 
   /**

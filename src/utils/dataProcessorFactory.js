@@ -609,6 +609,8 @@ export class DataProcessorFactory {
     this.processors.set('behavior_funnel_analysis', new BehaviorAnalysisDataProcessor())
     this.processors.set('behavior_path_analysis', new BehaviorAnalysisDataProcessor())
     this.processors.set('behavior_analysis', new BehaviorAnalysisDataProcessor())
+    this.processors.set('behavior_funnel', new BehaviorAnalysisDataProcessor())
+    this.processors.set('conversion_funnel', new BehaviorAnalysisDataProcessor())
   }
 
   /**
