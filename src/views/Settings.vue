@@ -36,6 +36,11 @@
         <a-tab-pane key="page-menu" tab="页面菜单">
           <PageMenuTab />
         </a-tab-pane>
+        
+        <!-- 配置同步状态 -->
+        <a-tab-pane key="config-sync" tab="配置同步">
+          <ConfigSyncStatus />
+        </a-tab-pane>
       </a-tabs>
     </div>
   </AppLayout>
@@ -51,6 +56,7 @@ import ApiConfigTab from '@/components/settings/ApiConfigTab.vue'
 import AiConfigTab from '@/components/settings/AiConfigTab.vue'
 import ChartManagementTab from '@/components/settings/ChartManagementTab.vue'
 import PageMenuTab from '@/components/settings/PageMenuTab.vue'
+import ConfigSyncStatus from '@/components/ConfigSyncStatus.vue'
 
 const activeTab = ref('project')
 </script>

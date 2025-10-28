@@ -7,6 +7,15 @@ import store from './store'
 import * as echarts from 'echarts'
 import './services/scheduledUpdateService' // 启动定时更新服务
 import './utils/consoleFilter' // 过滤控制台警告
+import './utils/databaseDebugger' // 数据库调试工具
+import './utils/configSyncChecker' // 配置同步检查工具
+import './utils/configValidator' // 配置验证工具
+import './utils/configDebugger' // 配置调试工具
+import './utils/dataSyncConfigValidator' // 数据同步配置验证工具
+import './utils/dataSyncDebugger' // 数据同步调试工具
+import './utils/configForceSync' // 配置强制同步工具
+import './utils/configMismatchFixer' // 配置不匹配修复工具
+import configSyncService from './services/configSyncService.js'
 
 // 配置ECharts以减少性能警告
 echarts.registerTheme('default', {
@@ -79,4 +88,14 @@ app.use(Antd)
 app.use(router)
 app.use(store)
 
+// 初始化配置同步服务
+configSyncService.init(store)
+
 app.mount('#app')
+
+// 延迟加载数据库配置，确保store已初始化
+setTimeout(async () => {
+  console.log('🔄 开始从数据库同步配置...')
+  await configSyncService.loadConfigFromDatabase()
+  console.log('✅ 配置同步完成')
+}, 1000)

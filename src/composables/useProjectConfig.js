@@ -85,31 +85,54 @@ export function useProjectConfig() {
       }
       currentBuryPoints.value = config
       
-      // 更新 Vuex 状态
-      store.dispatch('updateProjectConfig', {
-        projectId,
-        buryPoints: config.buryPoints,
-        visitPoint: config.visitPoint,
-        clickPoint: config.clickPoint,
-        hasVisitPoint: config.hasVisitPoint,
-        hasClickPoint: config.hasClickPoint,
-        supportDualBuryPoint: config.supportDualBuryPoint,
-        // 设置埋点ID
-        visitBuryPointId: config.visitPoint?.id || null,
-        clickBuryPointId: config.clickPoint?.id || null
-      })
+      // 检查是否已有正确的数据库配置（175, 172）
+      const currentProjectConfig = store.state.projectConfig
+      const hasCorrectDatabaseConfig = currentProjectConfig.visitBuryPointId === 175 && currentProjectConfig.clickBuryPointId === 172
       
-      // 强制设置默认选择点击埋点
-      if (config.clickPoint?.id) {
-        store.dispatch('updateApiConfig', {
-          selectedPointId: config.clickPoint.id
+      if (hasCorrectDatabaseConfig) {
+        console.log('🔒 检测到数据库配置，保持现有配置不变')
+        console.log('📊 当前数据库配置:', {
+          visitBuryPointId: currentProjectConfig.visitBuryPointId,
+          clickBuryPointId: currentProjectConfig.clickBuryPointId,
+          behaviorBuryPointIds: currentProjectConfig.behaviorBuryPointIds
         })
-        console.log('✅ 强制设置默认选择点击埋点:', config.clickPoint.id)
-      } else if (config.visitPoint?.id) {
-        store.dispatch('updateApiConfig', {
-          selectedPointId: config.visitPoint.id
+        
+        // 只更新项目基本信息，不覆盖埋点配置
+        store.dispatch('updateProjectConfig', {
+          projectId,
+          buryPoints: config.buryPoints,
+          hasVisitPoint: config.hasVisitPoint,
+          hasClickPoint: config.hasClickPoint,
+          supportDualBuryPoint: config.supportDualBuryPoint
         })
-        console.log('✅ 强制设置默认选择访问埋点:', config.visitPoint.id)
+      } else {
+        console.log('📥 无数据库配置，使用API配置')
+        // 更新 Vuex 状态（包括埋点ID）
+        store.dispatch('updateProjectConfig', {
+          projectId,
+          buryPoints: config.buryPoints,
+          visitPoint: config.visitPoint,
+          clickPoint: config.clickPoint,
+          hasVisitPoint: config.hasVisitPoint,
+          hasClickPoint: config.hasClickPoint,
+          supportDualBuryPoint: config.supportDualBuryPoint,
+          // 设置埋点ID
+          visitBuryPointId: config.visitPoint?.id || null,
+          clickBuryPointId: config.clickPoint?.id || null
+        })
+        
+        // 强制设置默认选择点击埋点
+        if (config.clickPoint?.id) {
+          store.dispatch('updateApiConfig', {
+            selectedPointId: config.clickPoint.id
+          })
+          console.log('✅ 强制设置默认选择点击埋点:', config.clickPoint.id)
+        } else if (config.visitPoint?.id) {
+          store.dispatch('updateApiConfig', {
+            selectedPointId: config.visitPoint.id
+          })
+          console.log('✅ 强制设置默认选择访问埋点:', config.visitPoint.id)
+        }
       }
       
       console.log('项目配置更新成功:', {

@@ -13,7 +13,10 @@ export default defineConfig({
     host: '0.0.0.0', // 允许局域网访问
     port: 3000,
     open: true,
-    cors: true
+    cors: true,
+          headers: {
+            'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://localhost:3000 http://localhost:3004 http://localhost:11434 https:; font-src 'self' data:;"
+          }
   },
   build: {
     outDir: 'dist',

@@ -259,6 +259,27 @@ const handleImport = async () => {
     localStorage.setItem('pageMenuData', JSON.stringify(data))
     menuData.value = data
     
+    // 保存到数据库
+    try {
+      const response = await fetch('http://localhost:3004/api/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          pageMenuData: data
+        })
+      })
+      
+      if (response.ok) {
+        console.log('✅ 页面菜单配置已保存到数据库')
+      } else {
+        console.warn('⚠️ 页面菜单配置保存到数据库失败，但已保存到本地存储')
+      }
+    } catch (dbError) {
+      console.warn('⚠️ 数据库连接失败，页面菜单配置仅保存到本地存储:', dbError.message)
+    }
+    
     console.log('✅ 菜单数据导入成功')
     message.success(`菜单数据导入成功！共导入 ${data.data.menus.length} 个一级菜单`)
     importModalVisible.value = false

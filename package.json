@@ -3,27 +3,42 @@
   "version": "1.0.0",
   "type": "module",
   "description": "智能图表生成系统 - 基于自然语言需求自动生成数据可视化图表",
-  "main": "index.js",
+  "main": "electron/main.cjs",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently \"npm run start:server\" \"vite\"",
+    "dev:frontend": "vite",
+    "dev:backend": "npm run start:server",
     "build": "vite build",
     "preview": "vite preview",
-    "serve": "vite preview --port 3000"
+    "serve": "vite preview --port 3000",
+    "electron": "electron .",
+    "electron:dev": "NODE_ENV=development electron .",
+    "electron:build": "npm run build && electron .",
+    "start:server": "node electron/server/app.js"
   },
   "dependencies": {
-    "vue": "^3.3.4",
-    "vuex": "^4.1.0",
     "ant-design-vue": "^4.0.0",
-    "echarts": "^5.4.3",
-    "vue-echarts": "^6.6.0",
     "axios": "^1.4.0",
+    "cors": "^2.8.5",
     "dayjs": "^1.11.9",
-    "lodash-es": "^4.17.21"
+    "echarts": "^5.4.3",
+    "express": "^5.1.0",
+    "lodash-es": "^4.17.21",
+    "node-cron": "^4.2.1",
+    "node-fetch": "^3.3.2",
+    "sqlite3": "^5.1.7",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "vue": "^3.3.4",
+    "vue-echarts": "^6.6.0",
+    "vuex": "^4.1.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.2.3",
-    "vite": "^4.4.5",
-    "sass": "^1.64.1"
+    "concurrently": "^9.2.1",
+    "electron": "^39.0.0",
+    "sass": "^1.64.1",
+    "vite": "^4.4.5"
   },
   "keywords": [
     "vue",

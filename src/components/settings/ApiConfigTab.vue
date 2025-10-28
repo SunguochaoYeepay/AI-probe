@@ -108,6 +108,27 @@ const handleSave = async () => {
     // 更新store中的配置
     await store.dispatch('updateApiConfig', apiConfigForm.value)
     
+    // 保存到数据库
+    try {
+      const response = await fetch('http://localhost:3004/api/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          apiConfig: apiConfigForm.value
+        })
+      })
+      
+      if (response.ok) {
+        console.log('✅ API配置已保存到数据库')
+      } else {
+        console.warn('⚠️ API配置保存到数据库失败，但已保存到本地存储')
+      }
+    } catch (dbError) {
+      console.warn('⚠️ 数据库连接失败，API配置仅保存到本地存储:', dbError.message)
+    }
+    
     message.success('API配置保存成功')
   } catch (error) {
     console.error('保存API配置失败:', error)

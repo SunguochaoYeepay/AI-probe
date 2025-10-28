@@ -4,9 +4,13 @@ import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import { cacheConsistencyManager } from '@/utils/cacheConsistencyManager'
 import { dataPreloadService } from '@/services/dataPreloadService'
+import configValidator from '@/utils/configValidator'
 
 export function useDataConsistency() {
   const store = useStore()
+  
+  // 初始化配置验证器
+  configValidator.init(store)
   
   // 响应式状态
   const isChecking = ref(false)
@@ -19,39 +23,19 @@ export function useDataConsistency() {
    * 获取所有配置的埋点ID
    */
   const getSelectedPointIds = () => {
-    const projectConfig = store.state.projectConfig
-    const pointIds = new Set()
+    // 使用配置验证器获取当前有效的埋点ID
+    const pointIds = configValidator.getCurrentPointIds()
     
-    console.log('🔍 获取埋点配置:', {
-      visitBuryPointId: projectConfig.visitBuryPointId,
-      clickBuryPointId: projectConfig.clickBuryPointId,
-      behaviorBuryPointIds: projectConfig.behaviorBuryPointIds,
-      selectedBuryPointIds: projectConfig.selectedBuryPointIds
-    })
-    
-    // 添加访问埋点
-    if (projectConfig.visitBuryPointId) {
-      pointIds.add(projectConfig.visitBuryPointId)
+    // 如果配置为空，尝试从数据库重新加载
+    if (pointIds.length === 0) {
+      console.warn('⚠️ 埋点配置为空，尝试从数据库重新加载...')
+      // 触发配置重新加载
+      if (window.configSyncService) {
+        window.configSyncService.loadConfigFromDatabase()
+      }
     }
     
-    // 添加点击埋点
-    if (projectConfig.clickBuryPointId) {
-      pointIds.add(projectConfig.clickBuryPointId)
-    }
-    
-    // 添加行为分析埋点
-    if (projectConfig.behaviorBuryPointIds && Array.isArray(projectConfig.behaviorBuryPointIds)) {
-      projectConfig.behaviorBuryPointIds.forEach(id => pointIds.add(id))
-    }
-    
-    // 兼容旧的配置格式
-    if (projectConfig.selectedBuryPointIds && Array.isArray(projectConfig.selectedBuryPointIds)) {
-      projectConfig.selectedBuryPointIds.forEach(id => pointIds.add(id))
-    }
-    
-    const result = Array.from(pointIds)
-    console.log('📊 最终埋点ID列表:', result)
-    return result
+    return pointIds
   }
 
   /**

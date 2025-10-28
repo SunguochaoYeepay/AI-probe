@@ -5,6 +5,7 @@
 import { BaseDataProcessor } from './baseDataProcessor.js'
 import { QueryConditionDataProcessor } from './queryConditionDataProcessor.js'
 import { BehaviorAnalysisDataProcessor } from './behaviorAnalysisDataProcessor.js'
+import backendService from '../services/backendService.js'
 
 /**
  * 按钮点击分析数据处理器
@@ -327,11 +328,15 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
     rawData.forEach((item, index) => {
       // 检查数据是否匹配页面访问条件
       const isMatch = this.isDataMatch(item, analysis)
-      this.logger.log(`🔍 [PageAccessDataProcessor] 数据项 ${index} 匹配检查:`, {
-        item: item,
-        isMatch: isMatch,
-        pageName: analysis.parameters?.pageName
-      })
+      
+      // 只在调试模式下输出详细日志
+      if (process.env.NODE_ENV === 'development' && index < 5) {
+        this.logger.log(`🔍 [PageAccessDataProcessor] 数据项 ${index} 匹配检查:`, {
+          item: item,
+          isMatch: isMatch,
+          pageName: analysis.parameters?.pageName
+        })
+      }
 
       if (!isMatch) {
         return
@@ -497,20 +502,23 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
   isDataMatch(item, analysis) {
     const { pageName } = analysis.parameters || {}
     
-    this.logger.log(`🔍 [PageAccessDataProcessor] 数据匹配检查详情:`, {
-      itemPageName: item.pageName,
-      targetPageName: pageName,
-      itemKeys: Object.keys(item),
-      itemSample: {
-        pageName: item.pageName,
-        url: item.url,
-        path: item.path,
-        title: item.title,
-        weCustomerKey: item.weCustomerKey,
-        content: item.content,
-        fullItem: item
-      }
-    })
+    // 只在调试模式下输出详细日志
+    if (process.env.NODE_ENV === 'development') {
+      this.logger.log(`🔍 [PageAccessDataProcessor] 数据匹配检查详情:`, {
+        itemPageName: item.pageName,
+        targetPageName: pageName,
+        itemKeys: Object.keys(item),
+        itemSample: {
+          pageName: item.pageName,
+          url: item.url,
+          path: item.path,
+          title: item.title,
+          weCustomerKey: item.weCustomerKey,
+          content: item.content,
+          fullItem: item
+        }
+      })
+    }
     
     // 检查页面名称 - 支持多种字段匹配
     if (pageName) {
@@ -523,7 +531,7 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
         return false
       }
       
-      // 使用智能匹配逻辑
+      // 使用更严格的智能匹配逻辑
       const smartMatch = (target, source) => {
         if (!source) return false
         
@@ -540,14 +548,16 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
         const normalizedSource = source.replace(/[—_\-]/g, '')
         if (normalizedTarget === normalizedSource) return true
         
-        // 4. 简单的包含匹配
-        if (source.includes(target) || target.includes(source)) {
+        // 4. 严格的包含匹配 - 只有当目标页面名称完全包含在源页面名称中时才匹配
+        if (source.includes(target)) {
           return true
         }
         
-        // 5. 关键词匹配
+        // 5. 关键词匹配 - 要求至少80%的关键词匹配
         const targetKeywords = target.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
         const sourceKeywords = source.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
+        
+        if (targetKeywords.length === 0) return false
         
         let matchCount = 0
         for (const targetKeyword of targetKeywords) {
@@ -558,21 +568,25 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
           }
         }
         
-        if (targetKeywords.length > 0 && matchCount === targetKeywords.length) {
-          return true
-        }
-        
-        return matchCount > 0
+        // 要求至少80%的关键词匹配
+        const matchRatio = matchCount / targetKeywords.length
+        return matchRatio >= 0.8
       }
       
       const matchResult = smartMatch(pageName, itemPageName)
       if (!matchResult) {
-        this.logger.log(`❌ [PageAccessDataProcessor] 页面名称不匹配: ${itemPageName} !== ${pageName}`)
+        // 只在调试模式下输出不匹配日志
+        if (process.env.NODE_ENV === 'development') {
+          this.logger.log(`❌ [PageAccessDataProcessor] 页面名称不匹配: ${itemPageName} !== ${pageName}`)
+        }
         return false
       }
     }
 
-    this.logger.log(`✅ [PageAccessDataProcessor] 数据匹配成功`)
+    // 只在调试模式下输出成功日志
+    if (process.env.NODE_ENV === 'development') {
+      this.logger.log(`✅ [PageAccessDataProcessor] 数据匹配成功`)
+    }
     return true
   }
 
@@ -634,7 +648,48 @@ export class DataProcessorFactory {
    * @param {Object} options - 处理选项
    * @returns {Object} 处理后的图表数据
    */
-  process(analysisType, data, options) {
+  async process(analysisType, data, options) {
+    // 检查是否应该使用后端处理
+    if (backendService.shouldUseBackend(data.length)) {
+      console.log(`🚀 使用后端处理: ${data.length} 条数据`)
+      return await this.processWithBackend(analysisType, data, options)
+    } else {
+      console.log(`💻 使用前端处理: ${data.length} 条数据`)
+      return this.processWithFrontend(analysisType, data, options)
+    }
+  }
+
+  /**
+   * 使用后端处理数据
+   */
+  async processWithBackend(analysisType, data, options) {
+    try {
+      const chartConfig = {
+        chartType: analysisType,
+        parameters: options.analysis?.parameters || {},
+        filters: options.filters || {}
+      }
+
+      const result = await backendService.aggregateData(data, chartConfig)
+      
+      return {
+        success: true,
+        data: result.data,
+        processingTime: result.processingTime,
+        originalCount: result.originalCount,
+        aggregatedCount: result.aggregatedCount,
+        processingMode: 'backend'
+      }
+    } catch (error) {
+      console.warn('⚠️ 后端处理失败，回退到前端处理:', error.message)
+      return this.processWithFrontend(analysisType, data, options)
+    }
+  }
+
+  /**
+   * 使用前端处理数据
+   */
+  processWithFrontend(analysisType, data, options) {
     const processor = this.getProcessor(analysisType)
     
     // 🚀 为查询条件分析传递原始数据
@@ -642,7 +697,11 @@ export class DataProcessorFactory {
       options.rawData = options.rawData
     }
     
-    return processor.process(data, options)
+    const result = processor.process(data, options)
+    return {
+      ...result,
+      processingMode: 'frontend'
+    }
   }
 }
 

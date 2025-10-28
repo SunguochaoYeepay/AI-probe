@@ -1,6 +1,31 @@
 import { createStore } from 'vuex'
 import { API_CONFIG } from '@/config/api'
 
+// 从localStorage加载配置的辅助函数（仅作为备用，数据库配置优先）
+const loadConfigFromStorage = () => {
+  // 只在开发模式下从localStorage加载，生产环境完全依赖数据库
+  if (process.env.NODE_ENV !== 'development') {
+    return {
+      visitBuryPointId: null,
+      clickBuryPointId: null,
+      behaviorBuryPointIds: [],
+      pageMenuData: null
+    }
+  }
+  
+  const visitBuryPointId = localStorage.getItem('visitBuryPointId')
+  const clickBuryPointId = localStorage.getItem('clickBuryPointId')
+  const behaviorBuryPointIds = localStorage.getItem('behaviorBuryPointIds')
+  const pageMenuData = localStorage.getItem('pageMenuData')
+  
+  return {
+    visitBuryPointId: visitBuryPointId ? JSON.parse(visitBuryPointId) : null,
+    clickBuryPointId: clickBuryPointId ? JSON.parse(clickBuryPointId) : null,
+    behaviorBuryPointIds: behaviorBuryPointIds ? JSON.parse(behaviorBuryPointIds) : [],
+    pageMenuData: pageMenuData ? JSON.parse(pageMenuData) : null
+  }
+}
+
 export default createStore({
   state: {
     // API配置
@@ -19,11 +44,8 @@ export default createStore({
       hasVisitPoint: false,
       hasClickPoint: false,
       supportDualBuryPoint: false,
-      selectedBuryPointIds: [], // 初始化为空数组，等待项目配置加载
-      visitBuryPointId: null, // 初始化为null，等待项目配置加载
-      clickBuryPointId: null, // 初始化为null，等待项目配置加载
-      behaviorBuryPointIds: [], // 初始化为空数组，等待项目配置加载
-      pageMenuData: null // 初始化为null，等待项目配置加载
+      // 注意：已移除selectedBuryPointIds字段，使用新的分离配置格式
+      ...loadConfigFromStorage() // 从localStorage加载配置
     },
     
     // Ollama AI 配置
@@ -82,10 +104,7 @@ export default createStore({
     
     SET_PROJECT_CONFIG(state, config) {
       state.projectConfig = { ...state.projectConfig, ...config }
-      // 持久化埋点选择到localStorage
-      if (config.selectedBuryPointIds !== undefined) {
-        localStorage.setItem('selectedBuryPointIds', JSON.stringify(config.selectedBuryPointIds))
-      }
+      // 注意：已移除selectedBuryPointIds的持久化逻辑，使用新的分离配置格式
       // 持久化访问埋点到localStorage
       if (config.visitBuryPointId !== undefined) {
         localStorage.setItem('visitBuryPointId', JSON.stringify(config.visitBuryPointId))

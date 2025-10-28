@@ -9,6 +9,7 @@ import { chartDB } from '@/utils/indexedDBManager'
 import { yeepayAPI } from '@/api'
 import { aggregationService } from '@/utils/aggregationService'
 import store from '@/store'
+import dataSyncConfigValidator from '@/utils/dataSyncConfigValidator'
 
 // 扩展 dayjs 功能
 dayjs.extend(isSameOrBefore)
@@ -21,6 +22,9 @@ class DataPreloadService {
     this.cacheValidityPeriod = 4 * 60 * 60 * 1000 // 4小时（毫秒）
     this.forceRefreshAfter = 24 * 60 * 60 * 1000 // 24小时后强制刷新
     this.smartInvalidationEnabled = true
+    
+    // 初始化数据同步配置验证器
+    dataSyncConfigValidator.init(store)
   }
 
   /**
@@ -30,23 +34,13 @@ class DataPreloadService {
     try {
       console.log('🚀 开始数据预加载检查（N埋点模式）...')
       
-      // 获取埋点ID（优先使用新的分离配置）
-      const projectConfig = store.state.projectConfig
-      let selectedPointIds = []
+      // 使用数据同步配置验证器获取埋点ID
+      const selectedPointIds = dataSyncConfigValidator.getDataSyncPointIds()
       
-      // 优先使用新的分离配置
-      if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId) {
-        if (projectConfig.visitBuryPointId) {
-          selectedPointIds.push(projectConfig.visitBuryPointId)
-        }
-        if (projectConfig.clickBuryPointId && projectConfig.clickBuryPointId !== projectConfig.visitBuryPointId) {
-          selectedPointIds.push(projectConfig.clickBuryPointId)
-        }
-        console.log(`📋 使用分离配置: 访问埋点=${projectConfig.visitBuryPointId}, 点击埋点=${projectConfig.clickBuryPointId}`)
-      } else {
-        // 回退到旧的配置方式
-        selectedPointIds = projectConfig?.selectedBuryPointIds || []
-        console.log(`📋 使用旧配置: 选中 ${selectedPointIds.length} 个埋点`)
+      // 验证配置
+      if (!dataSyncConfigValidator.validateDataSyncConfig()) {
+        console.log('⏸️ 数据同步配置无效，跳过数据预加载')
+        return
       }
       
       if (selectedPointIds.length === 0) {
@@ -130,22 +124,8 @@ class DataPreloadService {
     const today = dayjs().format('YYYY-MM-DD')
     const lastPreload = localStorage.getItem('lastPreloadDate')
     
-    // 获取当前配置的埋点ID列表（与init方法保持一致）
-    const projectConfig = store.state.projectConfig
-    let selectedPointIds = []
-    
-    // 优先使用新的分离配置
-    if (projectConfig.visitBuryPointId || projectConfig.clickBuryPointId) {
-      if (projectConfig.visitBuryPointId) {
-        selectedPointIds.push(projectConfig.visitBuryPointId)
-      }
-      if (projectConfig.clickBuryPointId && projectConfig.clickBuryPointId !== projectConfig.visitBuryPointId) {
-        selectedPointIds.push(projectConfig.clickBuryPointId)
-      }
-    } else {
-      // 回退到旧的配置方式
-      selectedPointIds = projectConfig?.selectedBuryPointIds || []
-    }
+    // 使用数据同步配置验证器获取埋点ID
+    const selectedPointIds = dataSyncConfigValidator.getDataSyncPointIds()
     
     if (selectedPointIds.length === 0) {
       console.log('⚠️ 未配置埋点ID，跳过预加载检查')
@@ -414,8 +394,8 @@ class DataPreloadService {
     const totalPages = Math.ceil(total / pageSize)
     console.log(`  📄 需要获取 ${totalPages} 页 (total=${total}, pageSize=${pageSize})`)
     
-    // 🔧 添加安全检查：如果total异常大，限制最大页数
-    const maxPages = 50 // 最多获取50页，防止无限循环
+    // 🔧 修复：增加分页限制，防止数据截断
+    const maxPages = 100 // 从50页增加到100页，防止数据截断
     if (totalPages > maxPages) {
       console.warn(`  ⚠️ 总页数过多(${totalPages}页)，限制为${maxPages}页`)
       const limitedTotal = maxPages * pageSize
@@ -565,22 +545,8 @@ class DataPreloadService {
       }
     }
     
-    // 从store的projectConfig获取选中的埋点列表（旧配置方式）
-    if (projectConfig && projectConfig.selectedBuryPointIds && projectConfig.selectedBuryPointIds.length > 0) {
-      return {
-        selectedPointId: projectConfig.selectedBuryPointIds[0],
-        projectId: storeConfig?.projectId || 'event1021'
-      }
-    }
-    
-    // 从localStorage获取配置（备用）
-    const selectedBuryPointIds = JSON.parse(localStorage.getItem('selectedBuryPointIds') || '[]')
-    if (selectedBuryPointIds.length > 0) {
-      return {
-        selectedPointId: selectedBuryPointIds[0],
-        projectId: storeConfig?.projectId || 'event1021'
-      }
-    }
+    // 注意：已移除旧配置方式（selectedBuryPointIds）和localStorage备用方案
+    // 现在完全依赖数据库配置，确保配置一致性
     
     // 默认配置（返回null，强制用户配置）
     console.warn('⚠️ 未找到有效的埋点配置，请在配置管理中选择埋点')

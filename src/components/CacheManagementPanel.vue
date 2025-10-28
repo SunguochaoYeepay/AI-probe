@@ -442,7 +442,7 @@ export default {
     /**
      * 保存设置
      */
-    const saveSettings = () => {
+    const saveSettings = async () => {
       dataPreloadService.setSmartInvalidation(settings.value.smartInvalidation)
       dataPreloadService.setCacheValidityPeriod(settings.value.validityPeriod)
       autoCheckEnabled.value = settings.value.autoCheck
@@ -453,6 +453,31 @@ export default {
       }
       if (settings.value.autoCheck) {
         autoCheckInterval = startAutoCheck()
+      }
+      
+      // 保存到数据库
+      try {
+        const response = await fetch('http://localhost:3004/api/config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            cacheConfig: {
+              smartInvalidation: settings.value.smartInvalidation,
+              validityPeriod: settings.value.validityPeriod,
+              autoCheck: settings.value.autoCheck
+            }
+          })
+        })
+        
+        if (response.ok) {
+          console.log('✅ 缓存管理配置已保存到数据库')
+        } else {
+          console.warn('⚠️ 缓存管理配置保存到数据库失败，但已保存到本地存储')
+        }
+      } catch (dbError) {
+        console.warn('⚠️ 数据库连接失败，缓存管理配置仅保存到本地存储:', dbError.message)
       }
       
       settingsModalVisible.value = false

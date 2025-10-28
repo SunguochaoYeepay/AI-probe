@@ -129,40 +129,38 @@ class CacheConsistencyManager {
           
           // 🔧 修复：获取完整的API数据（所有页）
           console.log(`  📡 开始获取完整API数据...`)
-          const { apiData, apiTotal } = await this.fetchCompleteApiData(date, pointId)
+          const { apiData, apiTotal, originalData } = await this.fetchCompleteApiData(date, pointId)
           
           // 🔧 修复：智能数据量对比 - 详细调试信息
           console.log(`🔍 [数据一致性检查] ${date} - 埋点${pointId}:`)
           console.log(`  📦 缓存数据量: ${cachedData.length} 条`)
-          console.log(`  📡 API完整数据量: ${apiData.length} 条`)
+          console.log(`  📡 API过滤后数据量: ${apiData.length} 条`)
+          console.log(`  📊 API原始数据量: ${originalData ? originalData.length : 'N/A'} 条`)
           console.log(`  📊 API total字段: ${apiTotal} 条`)
           
-          // 检查是否有跨天数据
-          const filteredApiData = this.filterDataByDate(apiData, date)
-          const filteredApiCount = filteredApiData.length
-          const hasCrossDayData = apiData.length > filteredApiCount
+          // 🔧 关键修复：直接使用已过滤的API数据进行比较
+          const compareCount = apiData.length
+          const compareSource = 'API过滤后'
           
+          // 检查是否有跨天数据
+          const hasCrossDayData = originalData && originalData.length > apiData.length
           if (hasCrossDayData) {
-            console.log(`  🧹 发现跨天数据: API原始${apiData.length}条，过滤后${filteredApiCount}条`)
-            console.log(`  📅 过滤掉的跨天数据: ${apiData.length - filteredApiCount}条`)
+            console.log(`  🧹 发现跨天数据: API原始${originalData.length}条，过滤后${apiData.length}条`)
+            console.log(`  📅 过滤掉的跨天数据: ${originalData.length - apiData.length}条`)
           } else {
             console.log(`  ✅ 无跨天数据: API数据${apiData.length}条全部为目标日期`)
           }
           
-          // 🔧 修复：使用过滤后的完整API数据进行对比
-          let compareCount = filteredApiCount
-          let compareSource = 'API过滤后'
-          
           // 验证API数据完整性
-          if (apiTotal !== apiData.length) {
-            const difference = Math.abs(apiTotal - apiData.length)
+          if (originalData && apiTotal !== originalData.length) {
+            const difference = Math.abs(apiTotal - originalData.length)
             const differencePercent = (difference / apiTotal * 100).toFixed(2)
-            console.log(`  ⚠️ API数据不完整: 期望${apiTotal}条，实际${apiData.length}条，差异${differencePercent}%`)
-          } else {
-            console.log(`  ✅ API数据完整: ${apiData.length}/${apiTotal} 条`)
+            console.log(`  ⚠️ API数据不完整: 期望${apiTotal}条，实际${originalData.length}条，差异${differencePercent}%`)
+          } else if (originalData) {
+            console.log(`  ✅ API数据完整: ${originalData.length}/${apiTotal} 条`)
           }
           
-          console.log(`  🔧 使用过滤后的API数据进行比较: ${filteredApiCount}条`)
+          console.log(`  🔧 使用过滤后的API数据进行比较: ${compareCount}条`)
           
           // 使用过滤后的API数据量进行对比
           if (cachedData.length !== compareCount) {
@@ -200,17 +198,17 @@ class CacheConsistencyManager {
                 differencePercent: differencePercent.toFixed(2),
                 isToday: isToday,
                 hasCrossDayData,
-                crossDayCount: apiData.length - filteredApiCount,
+                crossDayCount: originalData ? originalData.length - apiData.length : 0,
                 compareSource: compareSource,
-                description: `埋点 ${pointId} 在 ${date} 的数据量不一致：缓存 ${cachedData.length} 条，${compareSource} ${compareCount} 条（差异 ${differencePercent.toFixed(2)}%）${hasCrossDayData ? `，过滤掉${apiData.length - filteredApiCount}条跨天数据` : ''}`,
+                description: `埋点 ${pointId} 在 ${date} 的数据量不一致：缓存 ${cachedData.length} 条，${compareSource} ${compareCount} 条（差异 ${differencePercent.toFixed(2)}%）${hasCrossDayData ? `，过滤掉${originalData ? originalData.length - apiData.length : 0}条跨天数据` : ''}`,
                 solution: 'REFRESH_SPECIFIC_CACHE'
               })
             } else {
               // 差异在可接受范围内，不报告为问题
-              console.log(`  ✅ 数据量差异 ${differencePercent.toFixed(2)}% 在可接受范围内${hasCrossDayData ? `（过滤掉${apiData.length - filteredApiCount}条跨天数据）` : ''}`)
+              console.log(`  ✅ 数据量差异 ${differencePercent.toFixed(2)}% 在可接受范围内${hasCrossDayData ? `（过滤掉${originalData ? originalData.length - apiData.length : 0}条跨天数据）` : ''}`)
             }
           } else {
-            console.log(`  ✅ 数据量完全一致 ${cachedData.length} 条${hasCrossDayData ? `（过滤掉${apiData.length - filteredApiCount}条跨天数据）` : ''}`)
+            console.log(`  ✅ 数据量完全一致 ${cachedData.length} 条${hasCrossDayData ? `（过滤掉${originalData ? originalData.length - apiData.length : 0}条跨天数据）` : ''}`)
           }
           
           // 对比数据新鲜度（如果有数据的话）
@@ -310,27 +308,40 @@ class CacheConsistencyManager {
     
     console.log('⚙️ 检查配置一致性...')
     
-    // 检查localStorage与store的一致性
+    // 🔧 修复：检查localStorage与store的一致性，并自动修复
     try {
       const localStorageIds = JSON.parse(localStorage.getItem('selectedBuryPointIds') || '[]')
       
       if (JSON.stringify(localStorageIds.sort()) !== JSON.stringify([...selectedPointIds].sort())) {
-        issues.push({
-          type: 'CONFIG_MISMATCH',
-          severity: 'MEDIUM',
-          localStorageIds,
-          storeIds: selectedPointIds,
-          description: 'localStorage与Vuex store中的埋点配置不一致',
-          solution: 'SYNC_CONFIG'
-        })
+        console.log('🔧 发现配置不匹配，自动修复...')
+        console.log('  - localStorage:', localStorageIds)
+        console.log('  - store:', selectedPointIds)
+        
+        // 自动修复：更新localStorage以匹配store
+        localStorage.setItem('selectedBuryPointIds', JSON.stringify([...selectedPointIds]))
+        console.log('✅ 已自动修复localStorage配置')
+        
+        // 不再报告为问题，因为已经自动修复
+        console.log('✅ 配置不匹配问题已自动解决')
+      } else {
+        console.log('✅ 配置一致性检查通过')
       }
     } catch (error) {
-      issues.push({
-        type: 'CONFIG_ERROR',
-        severity: 'LOW',
-        description: '无法读取localStorage中的埋点配置',
-        solution: 'RESET_CONFIG'
-      })
+      console.warn('⚠️ 配置检查出错，尝试重置:', error.message)
+      
+      // 尝试重置localStorage配置
+      try {
+        localStorage.setItem('selectedBuryPointIds', JSON.stringify([...selectedPointIds]))
+        console.log('✅ 已重置localStorage配置')
+      } catch (resetError) {
+        console.error('❌ 重置配置失败:', resetError.message)
+        issues.push({
+          type: 'CONFIG_ERROR',
+          severity: 'LOW',
+          description: '无法读取或修复localStorage中的埋点配置',
+          solution: 'RESET_CONFIG'
+        })
+      }
     }
     
     return issues
@@ -676,7 +687,7 @@ class CacheConsistencyManager {
   }
 
   /**
-   * 获取完整的API数据（所有页）
+   * 获取完整的API数据（所有页）- 与dataPreloadService保持一致
    */
   async fetchCompleteApiData(date, pointId) {
     let allData = []
@@ -701,15 +712,17 @@ class CacheConsistencyManager {
     // 如果总数为0或第一页就是全部数据，直接返回
     if (total === 0 || firstPageData.length === total) {
       console.log(`    ✅ API数据获取完成: ${allData.length}/${total} 条`)
-      return { apiData: allData, apiTotal: total }
+      // 🔧 关键修复：立即进行日期过滤，与缓存数据保持一致
+      const filteredData = this.filterDataByDate(allData, date)
+      return { apiData: filteredData, apiTotal: total, originalData: allData }
     }
     
     // 计算总页数
     const totalPages = Math.ceil(total / pageSize)
     console.log(`    📄 需要获取 ${totalPages} 页`)
     
-    // 限制最大页数，防止无限循环
-    const maxPages = Math.min(totalPages, 50)
+    // 🔧 修复：增加分页限制，防止数据截断
+    const maxPages = Math.min(totalPages, 100) // 从50页增加到100页
     
     // 获取剩余页面
     for (let page = 2; page <= maxPages; page++) {
@@ -722,10 +735,10 @@ class CacheConsistencyManager {
           date,
           selectedPointId: pointId
         })
-
+        
         const dataList = response.data?.dataList || []
         allData.push(...dataList)
-
+        
         console.log(`    📄 第${page}页: ${dataList.length}条`)
         
         // 如果某一页返回的数据为空，可能已经到达最后一页
@@ -743,7 +756,12 @@ class CacheConsistencyManager {
     }
     
     console.log(`    ✅ API数据获取完成: ${allData.length}/${total} 条`)
-    return { apiData: allData, apiTotal: total }
+    
+    // 🔧 关键修复：立即进行日期过滤，与缓存数据保持一致
+    const filteredData = this.filterDataByDate(allData, date)
+    console.log(`    🧹 日期过滤: 原始${allData.length}条，过滤后${filteredData.length}条`)
+    
+    return { apiData: filteredData, apiTotal: total, originalData: allData }
   }
 
   /**
@@ -756,6 +774,7 @@ class CacheConsistencyManager {
 
     const filteredData = data.filter(item => {
       if (!item.createdAt) {
+        console.warn(`    ⚠️ 记录缺少createdAt字段:`, item.id)
         return false
       }
 
@@ -763,9 +782,34 @@ class CacheConsistencyManager {
         const itemDate = new Date(item.createdAt).toISOString().split('T')[0]
         return itemDate === targetDate
       } catch (error) {
+        console.warn(`    ⚠️ 日期解析失败:`, item.createdAt, error.message)
         return false
       }
     })
+
+    const removedCount = data.length - filteredData.length
+    if (removedCount > 0) {
+      console.log(`    🧹 日期过滤: 移除${removedCount}条跨天数据，保留${filteredData.length}条`)
+      
+      // 检查被移除数据的日期分布
+      const removedDates = {}
+      data.forEach(item => {
+        if (item.createdAt) {
+          try {
+            const itemDate = new Date(item.createdAt).toISOString().split('T')[0]
+            if (itemDate !== targetDate) {
+              removedDates[itemDate] = (removedDates[itemDate] || 0) + 1
+            }
+          } catch (e) {
+            // 忽略解析错误的日期
+          }
+        }
+      })
+      
+      if (Object.keys(removedDates).length > 0) {
+        console.log(`    📅 被移除的跨天数据分布:`, removedDates)
+      }
+    }
 
     return filteredData
   }

@@ -172,6 +172,27 @@ const handleSave = async () => {
     ollamaService.model = ollamaConfigForm.value.model
     ollamaService.timeout = ollamaConfigForm.value.timeout
     
+    // 保存到数据库
+    try {
+      const response = await fetch('http://localhost:3004/api/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          aiConfig: ollamaConfigForm.value
+        })
+      })
+      
+      if (response.ok) {
+        console.log('✅ AI配置已保存到数据库')
+      } else {
+        console.warn('⚠️ AI配置保存到数据库失败，但已保存到本地存储')
+      }
+    } catch (dbError) {
+      console.warn('⚠️ 数据库连接失败，AI配置仅保存到本地存储:', dbError.message)
+    }
+    
     message.success('AI配置保存成功')
   } catch (error) {
     console.error('保存AI配置失败:', error)
