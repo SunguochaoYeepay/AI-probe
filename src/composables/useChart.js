@@ -398,12 +398,16 @@ export function useChart() {
       }
       
       // 先保存图表配置，触发 hasChart 变为 true
-      store.dispatch('updateChartConfig', {
+      const chartConfig = {
         analysis: analysisWithDateRange,
         data: processedData, // 使用处理后的数据
         rawData: data, // 保留原始数据
         timestamp: new Date().toISOString()
-      })
+      }
+      
+      console.log('🔧 保存图表配置到store:', chartConfig)
+      store.dispatch('updateChartConfig', chartConfig)
+      console.log('✅ 图表配置已保存，hasChart应该变为true')
       
       // 确保图表生成器已初始化
       if (!chartGenerator.value) {
@@ -416,18 +420,31 @@ export function useChart() {
       await nextTick() // 双重 nextTick 确保 DOM 完全更新
       
       // 先销毁旧图表，确保重新渲染
-      if (chartGenerator.value && chartGenerator.value.chart) {
+      if (chartGenerator.value) {
         console.log('销毁旧图表，准备重新生成')
-        chartGenerator.value.chart.dispose()
-        chartGenerator.value.chart = null // 清空引用，避免重复dispose
+        chartGenerator.value.dispose() // 使用dispose方法确保完全清理
+        chartGenerator.value = null // 清空引用
       }
       
-      // 等待更长时间确保DOM完全渲染
-      await new Promise(resolve => setTimeout(resolve, 200))
+      // 重新初始化图表生成器
+      initChartGenerator()
       
-      // 确认容器存在
-      const container = document.getElementById('chart-container')
-      console.log('🔍 查找图表容器 chart-container:', container)
+      // 使用更可靠的方式等待容器渲染
+      const waitForContainer = async (maxAttempts = 10, delay = 100) => {
+        for (let i = 0; i < maxAttempts; i++) {
+          const container = document.getElementById('chart-container')
+          console.log(`🔍 查找图表容器 chart-container (尝试 ${i + 1}/${maxAttempts}):`, container)
+          
+          if (container) {
+            return container
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, delay))
+        }
+        return null
+      }
+      
+      const container = await waitForContainer()
       
       if (!container) {
         console.error('图表容器未找到，延迟重试')
@@ -438,9 +455,9 @@ export function useChart() {
           
           if (retryContainer) {
             try {
-              // 检查是否已经dispose过，避免重复dispose
-              if (chartGenerator.value.chart && !chartGenerator.value.chart.isDisposed()) {
-                chartGenerator.value.chart.dispose()
+              // 确保图表生成器已初始化
+              if (!chartGenerator.value) {
+                initChartGenerator()
               }
               await chartGenerator.value.generateChart(analysisWithDateRange, data, 'chart-container')
               message.success('图表生成完成', 3)
@@ -474,6 +491,12 @@ export function useChart() {
       }
       
       try {
+        // 确保图表生成器已初始化
+        if (!chartGenerator.value) {
+          console.log('图表生成器未初始化，正在初始化...')
+          initChartGenerator()
+        }
+        
         // 生成图表
         console.log('🔧 开始生成图表')
         await chartGenerator.value.generateChart(analysisWithDateRange, data, 'chart-container')

@@ -36,6 +36,9 @@ export class ChartGenerator {
       this.chart.dispose()
     }
     
+    // 清空容器内容，确保干净的环境
+    container.innerHTML = ''
+    
     try {
       this.chart = echarts.init(container, null, {
         renderer: 'canvas',
@@ -1515,7 +1518,7 @@ export class ChartGenerator {
     console.log(`📊 [ChartGenerator] 使用统一数据处理器工厂，分析类型: ${analysis.chartType}，数据格式: ${format}`)
     
     // 使用统一的数据处理逻辑
-    const chartData = dataProcessorFactory.process(analysis.chartType, data, {
+    const chartData = await dataProcessorFactory.process(analysis.chartType, data, {
       format: format,
       analysis: analysis,
       userDateRange: userDateRange,
@@ -1526,9 +1529,9 @@ export class ChartGenerator {
     })
     
     console.log('📊 单页面UV/PV图表数据:', {
-      categories: chartData.categories,
-      uvData: chartData.uvData,
-      pvData: chartData.pvData
+      categories: chartData.categories?.length || 0,
+      uvData: chartData.uvData?.length || 0,
+      pvData: chartData.pvData?.length || 0
     })
     
     return {
@@ -1763,7 +1766,7 @@ export class ChartGenerator {
     })
     
     // 使用统一的数据处理逻辑
-    const chartData = dataProcessorFactory.process(analysis.chartType, data, {
+    const chartData = await dataProcessorFactory.process(analysis.chartType, data, {
       format: format,
       analysis: analysis,
       // 🚀 传递日期范围信息
@@ -1913,7 +1916,7 @@ export class ChartGenerator {
     console.log('📅 [ChartGenerator] 传递的日期范围信息:', dateRangeInfo)
     
     // 使用统一的数据处理逻辑
-    const chartData = dataProcessorFactory.process(analysis.chartType, data, {
+    const chartData = await dataProcessorFactory.process(analysis.chartType, data, {
       format: format,
       analysis: analysis,
       queryCondition: analysis.parameters?.queryCondition || '',
@@ -3089,10 +3092,11 @@ export class ChartGenerator {
    * 销毁图表
    */
   dispose() {
-    if (this.chart) {
+    if (this.chart && !this.chart.isDisposed()) {
+      console.log('🗑️ 销毁图表实例')
       this.chart.dispose()
-      this.chart = null
     }
+    this.chart = null
   }
 }
 

@@ -244,24 +244,18 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
   process(data, options) {
     this.logger.log('🔧 [PageAccessDataProcessor] 开始处理页面访问数据:', {
       dataLength: data.length,
-      format: options.format,
-      sampleData: data.slice(0, 2) // 🚀 添加样本数据用于调试
+      format: options.format
     })
 
     try {
       // 1. 数据标准化
       const normalizedData = this.normalize(data, options)
-      this.logger.log('📊 [PageAccessDataProcessor] 数据标准化完成:', {
-        count: normalizedData.length,
-        sampleData: normalizedData.slice(0, 2) // 🚀 添加样本数据用于调试
-      })
 
       // 2. 数据分配
       const result = this.allocate(normalizedData, options)
-      this.logger.log('✅ [PageAccessDataProcessor] 数据分配完成:', {
+      this.logger.log('✅ [PageAccessDataProcessor] 数据处理完成:', {
         categoriesCount: result.categories ? result.categories.length : 0,
-        uvDataSample: result.uvData ? result.uvData.slice(0, 3) : [],
-        pvDataSample: result.pvData ? result.pvData.slice(0, 3) : []
+        dataRange: result.categories ? `${result.categories[0]} - ${result.categories[result.categories.length - 1]}` : 'N/A'
       })
 
       return result
@@ -373,24 +367,14 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
         dayData.uvSet.add(item.sessionId)
       }
 
-      this.logger.log(`🔍 [PageAccessDataProcessor] 数据项 ${index} 处理完成:`, {
-        date: date,
-        pv: dayData.pv,
-        uv: dayData.uvSet.size,
-        itemPv: item.pv,
-        itemUv: item.uv,
-        itemWeCustomerKey: item.weCustomerKey,
-        itemUserId: item.userId,
-        itemSessionId: item.sessionId,
-        itemAllKeys: Object.keys(item),
-        itemSample: {
-          id: item.id,
-          pageName: item.pageName,
-          type: item.type,
-          createdAt: item.createdAt,
-          content: item.content
-        }
-      })
+      // 只在开发模式下输出详细日志
+      if (process.env.NODE_ENV === 'development' && index < 3) {
+        this.logger.log(`🔍 [PageAccessDataProcessor] 数据项 ${index} 处理完成:`, {
+          date: date,
+          pv: dayData.pv,
+          uv: dayData.uvSet.size
+        })
+      }
     })
 
     // 转换为标准格式
@@ -415,9 +399,7 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
   allocate(aggregatedData, options) {
     // 🚀 修复：生成完整的时间轴，填充缺失的天数为0值
     this.logger.log('🔍 [PageAccessDataProcessor] allocate方法开始:', {
-      aggregatedDataLength: aggregatedData ? aggregatedData.length : 0,
-      aggregatedDataSample: aggregatedData ? aggregatedData.slice(0, 2) : null,
-      options: options
+      aggregatedDataLength: aggregatedData ? aggregatedData.length : 0
     })
     
     if (!aggregatedData || aggregatedData.length === 0) {
@@ -438,10 +420,7 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
       // 使用用户选择的日期范围
       startDate = options.dateRange.startDate
       endDate = options.dateRange.endDate
-      this.logger.log('📅 [PageAccessDataProcessor] 使用用户选择的日期范围:', {
-        startDate: startDate,
-        endDate: endDate
-      })
+      this.logger.log('📅 [PageAccessDataProcessor] 使用用户选择的日期范围')
     } else {
       // 使用数据的实际日期范围
       const dates = aggregatedData.map(item => item.date).sort()
@@ -458,12 +437,7 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
     let currentDate = new Date(startDate)
     const endDateObj = new Date(endDate)
     
-    this.logger.log('📅 [PageAccessDataProcessor] 时间轴生成参数:', {
-      startDate: startDate,
-      endDate: endDate,
-      currentDate: currentDate,
-      endDateObj: endDateObj
-    })
+    this.logger.log('📅 [PageAccessDataProcessor] 生成时间轴')
     
     while (currentDate <= endDateObj) {
       const dateStr = currentDate.toISOString().split('T')[0]
@@ -471,9 +445,7 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
       currentDate.setDate(currentDate.getDate() + 1)
     }
     
-    this.logger.log('📅 [PageAccessDataProcessor] 生成的时间轴:', {
-      fullDateRange: fullDateRange
-    })
+    this.logger.log('📅 [PageAccessDataProcessor] 时间轴生成完成')
     
     // 创建数据映射
     const dataMap = new Map()
@@ -481,11 +453,7 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
       dataMap.set(item.date, item)
     })
     
-    this.logger.log('📅 [PageAccessDataProcessor] 数据映射:', {
-      dataMapSize: dataMap.size,
-      dataMapKeys: Array.from(dataMap.keys()),
-      aggregatedDataSample: aggregatedData.slice(0, 2)
-    })
+    this.logger.log('📅 [PageAccessDataProcessor] 数据映射完成')
     
     // 为每个日期生成数据点（包括无数据的天）
     const categories = []
@@ -505,15 +473,7 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
       }
     })
     
-    this.logger.log('📊 [PageAccessDataProcessor] 完整时间轴生成:', {
-      originalDataCount: aggregatedData.length,
-      fullDateRangeCount: fullDateRange.length,
-      startDate: startDate,
-      endDate: endDate,
-      categoriesSample: categories.slice(0, 3),
-      uvDataSample: uvData.slice(0, 3),
-      pvDataSample: pvData.slice(0, 3)
-    })
+    this.logger.log('📊 [PageAccessDataProcessor] 时间轴数据生成完成')
     
     return {
       categories: categories,
@@ -527,21 +487,12 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
   isDataMatch(item, analysis) {
     const { pageName } = analysis.parameters || {}
     
-    // 只在调试模式下输出详细日志
-    if (process.env.NODE_ENV === 'development') {
-      this.logger.log(`🔍 [PageAccessDataProcessor] 数据匹配检查详情:`, {
+    // 只在开发模式下输出简要日志（减少频率）
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.05) {
+      this.logger.log(`🔍 [PageAccessDataProcessor] 数据匹配检查:`, {
         itemPageName: item.pageName,
         targetPageName: pageName,
-        itemKeys: Object.keys(item),
-        itemSample: {
-          pageName: item.pageName,
-          url: item.url,
-          path: item.path,
-          title: item.title,
-          weCustomerKey: item.weCustomerKey,
-          content: item.content,
-          fullItem: item
-        }
+        isMatch: false // 将在后面更新
       })
     }
     
@@ -691,7 +642,11 @@ export class DataProcessorFactory {
     try {
       const chartConfig = {
         chartType: analysisType,
-        parameters: options.analysis?.parameters || {},
+        parameters: {
+          ...options.analysis?.parameters || {},
+          // 传递日期范围参数
+          dateRange: options.dateRange
+        },
         filters: options.filters || {}
       }
 
@@ -699,7 +654,7 @@ export class DataProcessorFactory {
       
       return {
         success: true,
-        data: result.data,
+        ...result.data, // 展开后端返回的数据格式
         processingTime: result.processingTime,
         originalCount: result.originalCount,
         aggregatedCount: result.aggregatedCount,
@@ -723,10 +678,13 @@ export class DataProcessorFactory {
     }
     
     const result = processor.process(data, options)
-    return {
+    
+    const finalResult = {
       ...result,
       processingMode: 'frontend'
     }
+    
+    return finalResult
   }
 }
 

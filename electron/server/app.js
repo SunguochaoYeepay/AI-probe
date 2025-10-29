@@ -199,13 +199,37 @@ class DataAggregationService {
     this.processors.set('page_visit', this.processPageVisitData.bind(this))
     this.processors.set('user_click', this.processUserClickData.bind(this))
     this.processors.set('behavior_analysis', this.processBehaviorAnalysisData.bind(this))
+    
+    // 添加前端图表类型的支持
+    this.processors.set('single_page_uv_pv_chart', this.processPageVisitData.bind(this))
+    this.processors.set('button_click_analysis', this.processUserClickData.bind(this))
+    this.processors.set('query_condition_analysis', this.processQueryConditionData.bind(this))
+    this.processors.set('page_analysis', this.processPageVisitData.bind(this))
+    this.processors.set('uv_pv_chart', this.processPageVisitData.bind(this))
+    this.processors.set('button_click_daily', this.processUserClickData.bind(this))
   }
   
   async processPageVisitData(rawData, config) {
     const dateMap = new Map()
+    let matchedCount = 0
+    const { pageName, dateRange } = config.parameters || {}
     
-    rawData.forEach(item => {
-      if (!this.isDataMatch(item, config)) return
+    console.log(`🔍 [Backend] 开始处理页面访问数据: ${rawData.length} 条，目标页面: ${pageName}`)
+    
+    rawData.forEach((item, index) => {
+      const isMatch = this.isDataMatch(item, config)
+      if (isMatch) {
+        matchedCount++
+        if (matchedCount <= 3) {
+          console.log(`✅ [Backend] 数据项 ${index} 匹配成功:`, {
+            pageName: item.pageName,
+            targetPageName: pageName,
+            weCustomerKey: item.weCustomerKey
+          })
+        }
+      }
+      
+      if (!isMatch) return
       
       const date = this.extractDate(item)
       if (!dateMap.has(date)) {
@@ -219,6 +243,8 @@ class DataAggregationService {
       }
     })
     
+    console.log(`📊 [Backend] 数据匹配结果: ${matchedCount}/${rawData.length} 条数据匹配`)
+    
     // 转换为数组格式
     const result = Array.from(dateMap.values()).map(day => ({
       date: day.date,
@@ -226,7 +252,54 @@ class DataAggregationService {
       uv: day.uvSet.size
     }))
     
-    return result.sort((a, b) => new Date(a.date) - new Date(b.date))
+    console.log(`📈 [Backend] 聚合结果: ${result.length} 个日期，样本数据:`, result.slice(0, 3))
+    
+    // 转换为前端期望的格式
+    const sortedResult = result.sort((a, b) => new Date(a.date) - new Date(b.date))
+    
+    // 如果有日期范围，生成完整的时间轴
+    let categories, uvData, pvData
+    if (dateRange && dateRange.startDate && dateRange.endDate) {
+      console.log(`📅 [Backend] 使用用户选择的日期范围: ${dateRange.startDate} 至 ${dateRange.endDate}`)
+      const fullDateRange = this.generateDateRange(dateRange.startDate, dateRange.endDate)
+      const dataMap = new Map(sortedResult.map(item => [item.date, item]))
+      
+      categories = fullDateRange
+      uvData = fullDateRange.map(date => {
+        const dayData = dataMap.get(date)
+        return dayData ? dayData.uv : 0
+      })
+      pvData = fullDateRange.map(date => {
+        const dayData = dataMap.get(date)
+        return dayData ? dayData.pv : 0
+      })
+    } else {
+      // 使用实际数据日期
+      categories = sortedResult.map(item => item.date)
+      uvData = sortedResult.map(item => item.uv)
+      pvData = sortedResult.map(item => item.pv)
+    }
+    
+    const frontendFormat = {
+      categories: categories,
+      uvData: uvData,
+      pvData: pvData,
+      isMultipleConditions: false,
+      conditionData: []
+    }
+    
+    console.log(`📊 [Backend] 转换为前端格式:`, {
+      categoriesCount: categories.length,
+      uvDataCount: uvData.length,
+      pvDataCount: pvData.length,
+      sampleData: {
+        categories: categories.slice(0, 3),
+        uvData: uvData.slice(0, 3),
+        pvData: pvData.slice(0, 3)
+      }
+    })
+    
+    return frontendFormat
   }
   
   async processUserClickData(rawData, config) {
@@ -258,7 +331,18 @@ class DataAggregationService {
       buttonStats: Object.fromEntries(day.buttonStats)
     }))
     
-    return result.sort((a, b) => new Date(a.date) - new Date(b.date))
+    const sortedResult = result.sort((a, b) => new Date(a.date) - new Date(b.date))
+    
+    // 转换为前端期望的格式
+    const categories = sortedResult.map(item => item.date)
+    const clickData = sortedResult.map(item => item.clickCount)
+    
+    return {
+      categories: categories,
+      clickData: clickData,
+      isMultipleConditions: false,
+      conditionData: []
+    }
   }
   
   async processBehaviorAnalysisData(rawData, config) {
@@ -267,12 +351,34 @@ class DataAggregationService {
     return []
   }
   
+  async processQueryConditionData(rawData, config) {
+    // 查询条件分析数据处理逻辑
+    // 复用页面访问数据处理逻辑
+    return this.processPageVisitData(rawData, config)
+  }
+  
   isDataMatch(item, config) {
     const { pageName, buttonName } = config.parameters || {}
     
-    // 页面名称匹配
-    if (pageName && item.pageName !== pageName) {
-      return false
+    // 页面名称匹配 - 支持智能匹配
+    if (pageName) {
+      const itemPageName = item.pageName || item.url || item.path || item.title
+      if (!itemPageName) {
+        return false
+      }
+      
+      // 智能匹配逻辑：移除#号、空格，转换为小写进行比较
+      const normalizePageName = (name) => {
+        return name.replace(/^#+/, '').replace(/\s+/g, '').toLowerCase()
+      }
+      
+      const normalizedTarget = normalizePageName(pageName)
+      const normalizedItem = normalizePageName(itemPageName)
+      
+      // 支持包含匹配和精确匹配
+      if (!normalizedItem.includes(normalizedTarget) && normalizedItem !== normalizedTarget) {
+        return false
+      }
     }
     
     // 按钮名称匹配
@@ -287,6 +393,21 @@ class DataAggregationService {
     if (item.date) return item.date
     if (item.createTime) return item.createTime.split(' ')[0]
     return new Date().toISOString().split('T')[0]
+  }
+  
+  // 生成日期范围
+  generateDateRange(startDate, endDate) {
+    const dates = []
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    
+    let current = new Date(start)
+    while (current <= end) {
+      dates.push(current.toISOString().split('T')[0])
+      current.setDate(current.getDate() + 1)
+    }
+    
+    return dates
   }
   
   async aggregate(rawData, chartConfig) {
@@ -696,14 +817,14 @@ app.post('/api/aggregate', async (req, res) => {
     const aggregatedData = await aggregationService.aggregate(rawData, chartConfig)
     
     const endTime = Date.now()
-    console.log(`✅ 数据聚合完成: ${aggregatedData.length} 条聚合数据，耗时 ${endTime - startTime}ms`)
+    console.log(`✅ 数据聚合完成: ${aggregatedData.categories ? aggregatedData.categories.length : 0} 条聚合数据，耗时 ${endTime - startTime}ms`)
     
     res.json({
       success: true,
       data: aggregatedData,
       processingTime: endTime - startTime,
       originalCount: rawData.length,
-      aggregatedCount: aggregatedData.length
+      aggregatedCount: aggregatedData.categories ? aggregatedData.categories.length : 0
     })
   } catch (error) {
     console.error('❌ 数据聚合失败:', error)

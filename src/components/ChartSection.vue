@@ -58,16 +58,12 @@
     
     <!-- 图表视图 -->
     <div v-else-if="hasChart" id="chart-container" class="chart-content">
-      <!-- 调试信息 -->
-      <div style="position: absolute; top: 0; left: 0; background: rgba(0,0,0,0.8); color: white; padding: 4px; font-size: 12px; z-index: 9999;">
-        图表容器已渲染 - hasChart: {{ hasChart }}
-      </div>
     </div>
   </a-card>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { SaveOutlined, BarChartOutlined, EditOutlined } from '@ant-design/icons-vue'
 import { useStore } from 'vuex'
 import dayjs from 'dayjs'
@@ -106,6 +102,33 @@ watch(() => props.hasChart, (newVal) => {
 // 调试：监听chartConfig变化
 watch(() => store.state.chartConfig, (newVal) => {
   console.log('🔍 ChartSection chartConfig变化:', newVal)
+  if (newVal) {
+    console.log('📊 图表配置详情:', {
+      hasAnalysis: !!newVal.analysis,
+      hasData: !!newVal.data,
+      dataLength: newVal.data?.length || 0,
+      chartType: newVal.analysis?.chartType,
+      timestamp: newVal.timestamp
+    })
+  }
+}, { immediate: true })
+
+// 监听hasChart变化，确保图表容器渲染后生成图表
+watch(() => props.hasChart, (newVal) => {
+  if (newVal) {
+    console.log('🔍 hasChart变为true，检查图表容器')
+    // 延迟检查，确保DOM已渲染
+    nextTick(() => {
+      setTimeout(() => {
+        const container = document.getElementById('chart-container')
+        if (container) {
+          console.log('✅ 图表容器已渲染，图表应该已经生成')
+        } else {
+          console.log('⚠️ 图表容器仍未找到')
+        }
+      }, 100)
+    })
+  }
 }, { immediate: true })
 
 
