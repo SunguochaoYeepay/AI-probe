@@ -1,7 +1,6 @@
-// 配置同步服务 - 负责前端与数据库配置的同步
-import { useStore } from 'vuex'
-import configMismatchFixer from '../utils/configMismatchFixer' // 引入配置不匹配修复工具
-import { dataPreloadService } from './dataPreloadService' // 引入数据预加载服务
+import store from '@/store'
+import { dataPreloadService } from './dataPreloadService'
+import { buildApiUrl, getBackendConfig } from '@/config/environment'
 
 class ConfigSyncService {
   constructor() {
@@ -10,35 +9,25 @@ class ConfigSyncService {
     this.checkConnection()
   }
 
-  // 检查后端连接
+  // 检查后端连接状态
   async checkConnection() {
     try {
-      const response = await fetch('http://localhost:3004/api/health', {
+      const config = getBackendConfig()
+      const response = await fetch(buildApiUrl(config.healthEndpoint), {
         method: 'GET',
         timeout: 3000
       })
       this.isConnected = response.ok
+      console.log(this.isConnected ? '✅ 后端服务连接正常' : '❌ 后端服务连接失败')
     } catch (error) {
       this.isConnected = false
+      console.log('❌ 后端服务连接失败:', error.message)
     }
   }
 
-  // 清理localStorage中的旧配置
+  // 🚀 配置统一化：不再使用localStorage，无需清理
   clearLegacyConfig() {
-    const legacyKeys = [
-      'selectedBuryPointIds',
-      'selectedPointId',
-      'visitBuryPointId', 
-      'clickBuryPointId',
-      'behaviorBuryPointIds'
-    ]
-    
-    legacyKeys.forEach(key => {
-      if (localStorage.getItem(key)) {
-        localStorage.removeItem(key)
-        console.log(`🗑️ 已清理localStorage中的旧配置: ${key}`)
-      }
-    })
+    console.log('🚀 配置统一化：不再使用localStorage，无需清理')
   }
 
   // 从数据库加载配置
@@ -49,63 +38,83 @@ class ConfigSyncService {
     }
 
     try {
-      const response = await fetch('http://localhost:3004/api/config')
+      console.log('🔄 正在从数据库获取最新配置...')
+      const config = getBackendConfig()
+      const response = await fetch(buildApiUrl(config.configEndpoint))
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
 
-      const config = await response.json()
-      console.log('📥 从数据库加载配置:', config)
+      const configData = await response.json()
+      console.log('📥 从数据库获取到配置:', configData)
 
-      // 同步到store（强制覆盖localStorage缓存）
-      if (config.projectConfig) {
-        // 清理localStorage中的旧配置，确保数据库配置优先
+      // 🚀 修复：每次都完全替换配置，确保数据库配置是唯一来源
+      if (configData.projectConfig) {
+        // 清理所有localStorage中的旧配置
         this.clearLegacyConfig()
         
-        this.store.dispatch('updateProjectConfig', config.projectConfig)
-        console.log('✅ 项目配置已同步到store（已清理localStorage缓存）')
+        // 完全替换项目配置，不保留任何旧配置
+        this.store.dispatch('replaceProjectConfig', configData.projectConfig)
+        console.log('✅ 项目配置已从数据库完全替换到store')
       }
 
-      if (config.apiConfig) {
-        this.store.dispatch('updateApiConfig', config.apiConfig)
+      if (configData.apiConfig) {
+        this.store.dispatch('updateApiConfig', configData.apiConfig)
         console.log('✅ API配置已同步到store')
       }
 
-      if (config.aiConfig) {
-        this.store.dispatch('updateOllamaConfig', config.aiConfig)
+      if (configData.aiConfig) {
+        this.store.dispatch('updateOllamaConfig', configData.aiConfig)
         console.log('✅ AI配置已同步到store')
       }
 
-      if (config.pageMenuData) {
-        this.store.dispatch('updateProjectConfig', { pageMenuData: config.pageMenuData })
+      if (configData.pageMenuData) {
+        this.store.dispatch('updateProjectConfig', { pageMenuData: configData.pageMenuData })
         console.log('✅ 页面菜单配置已同步到store')
       }
 
-      if (config.cacheConfig) {
+      if (configData.cacheConfig) {
         // 缓存配置需要特殊处理，因为它在dataPreloadService中
-        dataPreloadService.setSmartInvalidation(config.cacheConfig.smartInvalidation)
-        dataPreloadService.setCacheValidityPeriod(config.cacheConfig.validityPeriod)
-        // autoCheckEnabled 是一个ref，需要直接设置
-        // 或者直接在CacheManagementPanel中处理autoCheck的加载
+        dataPreloadService.setSmartInvalidation(configData.cacheConfig.smartInvalidation)
+        dataPreloadService.setCacheValidityPeriod(configData.cacheConfig.validityPeriod)
         console.log('✅ 缓存管理配置已同步到store')
       }
 
-      // 🔧 新增：检查并修复配置不匹配问题
-      if (this.store) {
-        console.log('🔧 检查配置不匹配问题...')
-        const fixResult = await configMismatchFixer.checkAndFix(this.store)
-        if (fixResult.fixed) {
-          console.log('✅ 配置不匹配问题已自动修复')
-        } else {
-          console.log('✅ 配置一致性检查通过')
-        }
-      }
-
+      // 🚀 新增：定期刷新配置，确保配置始终是最新的
+      this.scheduleConfigRefresh()
+      
       return true
     } catch (error) {
-      console.warn('⚠️ 从数据库加载配置失败:', error.message)
+      console.error('❌ 从数据库加载配置失败:', error)
       return false
     }
+  }
+
+  // 🚀 新增：定期刷新配置
+  scheduleConfigRefresh() {
+    // 每5分钟检查一次配置是否需要刷新（减少频率）
+    setInterval(async () => {
+      if (this.isConnected) {
+        console.log('🔄 定期检查配置更新...')
+        await this.loadConfigFromDatabase()
+      }
+    }, 300000) // 5分钟
+  }
+
+  // 🚀 新增：手动强制刷新配置
+  async forceRefreshConfig() {
+    console.log('🔄 手动强制刷新配置...')
+    return await this.loadConfigFromDatabase()
+  }
+
+  // 🔧 新增：检查并修复配置不匹配问题
+  async checkAndFixConfigMismatch() {
+    if (this.store) {
+      console.log('🔧 检查配置不匹配问题...')
+      // 这里可以添加配置不匹配的检查和修复逻辑
+      return true
+    }
+    return false
   }
 
   // 保存配置到数据库
@@ -116,7 +125,8 @@ class ConfigSyncService {
     }
 
     try {
-      const response = await fetch('http://localhost:3004/api/config', {
+      const config = getBackendConfig()
+      const response = await fetch(buildApiUrl(config.configEndpoint), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -146,9 +156,10 @@ class ConfigSyncService {
 
   // 获取连接状态
   getConnectionStatus() {
+    const config = getBackendConfig()
     return {
       connected: this.isConnected,
-      backendUrl: 'http://localhost:3004'
+      backendUrl: config.baseUrl
     }
   }
 }
@@ -161,4 +172,4 @@ if (typeof window !== 'undefined') {
   window.configSyncService = configSyncService
 }
 
-export default configSyncService
+export { configSyncService }

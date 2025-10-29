@@ -104,16 +104,12 @@ export function useDataFetch() {
    * 获取单天数据的辅助函数
    */
   const fetchDayData = async ({ date, projectId, selectedPointId }) => {
-    const { yeepayAPI } = await import('@/api')
+    // 🚀 修复：使用后端SQLite缓存，不再直接调用API
+    const { dataPreloadService } = await import('@/services/dataPreloadService')
     
-    const response = await yeepayAPI.searchBuryPointData({
-      date: date,
-      pageSize: store.state.apiConfig.pageSize || 1000,
-      projectId: projectId,
-      selectedPointId: selectedPointId
-    })
+    const response = await dataPreloadService.getBackendCachedData(date, selectedPointId)
     
-    return response.data?.dataList || []
+    return response || []
   }
 
   /**

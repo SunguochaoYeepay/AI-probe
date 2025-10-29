@@ -46,7 +46,7 @@ export const API_CONFIG = {
     currentEnvironment: "development",
     autoRefresh: true,
     refreshInterval: 30000,
-    timeout: 10000
+    timeout: 30000  // 增加到30秒
   },
   
   // 数据源配置

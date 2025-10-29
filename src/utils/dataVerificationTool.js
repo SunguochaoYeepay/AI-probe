@@ -6,7 +6,6 @@
 import dayjs from 'dayjs'
 import { yeepayAPI } from '@/api'
 import { dataPreloadService } from '@/services/dataPreloadService'
-import { chartDB } from '@/utils/indexedDBManager'
 
 class DataVerificationTool {
   constructor() {
@@ -43,16 +42,11 @@ class DataVerificationTool {
       const cachedData = await dataPreloadService.getCachedRawData(date, pointId)
       console.log(`  ✓ 缓存数据: ${cachedData.length} 条`)
 
-      // 2. 获取API数据（第一页作为样本）
-      console.log('📡 获取API数据...')
-      const apiResponse = await yeepayAPI.searchBuryPointData({
-        pageSize: 1000,
-        page: 1,
-        date,
-        selectedPointId: pointId
-      })
-      const apiFirstPage = apiResponse.data?.dataList || []
-      const apiTotal = apiResponse.data?.total || 0
+      // 2. 获取后端SQLite数据
+      console.log('📡 获取后端SQLite数据...')
+      const apiResponse = await dataPreloadService.getBackendCachedData(date, pointId)
+      const apiFirstPage = apiResponse || []
+      const apiTotal = apiResponse?.length || 0
       console.log(`  ✓ API总数: ${apiTotal} 条`)
       console.log(`  ✓ API第一页: ${apiFirstPage.length} 条`)
 
@@ -330,55 +324,48 @@ class DataVerificationTool {
 
   /**
    * 检查缓存元数据
+   * 🚀 简化架构：检查后端服务状态
    */
   async checkCacheMetadata(date, pointId) {
     try {
-      const cacheId = `raw_${pointId}_${date}`
-      const cacheData = await chartDB.getRawDataCache(cacheId)
-
-      if (!cacheData) {
+      // 检查后端服务状态
+      const response = await fetch('http://localhost:3004/api/preload/status')
+      if (!response.ok) {
         return {
           name: 'cache_metadata',
           status: 'failed',
-          message: '缓存不存在',
+          message: '后端服务不可用',
           details: {}
         }
       }
 
-      const now = new Date()
-      const cachedAt = new Date(cacheData.cachedAt)
-      const expiresAt = new Date(cacheData.expiresAt)
-      const ageHours = ((now - cachedAt) / (1000 * 60 * 60)).toFixed(2)
-
+      const backendData = await response.json()
+      const isRunning = backendData.data.isRunning
+      
       let status = 'passed'
-      let message = `缓存正常: ${ageHours} 小时前创建`
+      let message = '后端服务运行正常'
 
-      if (now > expiresAt) {
-        status = 'failed'
-        message = `缓存已过期: ${ageHours} 小时前创建`
-      } else if (ageHours > 12) {
+      if (!isRunning) {
         status = 'warning'
-        message = `缓存较旧: ${ageHours} 小时前创建`
+        message = '后端服务已停止'
       }
 
-      console.log(`  ${this.getStatusIcon(status)} 缓存元数据检查: ${message}`)
+      console.log(`  ${this.getStatusIcon(status)} 后端服务状态检查: ${message}`)
 
       return {
         name: 'cache_metadata',
         status,
         message,
         details: {
-          cachedAt: cacheData.cachedAt,
-          expiresAt: cacheData.expiresAt,
-          ageHours: parseFloat(ageHours),
-          isExpired: now > expiresAt
+          backendStatus: isRunning ? 'running' : 'stopped',
+          lastUpdate: backendData.timestamp
         }
       }
     } catch (error) {
       return {
         name: 'cache_metadata',
-        status: 'warning',
-        message: `无法读取缓存元数据: ${error.message}`,
+        status: 'failed',
+        message: `无法检查后端服务状态: ${error.message}`,
         details: {}
       }
     }

@@ -252,6 +252,7 @@ export function useDataConsistency() {
 
   /**
    * 获取缓存统计信息
+   * 🚀 简化架构：只统计后端数据库缓存
    */
   const getCacheStats = async () => {
     try {
@@ -260,10 +261,25 @@ export function useDataConsistency() {
         totalPoints: selectedPointIds.length,
         cachedDays: 0,
         totalRecords: 0,
-        lastUpdate: null
+        lastUpdate: null,
+        backendStatus: 'unknown'
       }
       
-      // 统计最近7天的缓存情况
+      // 检查后端服务状态
+      try {
+        const response = await fetch('http://localhost:3004/api/preload/status')
+        if (response.ok) {
+          const backendData = await response.json()
+          stats.backendStatus = backendData.data.isRunning ? 'running' : 'stopped'
+          stats.lastUpdate = backendData.timestamp
+        } else {
+          stats.backendStatus = 'error'
+        }
+      } catch (error) {
+        stats.backendStatus = 'unavailable'
+      }
+      
+      // 统计最近7天的缓存情况（只检查后端）
       const dates = []
       for (let i = 6; i >= 0; i--) {
         dates.push(dayjs().subtract(i, 'day').format('YYYY-MM-DD'))
@@ -271,7 +287,7 @@ export function useDataConsistency() {
       
       for (const pointId of selectedPointIds) {
         for (const date of dates) {
-          const hasCache = await dataPreloadService.hasCachedData(date, pointId, { skipSmartCheck: true })
+          const hasCache = await dataPreloadService.hasCachedData(date, pointId)
           if (hasCache) {
             stats.cachedDays++
             const cachedData = await dataPreloadService.getCachedRawData(date, pointId)

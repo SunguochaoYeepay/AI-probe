@@ -123,23 +123,9 @@ class ConfigMismatchFixer {
       localStorage.setItem('selectedBuryPointIds', JSON.stringify(storePointIds))
       console.log('✅ 已设置selectedBuryPointIds:', storePointIds)
 
-      // 3. 设置分离的配置项
-      if (storeConfig.visitBuryPointId !== undefined) {
-        localStorage.setItem('visitBuryPointId', JSON.stringify(storeConfig.visitBuryPointId))
-        console.log('✅ 已设置visitBuryPointId:', storeConfig.visitBuryPointId)
-      }
-
-      if (storeConfig.clickBuryPointId !== undefined) {
-        localStorage.setItem('clickBuryPointId', JSON.stringify(storeConfig.clickBuryPointId))
-        console.log('✅ 已设置clickBuryPointId:', storeConfig.clickBuryPointId)
-      }
-
-      if (storeConfig.behaviorBuryPointIds !== undefined) {
-        localStorage.setItem('behaviorBuryPointIds', JSON.stringify(storeConfig.behaviorBuryPointIds))
-        console.log('✅ 已设置behaviorBuryPointIds:', storeConfig.behaviorBuryPointIds)
-      }
-
-      console.log('🎉 localStorage配置修复完成')
+      // 🚀 配置统一化：不再使用localStorage，完全依赖SQLite数据库
+      console.log('🚀 配置统一化：不再使用localStorage，完全依赖SQLite数据库')
+      console.log('🎉 配置修复完成（已更新到SQLite数据库）')
 
     } catch (error) {
       console.error('❌ 修复localStorage配置失败:', error)

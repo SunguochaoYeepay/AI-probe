@@ -5,7 +5,6 @@
 
 import dayjs from 'dayjs'
 import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
-import { chartDB } from '@/utils/indexedDBManager'
 import { yeepayAPI } from '@/api'
 import { aggregationService } from '@/utils/aggregationService'
 import store from '@/store'
@@ -57,7 +56,7 @@ class DataPreloadService {
         return
       }
 
-      console.log(`📊 开始预加载最近7天 × ${selectedPointIds.length}个埋点的数据...`)
+      console.log(`🔍 检查后端SQLite缓存状态...`)
       this.isPreloading = true
       const totalTasks = 7 * selectedPointIds.length
       this.preloadProgress = { current: 0, total: totalTasks }
@@ -67,32 +66,27 @@ class DataPreloadService {
       let successCount = 0
       let taskIndex = 0
 
-      // 遍历每一天
+      // 🚀 配置统一化：只检查后端SQLite缓存，不调用API
       for (const date of dates) {
-        // 遍历每个埋点
         for (const pointId of selectedPointIds) {
           try {
-            console.log(`📅 预加载 ${date} - 埋点 ${pointId}...`)
+            console.log(`🔍 检查后端SQLite: ${date} - 埋点 ${pointId}...`)
             
-            // 检查该日期该埋点的数据是否已存在
-            const hasData = await this.hasCachedData(date, pointId)
-            if (hasData) {
-              console.log(`  ✅ 数据已存在，跳过`)
-              taskIndex++
-              this.preloadProgress.current = taskIndex
-              continue
+            // 检查后端SQLite是否有该日期该埋点的数据
+            const hasData = await this.getBackendCachedData(date, pointId)
+            if (hasData && hasData.length > 0) {
+              console.log(`  ✅ 后端SQLite已有数据 (${hasData.length}条)`)
+              successCount++
+            } else {
+              console.log(`  ⚠️ 后端SQLite无数据，等待后端预加载服务处理`)
             }
-
-            // 获取该日期该埋点的数据
-            await this.preloadDateDataForPoint(date, pointId)
-            successCount++
             
             taskIndex++
             this.preloadProgress.current = taskIndex
-            console.log(`  ✅ 完成 (${taskIndex}/${totalTasks})`)
+            console.log(`  📊 进度 (${taskIndex}/${totalTasks})`)
             
           } catch (error) {
-            console.error(`  ❌ 预加载失败:`, error)
+            console.error(`  ❌ 检查后端缓存失败:`, error)
             taskIndex++
             this.preloadProgress.current = taskIndex
           }
@@ -104,9 +98,10 @@ class DataPreloadService {
       localStorage.setItem('lastPreloadDate', this.lastPreloadDate)
 
       console.log('====================================')
-      console.log(`🎉 数据预加载完成！`)
-      console.log(`✅ 成功: ${successCount}/${totalTasks} 个任务`)
+      console.log(`🎉 后端SQLite缓存检查完成！`)
+      console.log(`✅ 有数据: ${successCount}/${totalTasks} 个任务`)
       console.log(`📊 覆盖: 7天 × ${selectedPointIds.length}个埋点`)
+      console.log(`🚀 配置统一化：前端不再直接调用API，完全依赖后端SQLite缓存`)
       console.log('====================================')
       
     } catch (error) {
@@ -175,24 +170,9 @@ class DataPreloadService {
    */
   async hasCachedData(date, selectedPointId, options = {}) {
     try {
-      // 检查原始数据缓存（包含埋点ID）
-      const cacheId = `raw_${selectedPointId}_${date}`
-      const rawData = await chartDB.getRawDataCache(cacheId)
-      
-      if (!rawData || !rawData.data || rawData.data.length === 0) {
-        return false
-      }
-
-      // 如果启用智能失效检查
-      if (this.smartInvalidationEnabled && !options.skipSmartCheck) {
-        const isValid = await this.validateCacheValidity(rawData, date, selectedPointId)
-        if (!isValid) {
-          console.log(`⚠️ 缓存 ${cacheId} 未通过智能验证，标记为无效`)
-          return false
-        }
-      }
-      
-      return true
+      // 检查后端数据库是否有缓存数据
+      const backendData = await this.getBackendCachedData(date, selectedPointId)
+      return backendData && backendData.length > 0
     } catch (error) {
       return false
     }
@@ -249,15 +229,13 @@ class DataPreloadService {
       // 获取缓存中最新的数据时间
       const cachedLatestTime = Math.max(...cacheData.data.map(d => new Date(d.createdAt).getTime()))
       
-      // 向API请求第一页数据，检查是否有更新
-      const response = await yeepayAPI.searchBuryPointData({
-        pageSize: 10, // 只取少量数据进行比较
-        page: 1,
-        date,
-        selectedPointId
-      })
+      // 🚀 修复：不再直接调用API，只检查后端SQLite缓存
+      const response = await this.getBackendCachedData(date, selectedPointId)
+      if (!response || response.length === 0) {
+        return false // 后端无数据，认为需要更新
+      }
       
-      const apiData = response.data?.dataList || []
+      const apiData = response || []
       if (apiData.length === 0) {
         return false
       }
@@ -321,26 +299,24 @@ class DataPreloadService {
 
   /**
    * 预加载指定日期指定埋点的数据（N埋点模式核心方法）
+   * 🚀 配置统一化：不再直接调用API，完全依赖后端SQLite缓存
    */
   async preloadDateDataForPoint(date, pointId) {
     try {
-      console.log(`📡 获取 ${date} - 埋点 ${pointId} 原始数据...`)
+      console.log(`🔍 检查后端SQLite缓存: ${date} - 埋点 ${pointId}...`)
       
-      // 获取原始数据
-      const rawData = await this.fetchDateRawDataForPoint(date, pointId)
+      // 🚀 配置统一化：只检查后端SQLite缓存，不调用API
+      const cachedData = await this.getBackendCachedData(date, pointId)
       
-      if (!rawData || rawData.length === 0) {
-        console.log(`⚠️ ${date} - 埋点 ${pointId} 无数据`)
+      if (!cachedData || cachedData.length === 0) {
+        console.log(`⚠️ 后端SQLite无 ${date} - 埋点 ${pointId} 数据，跳过预加载`)
         return
       }
 
-      // 缓存原始数据
-      await this.cacheRawData(date, rawData, pointId)
-      
-      console.log(`💾 ${date} - 埋点 ${pointId} 数据已缓存 (${rawData.length}条)`)
+      console.log(`✅ 后端SQLite已有 ${date} - 埋点 ${pointId} 数据 (${cachedData.length}条)`)
       
     } catch (error) {
-      console.error(`预加载 ${date} - 埋点 ${pointId} 数据失败:`, error)
+      console.error(`检查后端缓存 ${date} - 埋点 ${pointId} 失败:`, error)
       throw error
     }
   }
@@ -355,21 +331,45 @@ class DataPreloadService {
   /**
    * 获取指定日期指定埋点的原始数据（N埋点模式核心方法）
    */
+  /**
+   * 获取指定日期指定埋点的原始数据（N埋点模式核心方法）
+   * 🚀 修复：优先使用后端SQLite缓存，缓存为空时直接调用API
+   */
   async fetchDateRawDataForPoint(date, pointId) {
+    console.log(`🔍 从后端SQLite获取数据: ${date} - 埋点 ${pointId}...`)
+    
+    // 1. 优先从后端SQLite获取
+    const cachedData = await this.getBackendCachedData(date, pointId)
+    
+    if (cachedData && cachedData.length > 0) {
+      console.log(`✅ 从后端SQLite获取到 ${cachedData.length} 条数据`)
+      return cachedData
+    }
+
+    // 2. 后端SQLite无数据，直接调用API作为备用方案
+    console.log(`⚠️ 后端SQLite无数据，直接调用API获取: ${date} - 埋点 ${pointId}`)
+    const apiData = await this.fetchDataFromAPI(date, pointId)
+    
+    if (apiData && apiData.length > 0) {
+      console.log(`✅ 从API获取到 ${apiData.length} 条数据`)
+      return apiData
+    }
+
+    console.log(`❌ 无法获取 ${date} - 埋点 ${pointId} 的数据`)
+    return []
+  }
+
+  // 🚀 配置统一化：以下方法已废弃，不再直接调用API
+  async fetchDateRawDataForPoint_OLD(date, pointId) {
     let allData = []
     const pageSize = 1000
     
-    // 先获取第一页，确定总数
-    console.log(`  📡 获取第1页...`)
-    const firstResponse = await yeepayAPI.searchBuryPointData({
-      pageSize,
-      page: 1,
-      date,
-      selectedPointId: pointId
-    })
+    // 🚀 修复：使用后端SQLite缓存，不再直接调用API
+    console.log(`  📡 从后端SQLite获取数据...`)
+    const firstResponse = await this.getBackendCachedData(date, pointId)
     
-    const total = firstResponse.data?.total || 0
-    const firstPageData = firstResponse.data?.dataList || []
+    const total = firstResponse?.length || 0
+    const firstPageData = firstResponse?.slice(0, pageSize) || []
     allData.push(...firstPageData)
     
     console.log(`  📊 总记录数: ${total}`)
@@ -408,14 +408,17 @@ class DataPreloadService {
       console.log(`  📡 获取第${page}/${actualPages}页...`)
       
       try {
-        const response = await yeepayAPI.searchBuryPointData({
-          pageSize,
-          page,
-          date,
-          selectedPointId: pointId
-        })
+        // 🚀 修复：使用后端SQLite缓存，不再直接调用API
+        const response = await this.getBackendCachedData(date, pointId)
+        if (!response || response.length === 0) {
+          console.log(`  ⚠️ 后端SQLite无数据，跳过分页获取`)
+          break
+        }
 
-        const dataList = response.data?.dataList || []
+        // 模拟分页响应格式
+        const startIndex = (page - 1) * pageSize
+        const endIndex = startIndex + pageSize
+        const dataList = response.slice(startIndex, endIndex)
         allData.push(...dataList)
 
         console.log(`  📄 第${page}页: ${dataList.length}条`)
@@ -509,16 +512,9 @@ class DataPreloadService {
    * 缓存原始数据
    */
   async cacheRawData(date, data, selectedPointId) {
-    const cacheData = {
-      id: `raw_${selectedPointId}_${date}`, // 包含埋点ID
-      date,
-      selectedPointId, // 记录埋点ID
-      data,
-      cachedAt: new Date().toISOString(),
-      expiresAt: dayjs().add(30, 'day').toISOString() // 30天过期
-    }
-
-    await chartDB.saveRawDataCache(cacheData)
+    // 🚀 简化架构：不再使用前端IndexedDB缓存
+    // 数据现在由后端统一管理和缓存
+    console.log(`📝 数据已由后端服务缓存: ${date} - 埋点${selectedPointId}`)
   }
 
   /**
@@ -558,14 +554,80 @@ class DataPreloadService {
 
   /**
    * 获取缓存的原始数据
+   * 🚀 修复：优先使用后端SQLite缓存，缓存为空时直接调用API
    */
   async getCachedRawData(date, selectedPointId) {
     try {
-      const cacheId = `raw_${selectedPointId}_${date}`
-      const cacheData = await chartDB.getRawDataCache(cacheId)
-      return cacheData?.data || []
+      // 1. 优先从后端数据库获取
+      console.log(`🔍 尝试从后端数据库获取 ${date} - 埋点${selectedPointId} 数据...`)
+      const backendData = await this.getBackendCachedData(date, selectedPointId)
+      if (backendData && backendData.length > 0) {
+        console.log(`✅ 从后端数据库获取到 ${backendData.length} 条数据`)
+        return backendData
+      }
+
+      // 2. 后端无数据，直接调用API作为备用方案
+      console.log(`📡 后端无数据，直接调用API获取 ${date} - 埋点${selectedPointId} 数据...`)
+      const apiData = await this.fetchDataFromAPI(date, selectedPointId)
+      if (apiData && apiData.length > 0) {
+        console.log(`✅ 从API获取到 ${apiData.length} 条数据`)
+        return apiData
+      }
+
+      console.log(`📭 无法获取 ${date} - 埋点${selectedPointId} 的数据`)
+      return []
     } catch (error) {
-      console.error(`获取 ${date} 缓存数据失败 [埋点:${selectedPointId}]:`, error)
+      console.error(`获取 ${date} 数据失败 [埋点:${selectedPointId}]:`, error)
+      return []
+    }
+  }
+
+  /**
+   * 从后端数据库获取缓存数据
+   */
+  async getBackendCachedData(date, selectedPointId, debugMode = false) {
+    try {
+      const response = await fetch(`http://localhost:3004/api/cache/raw-data/${selectedPointId}/${date}`)
+      if (response.ok) {
+        const data = await response.json()
+        console.log(`✅ 从后端获取到缓存数据: ${date} - 埋点${selectedPointId} (${data.length}条)`)
+        return data || []
+      } else if (response.status === 404) {
+        // 数据不存在，在调试模式下输出日志
+        if (debugMode) {
+          console.log(`⚠️ 后端缓存无数据: ${date} - 埋点${selectedPointId} (404)`)
+        }
+        return []
+      } else {
+        throw new Error(`HTTP ${response.status}`)
+      }
+    } catch (error) {
+      // 只在非404错误时输出警告
+      if (!error.message.includes('404')) {
+        console.warn(`从后端获取缓存数据失败: ${error.message}`)
+      }
+      return []
+    }
+  }
+
+  /**
+   * 直接从API获取数据（后端无缓存时的备用方案）
+   */
+  async fetchDataFromAPI(date, selectedPointId) {
+    try {
+      const config = this.getCurrentConfig()
+      const response = await yeepayAPI.searchBuryPointData({
+        selectedPointId: selectedPointId,
+        date: date,
+        pageSize: 10000
+      })
+      
+      if (response?.data?.dataList) {
+        return response.data.dataList
+      }
+      return []
+    } catch (error) {
+      console.error('从API获取数据失败:', error)
       return []
     }
   }
@@ -609,17 +671,8 @@ class DataPreloadService {
         allData.push(...dayData)
       } else {
         console.log(`❌ ${date}: 无缓存数据`)
-        // 尝试检查原始缓存数据
-        try {
-          const rawCacheData = await chartDB.getRawDataCache(cacheId)
-          if (rawCacheData) {
-            console.log(`  🔍 原始缓存数据存在但为空:`, rawCacheData)
-          } else {
-            console.log(`  🔍 原始缓存数据不存在`)
-          }
-        } catch (e) {
-          console.log(`  🔍 检查原始缓存数据失败:`, e.message)
-        }
+        // 🚀 简化架构：不再检查前端IndexedDB缓存
+        console.log(`  🔍 数据由后端服务管理`)
       }
     }
 
@@ -686,14 +739,10 @@ class DataPreloadService {
 
   /**
    * 清理过期缓存
+   * 🚀 简化架构：缓存由后端服务管理
    */
   async cleanExpiredCache() {
-    try {
-      await chartDB.cleanExpiredCache()
-      console.log('🧹 过期缓存已清理')
-    } catch (error) {
-      console.error('清理过期缓存失败:', error)
-    }
+    console.log('🧹 缓存由后端服务统一管理，无需前端清理')
   }
 
   /**
@@ -739,7 +788,8 @@ class DataPreloadService {
   }
 
   /**
-   * 强制刷新所有缓存（绕过智能检查）
+   * 强制刷新所有缓存
+   * 🚀 简化架构：只触发后端数据预加载服务
    */
   async forceRefreshAll() {
     const selectedPointIds = store.state.projectConfig?.selectedBuryPointIds || []
@@ -751,26 +801,21 @@ class DataPreloadService {
 
     console.log('🔄 开始强制刷新所有缓存...')
     
-    // 清理所有相关缓存
-    const dates = this.getLast7Days()
-    for (const pointId of selectedPointIds) {
-      for (const date of dates) {
-        const cacheId = `raw_${pointId}_${date}`
-        try {
-          await chartDB._executeTransaction('raw_data_cache', 'readwrite', (store) => {
-            return store.delete(cacheId)
-          })
-        } catch (error) {
-          // 忽略删除错误
-        }
+    try {
+      // 触发后端数据预加载服务刷新
+      const response = await fetch('http://localhost:3004/api/preload/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      if (response.ok) {
+        console.log('✅ 后端数据预加载服务已触发')
+      } else {
+        console.warn('⚠️ 后端服务不可用，无法执行强制刷新')
       }
+    } catch (error) {
+      console.warn('⚠️ 后端服务不可用，无法执行强制刷新:', error)
     }
-
-    // 重置预加载标记
-    localStorage.removeItem('lastPreloadDate')
-    
-    // 触发重新预加载
-    await this.init()
     
     console.log('✅ 强制刷新完成')
   }

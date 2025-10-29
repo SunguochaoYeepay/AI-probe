@@ -6,6 +6,7 @@ import cron from 'node-cron'
 import { fileURLToPath } from 'url'
 import swaggerJsdoc from 'swagger-jsdoc'
 import swaggerUi from 'swagger-ui-express'
+import BackendDataPreloadService from './dataPreloadService.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -124,6 +125,9 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
 const dbPath = path.join(__dirname, '..', 'database', 'charts.db')
 const { Database } = sqlite3.verbose()
 const db = new Database(dbPath)
+
+// 创建数据预加载服务实例
+const dataPreloadService = new BackendDataPreloadService(db)
 
 // 创建系统配置表
 db.serialize(() => {
@@ -747,10 +751,64 @@ app.get('/api/cache/raw-data/:buryPointId/:date', (req, res) => {
   )
 })
 
+// 手动触发数据预加载
+app.post('/api/preload/trigger', (req, res) => {
+  dataPreloadService.triggerPreload()
+    .then(() => {
+      res.json({ 
+        success: true, 
+        message: '数据预加载已触发',
+        timestamp: new Date().toISOString()
+      })
+    })
+    .catch(error => {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      })
+    })
+})
+
+// 获取数据预加载服务状态
+app.get('/api/preload/status', (req, res) => {
+  const status = dataPreloadService.getStatus()
+  res.json({
+    success: true,
+    data: status,
+    timestamp: new Date().toISOString()
+  })
+})
+
+// 重新加载数据预加载服务配置
+app.post('/api/preload/reload-config', (req, res) => {
+  dataPreloadService.loadConfig()
+    .then(() => {
+      res.json({ 
+        success: true, 
+        message: '配置已重新加载',
+        timestamp: new Date().toISOString()
+      })
+    })
+    .catch(error => {
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      })
+    })
+})
+
 // 启动服务器
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`🚀 本地服务器启动成功: http://localhost:${PORT}`)
   console.log(`📊 数据库路径: ${dbPath}`)
+  
+  // 初始化数据预加载服务
+  try {
+    await dataPreloadService.init()
+    console.log('✅ 数据预加载服务已启动')
+  } catch (error) {
+    console.error('❌ 数据预加载服务启动失败:', error)
+  }
 })
 
 // 优雅关闭

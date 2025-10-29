@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { message } from 'ant-design-vue'
+import { getProbeConfig } from '@/config/environment'
 
 /**
  * Probe 系统 API 服务
@@ -7,7 +8,9 @@ import { message } from 'ant-design-vue'
  */
 class ProbeService {
   constructor() {
-    this.baseURL = 'https://probe.yeepay.com'
+    const config = getProbeConfig()
+    this.baseURL = config.baseUrl
+    this.timeout = config.timeout
     this.token = null
   }
 

@@ -101,7 +101,16 @@ const connectionStatus = ref({
 })
 
 // 初始化配置
-onMounted(() => {
+onMounted(async () => {
+  // 🚀 配置统一化：先确保从数据库加载配置，再加载到界面
+  try {
+    const { configSyncService } = await import('@/services/configSyncService')
+    await configSyncService.loadConfigFromDatabase()
+    console.log('✅ AI配置从数据库加载完成')
+  } catch (error) {
+    console.warn('⚠️ AI配置从数据库加载失败，使用当前store配置:', error)
+  }
+  
   loadConfig()
 })
 
@@ -172,7 +181,7 @@ const handleSave = async () => {
     ollamaService.model = ollamaConfigForm.value.model
     ollamaService.timeout = ollamaConfigForm.value.timeout
     
-    // 保存到数据库
+    // 🚀 配置统一化：保存到SQLite数据库（唯一数据源）
     try {
       const response = await fetch('http://localhost:3004/api/config', {
         method: 'POST',
@@ -185,12 +194,13 @@ const handleSave = async () => {
       })
       
       if (response.ok) {
-        console.log('✅ AI配置已保存到数据库')
+        console.log('✅ AI配置已保存到SQLite数据库')
       } else {
-        console.warn('⚠️ AI配置保存到数据库失败，但已保存到本地存储')
+        throw new Error(`HTTP ${response.status}: AI配置保存失败`)
       }
     } catch (dbError) {
-      console.warn('⚠️ 数据库连接失败，AI配置仅保存到本地存储:', dbError.message)
+      console.error('❌ AI配置保存到数据库失败:', dbError.message)
+      throw new Error('AI配置保存失败: ' + dbError.message)
     }
     
     message.success('AI配置保存成功')

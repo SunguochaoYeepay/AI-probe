@@ -286,7 +286,11 @@ export function useChart() {
       const analysisWithDateRange = {
         ...analysis,
         dateRange: dateRangeStr, // 传递日期范围信息
-        userDateRange: dateRange // 传递用户选择的日期范围（用于图表生成）
+        userDateRange: dateRange, // 传递用户选择的日期范围（用于图表生成）
+        dateRangeObj: {
+          startDate: dateRange[0].format('YYYY-MM-DD'),
+          endDate: dateRange[1].format('YYYY-MM-DD')
+        }
       }
       
       // 根据图表类型处理数据，为表格显示准备聚合后的数据

@@ -486,17 +486,14 @@ export function useChartManager() {
    */
   const fetchDayData = async ({ date, projectId, selectedPointId }) => {
     try {
-      console.log(`📡 获取 ${date} 的原始数据...`)
+      console.log(`📡 从后端SQLite获取 ${date} 的原始数据...`)
       
-      const response = await yeepayAPI.searchBuryPointData({
-        date: date,
-        pageSize: store.state.apiConfig.pageSize || 1000,
-        projectId: projectId,
-        selectedPointId: selectedPointId
-      })
+      // 🚀 修复：使用后端SQLite缓存，不再直接调用API
+      const { dataPreloadService } = await import('@/services/dataPreloadService')
+      const response = await dataPreloadService.getBackendCachedData(date, selectedPointId)
       
-      const data = response.data?.dataList || []
-      console.log(`✅ 获取到 ${data.length} 条数据`)
+      const data = response || []
+      console.log(`✅ 从后端SQLite获取到 ${data.length} 条数据`)
       
       return data
       
@@ -538,10 +535,21 @@ export function useChartManager() {
 
   /**
    * 获取数据库统计信息
+   * 🚀 简化架构：不再使用前端IndexedDB
    */
   const getStats = async () => {
     try {
-      return await chartDB.getStats()
+      // 返回后端服务统计信息
+      const response = await fetch('http://localhost:3004/api/preload/status')
+      if (response.ok) {
+        const data = await response.json()
+        return {
+          backendStatus: data.data.isRunning ? 'running' : 'stopped',
+          lastUpdate: data.timestamp,
+          message: '数据由后端服务统一管理'
+        }
+      }
+      return null
     } catch (error) {
       console.error('获取统计信息失败:', error)
       return null
@@ -550,12 +558,22 @@ export function useChartManager() {
 
   /**
    * 清空所有数据（慎用）
+   * 🚀 简化架构：触发后端数据刷新
    */
   const clearAll = async () => {
     try {
-      await chartDB.clearAll()
-      savedCharts.value = []
-      message.success('已清空所有数据')
+      // 触发后端数据预加载服务刷新
+      const response = await fetch('http://localhost:3004/api/preload/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      if (response.ok) {
+        savedCharts.value = []
+        message.success('已触发后端数据刷新')
+      } else {
+        message.error('后端服务不可用')
+      }
     } catch (error) {
       console.error('清空数据失败:', error)
       message.error('清空数据失败')

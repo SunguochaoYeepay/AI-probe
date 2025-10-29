@@ -250,13 +250,12 @@ const handleImport = async () => {
     data.lastUpdated = new Date().toISOString()
     data.source = '手动导入'
     
-    // 保存到store和localStorage
-    console.log('💾 保存数据到Store和localStorage...')
+    // 🚀 配置统一化：保存到store（纯缓存）
+    console.log('💾 保存数据到Store...')
     store.dispatch('updateProjectConfig', {
       pageMenuData: data
     })
     
-    localStorage.setItem('pageMenuData', JSON.stringify(data))
     menuData.value = data
     
     // 保存到数据库
@@ -353,23 +352,8 @@ const loadMenuData = () => {
     return
   }
   
-  // 从localStorage获取
-  const localData = localStorage.getItem('pageMenuData')
-  console.log('💾 localStorage中的数据:', localData ? '存在' : '不存在')
-  if (localData) {
-    try {
-      menuData.value = JSON.parse(localData)
-      console.log('✅ 从localStorage解析菜单数据成功:', menuData.value)
-      // 同步到store
-      store.dispatch('updateProjectConfig', {
-        pageMenuData: menuData.value
-      })
-    } catch (error) {
-      console.error('❌ 解析本地菜单数据失败:', error)
-    }
-  } else {
-    console.log('ℹ️ localStorage中没有菜单数据，需要导入')
-  }
+  // 🚀 配置统一化：不再从localStorage获取，完全依赖SQLite数据库
+  console.log('🚀 配置统一化：不再从localStorage获取，完全依赖SQLite数据库')
 }
 
 // 组件挂载时加载数据

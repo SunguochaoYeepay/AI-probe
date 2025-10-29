@@ -1,11 +1,12 @@
 import axios from 'axios'
+import { getBackendConfig } from '@/config/environment'
 
-// 后端服务配置
-const BACKEND_BASE_URL = 'http://localhost:3004'
+// 获取后端配置
+const backendConfig = getBackendConfig()
 
 // 创建axios实例
 const backendAPI = axios.create({
-  baseURL: BACKEND_BASE_URL,
+  baseURL: backendConfig.baseUrl,
   timeout: 30000, // 30秒超时
   headers: {
     'Content-Type': 'application/json'

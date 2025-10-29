@@ -1,5 +1,6 @@
 import { createStore } from 'vuex'
 import { API_CONFIG } from '@/config/api'
+import { getOllamaConfig } from '@/config/environment'
 
 // 从localStorage加载配置的辅助函数（仅作为备用，数据库配置优先）
 const loadConfigFromStorage = () => {
@@ -28,14 +29,14 @@ const loadConfigFromStorage = () => {
 
 export default createStore({
   state: {
-    // API配置
+    // API配置 - 纯缓存模式，不持久化
     apiConfig: {
       ...API_CONFIG.environments.development,
       selectedPointId: null, // 初始化为null，等待项目配置加载
       defaults: API_CONFIG.defaults
     },
     
-    // 动态项目配置
+    // 动态项目配置 - 纯缓存模式，不持久化
     projectConfig: {
       currentProject: null,
       buryPoints: [],
@@ -44,16 +45,18 @@ export default createStore({
       hasVisitPoint: false,
       hasClickPoint: false,
       supportDualBuryPoint: false,
-      // 注意：已移除selectedBuryPointIds字段，使用新的分离配置格式
-      ...loadConfigFromStorage() // 从localStorage加载配置
+      // 🚀 配置统一化：完全依赖SQLite数据库，不使用localStorage
+      visitBuryPointId: null,
+      clickBuryPointId: null,
+      behaviorBuryPointIds: [],
+      pageMenuData: null
     },
     
-    // Ollama AI 配置
+    // Ollama AI 配置 - 纯缓存模式，不持久化
     ollamaConfig: {
       enabled: true,
-      baseURL: 'http://localhost:11434',
-      model: 'qwen:latest',
-      timeout: 30000
+      ...getOllamaConfig(),
+      model: 'qwen:latest'
     },
     
     // 当前分析需求
@@ -98,35 +101,35 @@ export default createStore({
   },
   
   mutations: {
+    // 更新API配置 - 纯缓存更新
     SET_API_CONFIG(state, config) {
       state.apiConfig = { ...state.apiConfig, ...config }
     },
     
+    // 更新项目配置 - 纯缓存更新
     SET_PROJECT_CONFIG(state, config) {
       state.projectConfig = { ...state.projectConfig, ...config }
-      // 注意：已移除selectedBuryPointIds的持久化逻辑，使用新的分离配置格式
-      // 持久化访问埋点到localStorage
-      if (config.visitBuryPointId !== undefined) {
-        localStorage.setItem('visitBuryPointId', JSON.stringify(config.visitBuryPointId))
-      }
-      // 持久化点击埋点到localStorage
-      if (config.clickBuryPointId !== undefined) {
-        localStorage.setItem('clickBuryPointId', JSON.stringify(config.clickBuryPointId))
-      }
-      // 持久化行为分析埋点到localStorage
-      if (config.behaviorBuryPointIds !== undefined) {
-        localStorage.setItem('behaviorBuryPointIds', JSON.stringify(config.behaviorBuryPointIds))
-      }
-      // 持久化页面菜单数据到localStorage
-      if (config.pageMenuData !== undefined) {
-        if (config.pageMenuData === null) {
-          localStorage.removeItem('pageMenuData')
-        } else {
-          localStorage.setItem('pageMenuData', JSON.stringify(config.pageMenuData))
-        }
-      }
+      // 🚀 配置统一化：不再使用localStorage，完全依赖SQLite数据库
     },
     
+    // 🚀 新增：完全替换项目配置（用于数据库配置同步）
+    REPLACE_PROJECT_CONFIG(state, config) {
+      // 完全替换项目配置，不保留任何旧配置
+      state.projectConfig = {
+        currentProject: state.projectConfig.currentProject, // 保留当前项目信息
+        buryPoints: state.projectConfig.buryPoints, // 保留埋点列表信息
+        visitPoint: state.projectConfig.visitPoint, // 保留埋点对象信息
+        clickPoint: state.projectConfig.clickPoint, // 保留埋点对象信息
+        hasVisitPoint: state.projectConfig.hasVisitPoint, // 保留功能标志
+        hasClickPoint: state.projectConfig.hasClickPoint, // 保留功能标志
+        supportDualBuryPoint: state.projectConfig.supportDualBuryPoint, // 保留功能标志
+        ...config // 完全使用新配置覆盖
+      }
+      
+      // 🚀 配置统一化：不再使用localStorage，完全依赖SQLite数据库
+    },
+    
+    // 更新AI配置 - 纯缓存更新
     SET_OLLAMA_CONFIG(state, config) {
       state.ollamaConfig = { ...state.ollamaConfig, ...config }
     },
@@ -171,6 +174,11 @@ export default createStore({
     
     updateProjectConfig({ commit }, config) {
       commit('SET_PROJECT_CONFIG', config)
+    },
+    
+    // 🚀 新增：完全替换项目配置（用于数据库配置同步）
+    replaceProjectConfig({ commit }, config) {
+      commit('REPLACE_PROJECT_CONFIG', config)
     },
     
     updateOllamaConfig({ commit }, config) {

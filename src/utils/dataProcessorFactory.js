@@ -259,9 +259,9 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
       // 2. 数据分配
       const result = this.allocate(normalizedData, options)
       this.logger.log('✅ [PageAccessDataProcessor] 数据分配完成:', {
-        categoriesCount: result.categories.length,
-        uvDataSample: result.uvData.slice(0, 3),
-        pvDataSample: result.pvData.slice(0, 3)
+        categoriesCount: result.categories ? result.categories.length : 0,
+        uvDataSample: result.uvData ? result.uvData.slice(0, 3) : [],
+        pvDataSample: result.pvData ? result.pvData.slice(0, 3) : []
       })
 
       return result
@@ -414,7 +414,14 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
 
   allocate(aggregatedData, options) {
     // 🚀 修复：生成完整的时间轴，填充缺失的天数为0值
+    this.logger.log('🔍 [PageAccessDataProcessor] allocate方法开始:', {
+      aggregatedDataLength: aggregatedData ? aggregatedData.length : 0,
+      aggregatedDataSample: aggregatedData ? aggregatedData.slice(0, 2) : null,
+      options: options
+    })
+    
     if (!aggregatedData || aggregatedData.length === 0) {
+      this.logger.log('⚠️ [PageAccessDataProcessor] 聚合数据为空，返回空结果')
       return {
         categories: [],
         uvData: [],
@@ -451,15 +458,33 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
     let currentDate = new Date(startDate)
     const endDateObj = new Date(endDate)
     
+    this.logger.log('📅 [PageAccessDataProcessor] 时间轴生成参数:', {
+      startDate: startDate,
+      endDate: endDate,
+      currentDate: currentDate,
+      endDateObj: endDateObj
+    })
+    
     while (currentDate <= endDateObj) {
-      fullDateRange.push(currentDate.toISOString().split('T')[0])
+      const dateStr = currentDate.toISOString().split('T')[0]
+      fullDateRange.push(dateStr)
       currentDate.setDate(currentDate.getDate() + 1)
     }
+    
+    this.logger.log('📅 [PageAccessDataProcessor] 生成的时间轴:', {
+      fullDateRange: fullDateRange
+    })
     
     // 创建数据映射
     const dataMap = new Map()
     aggregatedData.forEach(item => {
       dataMap.set(item.date, item)
+    })
+    
+    this.logger.log('📅 [PageAccessDataProcessor] 数据映射:', {
+      dataMapSize: dataMap.size,
+      dataMapKeys: Array.from(dataMap.keys()),
+      aggregatedDataSample: aggregatedData.slice(0, 2)
     })
     
     // 为每个日期生成数据点（包括无数据的天）

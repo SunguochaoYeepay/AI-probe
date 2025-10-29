@@ -325,18 +325,14 @@ class ScheduledUpdateService {
    * 获取指定日期的原始数据
    */
   async fetchDayData({ date, projectId, selectedPointId }) {
-    console.log(`📡 获取 ${date} 的原始数据...`)
+    console.log(`📡 从后端SQLite获取 ${date} 的原始数据...`)
     
-    // 🚀 修复：增加数据获取量，确保数据完整性
-    const response = await yeepayAPI.searchBuryPointData({
-      date: date,
-      pageSize: 10000, // 从1000增加到10000
-      projectId: projectId,
-      selectedPointId: selectedPointId
-    })
+    // 🚀 修复：使用后端SQLite缓存，不再直接调用API
+    const { dataPreloadService } = await import('@/services/dataPreloadService')
+    const response = await dataPreloadService.getBackendCachedData(date, selectedPointId)
     
-    const data = response.data?.dataList || []
-    console.log(`✅ 获取到 ${data.length} 条数据`)
+    const data = response || []
+    console.log(`✅ 从后端SQLite获取到 ${data.length} 条数据`)
     
     // 🚀 如果数据量达到10000条，可能需要分页获取更多数据
     if (data.length >= 10000) {

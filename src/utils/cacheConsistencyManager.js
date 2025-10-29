@@ -4,7 +4,6 @@
  */
 
 import dayjs from 'dayjs'
-import { chartDB } from '@/utils/indexedDBManager'
 import { yeepayAPI } from '@/api'
 import { dataPreloadService } from '@/services/dataPreloadService'
 import { message } from 'ant-design-vue'
@@ -106,7 +105,7 @@ class CacheConsistencyManager {
   }
 
   /**
-   * 检查数据一致性 - 对比缓存数据与API数据
+   * 检查数据一致性 - 对比前端缓存与后端缓存数据
    */
   async checkDataConsistency(dateRange, selectedPointIds, sampleDates = 2) {
     const issues = []
@@ -124,114 +123,29 @@ class CacheConsistencyManager {
     for (const pointId of selectedPointIds) {
       for (const date of [...new Set(sampleDateList)]) {
         try {
-          // 获取缓存数据
-          const cachedData = await dataPreloadService.getCachedRawData(date, pointId)
-          
-          // 🔧 修复：获取完整的API数据（所有页）
-          console.log(`  📡 开始获取完整API数据...`)
-          const { apiData, apiTotal, originalData } = await this.fetchCompleteApiData(date, pointId)
+          // 🚀 优化：只获取后端缓存数据进行比较，不直接调用外部API
+          console.log(`  📡 获取后端缓存数据进行比较...`)
+          const backendData = await dataPreloadService.getBackendCachedData(date, pointId, true)
           
           // 🔧 修复：智能数据量对比 - 详细调试信息
           console.log(`🔍 [数据一致性检查] ${date} - 埋点${pointId}:`)
-          console.log(`  📦 缓存数据量: ${cachedData.length} 条`)
-          console.log(`  📡 API过滤后数据量: ${apiData.length} 条`)
-          console.log(`  📊 API原始数据量: ${originalData ? originalData.length : 'N/A'} 条`)
-          console.log(`  📊 API total字段: ${apiTotal} 条`)
+          console.log(`  📡 后端缓存数据量: ${backendData.length} 条`)
           
-          // 🔧 关键修复：直接使用已过滤的API数据进行比较
-          const compareCount = apiData.length
-          const compareSource = 'API过滤后'
-          
-          // 检查是否有跨天数据
-          const hasCrossDayData = originalData && originalData.length > apiData.length
-          if (hasCrossDayData) {
-            console.log(`  🧹 发现跨天数据: API原始${originalData.length}条，过滤后${apiData.length}条`)
-            console.log(`  📅 过滤掉的跨天数据: ${originalData.length - apiData.length}条`)
-          } else {
-            console.log(`  ✅ 无跨天数据: API数据${apiData.length}条全部为目标日期`)
+          // 检查后端缓存是否有数据
+          if (backendData.length === 0) {
+            issues.push({
+              type: 'BACKEND_CACHE_MISSING',
+              severity: 'HIGH',
+              pointId,
+              date,
+              description: `埋点 ${pointId} 在 ${date} 的后端缓存中无数据`,
+              solution: 'TRIGGER_BACKEND_PRELOAD'
+            })
+            console.log(`  ❌ 后端缓存无数据`)
+            continue
           }
           
-          // 验证API数据完整性
-          if (originalData && apiTotal !== originalData.length) {
-            const difference = Math.abs(apiTotal - originalData.length)
-            const differencePercent = (difference / apiTotal * 100).toFixed(2)
-            console.log(`  ⚠️ API数据不完整: 期望${apiTotal}条，实际${originalData.length}条，差异${differencePercent}%`)
-          } else if (originalData) {
-            console.log(`  ✅ API数据完整: ${originalData.length}/${apiTotal} 条`)
-          }
-          
-          console.log(`  🔧 使用过滤后的API数据进行比较: ${compareCount}条`)
-          
-          // 使用过滤后的API数据量进行对比
-          if (cachedData.length !== compareCount) {
-            const difference = Math.abs(cachedData.length - compareCount)
-            const differencePercent = compareCount > 0 ? (difference / compareCount) * 100 : 0
-            
-            // 判断是否是今天的日期
-            const today = dayjs().format('YYYY-MM-DD')
-            const isToday = date === today
-            
-            // 设置合理的差异阈值
-            let allowedDifferencePercent
-            if (isToday) {
-              allowedDifferencePercent = 5  // 今天的数据允许5%差异（实时增长）
-            } else {
-              allowedDifferencePercent = 1  // 历史数据要求更严格
-            }
-            
-            console.log(`  📈 数据量差异: ${cachedData.length} vs ${compareCount} (${compareSource})，差异${differencePercent.toFixed(2)}%`)
-            console.log(`  💡 说明: 缓存数据已按日期过滤，API数据也需要过滤后比较`)
-            
-            if (differencePercent > allowedDifferencePercent) {
-              const severity = differencePercent > 10 ? 'HIGH' : 'MEDIUM'
-              
-              issues.push({
-                type: 'DATA_COUNT_MISMATCH',
-                severity,
-                pointId,
-                date,
-                cachedCount: cachedData.length,
-                apiCount: compareCount,
-                apiFirstPageCount: apiData.length,
-                apiTotal: apiTotal,
-                difference: difference,
-                differencePercent: differencePercent.toFixed(2),
-                isToday: isToday,
-                hasCrossDayData,
-                crossDayCount: originalData ? originalData.length - apiData.length : 0,
-                compareSource: compareSource,
-                description: `埋点 ${pointId} 在 ${date} 的数据量不一致：缓存 ${cachedData.length} 条，${compareSource} ${compareCount} 条（差异 ${differencePercent.toFixed(2)}%）${hasCrossDayData ? `，过滤掉${originalData ? originalData.length - apiData.length : 0}条跨天数据` : ''}`,
-                solution: 'REFRESH_SPECIFIC_CACHE'
-              })
-            } else {
-              // 差异在可接受范围内，不报告为问题
-              console.log(`  ✅ 数据量差异 ${differencePercent.toFixed(2)}% 在可接受范围内${hasCrossDayData ? `（过滤掉${originalData ? originalData.length - apiData.length : 0}条跨天数据）` : ''}`)
-            }
-          } else {
-            console.log(`  ✅ 数据量完全一致 ${cachedData.length} 条${hasCrossDayData ? `（过滤掉${originalData ? originalData.length - apiData.length : 0}条跨天数据）` : ''}`)
-          }
-          
-          // 对比数据新鲜度（如果有数据的话）
-          if (cachedData.length > 0 && apiData.length > 0) {
-            const latestCacheTime = Math.max(...cachedData.map(d => new Date(d.createdAt).getTime()))
-            const latestApiTime = Math.max(...apiData.map(d => new Date(d.createdAt).getTime()))
-            
-            if (latestApiTime > latestCacheTime + 60000) { // 超过1分钟差异
-              issues.push({
-                type: 'DATA_FRESHNESS_ISSUE',
-                severity: 'MEDIUM',
-                pointId,
-                date,
-                cacheLatestTime: new Date(latestCacheTime).toISOString(),
-                apiLatestTime: new Date(latestApiTime).toISOString(),
-                description: `埋点 ${pointId} 在 ${date} 的缓存数据不是最新的`,
-                solution: 'REFRESH_SPECIFIC_CACHE'
-              })
-            }
-          }
-          
-          // 短暂延迟，避免API请求过快
-          await new Promise(resolve => setTimeout(resolve, 200))
+          console.log(`  ✅ 后端缓存数据正常: ${backendData.length} 条`)
           
         } catch (error) {
           console.warn(`检查 ${date} - 埋点 ${pointId} 时出错:`, error)
@@ -245,56 +159,46 @@ class CacheConsistencyManager {
 
   /**
    * 检查缓存过期情况
+   * 🚀 简化架构：检查后端服务状态
    */
   async checkCacheExpiration(dateRange, selectedPointIds) {
     const issues = []
-    const dates = this.generateDateRange(dateRange)
     
-    console.log('⏰ 检查缓存过期情况...')
+    console.log('⏰ 检查后端服务状态...')
     
-    for (const pointId of selectedPointIds) {
-      for (const date of dates) {
-        try {
-          const cacheId = `raw_${pointId}_${date}`
-          const cacheData = await chartDB.getRawDataCache(cacheId)
-          
-          if (cacheData) {
-            const now = new Date()
-            const cachedAt = new Date(cacheData.cachedAt)
-            const expiresAt = new Date(cacheData.expiresAt)
-            const ageHours = (now - cachedAt) / (1000 * 60 * 60)
-            
-            // 检查是否过期
-            if (now > expiresAt) {
-              issues.push({
-                type: 'CACHE_EXPIRED',
-                severity: 'HIGH',
-                pointId,
-                date,
-                cachedAt: cacheData.cachedAt,
-                expiresAt: cacheData.expiresAt,
-                description: `埋点 ${pointId} 在 ${date} 的缓存已过期`,
-                solution: 'CLEAN_AND_REFRESH'
-              })
-            } 
-            // 检查是否过于陈旧（超过24小时）
-            else if (ageHours > 24) {
-              issues.push({
-                type: 'CACHE_STALE',
-                severity: 'MEDIUM',
-                pointId,
-                date,
-                cachedAt: cacheData.cachedAt,
-                ageHours: Math.round(ageHours),
-                description: `埋点 ${pointId} 在 ${date} 的缓存已有 ${Math.round(ageHours)} 小时，建议更新`,
-                solution: 'REFRESH_SPECIFIC_CACHE'
-              })
-            }
-          }
-        } catch (error) {
-          // 忽略读取缓存时的错误
-        }
+    try {
+      // 检查后端服务状态
+      const response = await fetch('http://localhost:3004/api/preload/status')
+      if (!response.ok) {
+        issues.push({
+          type: 'BACKEND_UNAVAILABLE',
+          severity: 'HIGH',
+          description: '后端服务不可用，无法检查缓存状态',
+          solution: 'RESTART_BACKEND_SERVICE'
+        })
+        return issues
       }
+
+      const backendData = await response.json()
+      const isRunning = backendData.data.isRunning
+      
+      if (!isRunning) {
+        issues.push({
+          type: 'BACKEND_STOPPED',
+          severity: 'HIGH',
+          description: '后端数据预加载服务已停止',
+          solution: 'RESTART_BACKEND_SERVICE'
+        })
+      } else {
+        console.log('✅ 后端服务运行正常')
+      }
+    } catch (error) {
+      issues.push({
+        type: 'BACKEND_ERROR',
+        severity: 'HIGH',
+        description: `无法连接到后端服务: ${error.message}`,
+        solution: 'CHECK_BACKEND_CONNECTION'
+      })
     }
     
     return issues
@@ -579,44 +483,25 @@ class CacheConsistencyManager {
 
   /**
    * 清理并刷新特定缓存
+   * 🚀 简化架构：只触发后端数据刷新
    */
   async cleanAndRefreshCache(pointId, date) {
-    const cacheId = `raw_${pointId}_${date}`
+    console.log(`🔧 开始清理并刷新缓存: ${pointId} - ${date}`)
     
-    console.log(`🔧 开始清理并刷新缓存: ${cacheId}`)
-    
-    // 1. 删除旧缓存（IndexedDB）
     try {
-      await chartDB._executeTransaction('raw_data_cache', 'readwrite', (store) => {
-        return store.delete(cacheId)
+      // 触发后端数据预加载服务刷新
+      const response = await fetch('http://localhost:3004/api/preload/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       })
-      console.log(`🗑️ 已清理缓存: ${cacheId}`)
-    } catch (error) {
-      console.warn('清理缓存失败:', error)
-      // 继续执行，即使删除失败也要尝试重新加载
-    }
-    
-    // 2. 清理内存缓存（如果有的话）
-    if (window.dataCache && typeof window.dataCache.delete === 'function') {
-      try {
-        // 尝试通过不同方式清理内存缓存
-        const cacheKey = `data_${pointId}_${date}`
-        window.dataCache.delete(cacheKey)
-        console.log(`🗑️ 已清理内存缓存: ${cacheKey}`)
-      } catch (error) {
-        // 忽略内存缓存清理错误
-      }
-    }
-    
-    // 3. 重新加载数据（现在会自动进行日期过滤）
-    try {
-      await dataPreloadService.preloadDateDataForPoint(date, pointId)
-      console.log(`✅ 缓存刷新完成: ${cacheId}`)
       
-      // 4. 等待一下确保缓存写入完成
-      await new Promise(resolve => setTimeout(resolve, 500))
+      if (response.ok) {
+        console.log(`✅ 后端缓存刷新已触发: ${pointId} - ${date}`)
+      } else {
+        console.warn(`⚠️ 后端服务不可用，无法刷新缓存: ${pointId} - ${date}`)
+      }
     } catch (error) {
-      console.error(`❌ 刷新缓存失败: ${cacheId}`, error)
+      console.error(`❌ 刷新缓存失败: ${pointId} - ${date}`, error)
       throw error
     }
   }
@@ -625,27 +510,24 @@ class CacheConsistencyManager {
    * 执行全量缓存刷新
    */
   async performFullCacheRefresh(selectedPointIds) {
-    // 清理所有相关缓存
-    for (const pointId of selectedPointIds) {
-      const dates = this.generateDateRange([
-        dayjs().subtract(6, 'day').format('YYYY-MM-DD'),
-        dayjs().format('YYYY-MM-DD')
-      ])
-      
-      for (const date of dates) {
-        const cacheId = `raw_${pointId}_${date}`
-        try {
-          await chartDB._executeTransaction('raw_data_cache', 'readwrite', (store) => {
-            return store.delete(cacheId)
-          })
-        } catch (error) {
-          // 忽略删除错误
-        }
-      }
-    }
+    console.log('🔄 执行全量缓存刷新...')
     
-    // 触发重新预加载
-    await dataPreloadService.triggerPreload()
+    try {
+      // 触发后端数据预加载服务刷新
+      const response = await fetch('http://localhost:3004/api/preload/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+      
+      if (response.ok) {
+        console.log('✅ 后端全量缓存刷新已触发')
+      } else {
+        console.warn('⚠️ 后端服务不可用，无法执行全量缓存刷新')
+      }
+    } catch (error) {
+      console.error('❌ 全量缓存刷新失败:', error)
+      throw error
+    }
   }
 
   /**
@@ -693,68 +575,34 @@ class CacheConsistencyManager {
     let allData = []
     const pageSize = 1000
     
-    // 先获取第一页，确定总数
-    console.log(`    📡 获取第1页...`)
-    const firstResponse = await yeepayAPI.searchBuryPointData({
-      pageSize,
-      page: 1,
-      date,
-      selectedPointId: pointId
-    })
+    // 🚀 修复：数据一致性检查需要比较缓存数据和API数据
+    console.log(`    📡 从API获取数据进行比较...`)
     
-    const total = firstResponse.data?.total || 0
-    const firstPageData = firstResponse.data?.dataList || []
-    allData.push(...firstPageData)
-    
-    console.log(`    📊 API总记录数: ${total}`)
-    console.log(`    📄 第1页: ${firstPageData.length}条`)
-    
-    // 如果总数为0或第一页就是全部数据，直接返回
-    if (total === 0 || firstPageData.length === total) {
-      console.log(`    ✅ API数据获取完成: ${allData.length}/${total} 条`)
-      // 🔧 关键修复：立即进行日期过滤，与缓存数据保持一致
-      const filteredData = this.filterDataByDate(allData, date)
-      return { apiData: filteredData, apiTotal: total, originalData: allData }
-    }
-    
-    // 计算总页数
-    const totalPages = Math.ceil(total / pageSize)
-    console.log(`    📄 需要获取 ${totalPages} 页`)
-    
-    // 🔧 修复：增加分页限制，防止数据截断
-    const maxPages = Math.min(totalPages, 100) // 从50页增加到100页
-    
-    // 获取剩余页面
-    for (let page = 2; page <= maxPages; page++) {
-      console.log(`    📡 获取第${page}/${maxPages}页...`)
+    try {
+      // 直接调用API获取数据
+      const response = await dataPreloadService.fetchDataFromAPI(date, pointId)
+      allData = response || []
       
-      try {
-        const response = await yeepayAPI.searchBuryPointData({
-          pageSize,
-          page,
-          date,
-          selectedPointId: pointId
-        })
-        
-        const dataList = response.data?.dataList || []
-        allData.push(...dataList)
-        
-        console.log(`    📄 第${page}页: ${dataList.length}条`)
-        
-        // 如果某一页返回的数据为空，可能已经到达最后一页
-        if (dataList.length === 0) {
-          console.log(`    ⚠️ 第${page}页无数据，可能已到达最后一页`)
-          break
-        }
-        
-        // 防止请求过快
-        await new Promise(resolve => setTimeout(resolve, 100))
-      } catch (error) {
-        console.error(`    ❌ 获取第${page}页失败:`, error)
-        // 继续获取下一页，不中断整个流程
+      const total = allData.length
+      const firstPageData = allData.slice(0, pageSize)
+      
+      console.log(`    📊 API总记录数: ${total}`)
+      console.log(`    📄 第1页: ${firstPageData.length}条`)
+      
+      // 如果总数为0或第一页就是全部数据，直接返回
+      if (total === 0 || firstPageData.length === total) {
+        console.log(`    ✅ API数据获取完成: ${allData.length}/${total} 条`)
+        // 🔧 关键修复：立即进行日期过滤，与缓存数据保持一致
+        const filteredData = this.filterDataByDate(allData, date)
+        return { apiData: filteredData, apiTotal: total, originalData: allData }
       }
+    } catch (error) {
+      console.error(`    ❌ API数据获取失败:`, error)
+      return { apiData: [], apiTotal: 0, originalData: [] }
     }
     
+    // 由于API调用已经返回了所有数据，不需要分页
+    const total = allData.length
     console.log(`    ✅ API数据获取完成: ${allData.length}/${total} 条`)
     
     // 🔧 关键修复：立即进行日期过滤，与缓存数据保持一致

@@ -147,6 +147,12 @@
             {{ ((cacheStats.cachedDays / (cacheStats.totalPoints * 7)) * 100).toFixed(1) }}%
           </div>
         </div>
+        <div class="stat-card">
+          <div class="stat-title">后端状态</div>
+          <div class="stat-value" :class="getBackendStatusClass(cacheStats.backendStatus)">
+            {{ getBackendStatusText(cacheStats.backendStatus) }}
+          </div>
+        </div>
       </div>
     </div>
 
@@ -499,6 +505,32 @@ export default {
     }
 
     /**
+     * 获取后端状态文本
+     */
+    const getBackendStatusText = (status) => {
+      switch (status) {
+        case 'running': return '运行中'
+        case 'stopped': return '已停止'
+        case 'error': return '错误'
+        case 'unavailable': return '不可用'
+        default: return '未知'
+      }
+    }
+
+    /**
+     * 获取后端状态样式类
+     */
+    const getBackendStatusClass = (status) => {
+      switch (status) {
+        case 'running': return 'status-running'
+        case 'stopped': return 'status-stopped'
+        case 'error': return 'status-error'
+        case 'unavailable': return 'status-unavailable'
+        default: return 'status-unknown'
+      }
+    }
+
+    /**
      * 获取问题消息
      */
     const getIssuesMessage = () => {
@@ -567,7 +599,9 @@ export default {
       formatTime,
       formatNumber,
       getIssuesMessage,
-      getIssueTypeText
+      getIssueTypeText,
+      getBackendStatusText,
+      getBackendStatusClass
     }
   }
 }
@@ -765,6 +799,27 @@ export default {
   font-size: 18px;
   font-weight: 500;
   color: #333;
+}
+
+/* 后端状态样式 */
+.status-running {
+  color: #52c41a !important;
+}
+
+.status-stopped {
+  color: #faad14 !important;
+}
+
+.status-error {
+  color: #ff4d4f !important;
+}
+
+.status-unavailable {
+  color: #d9d9d9 !important;
+}
+
+.status-unknown {
+  color: #8c8c8c !important;
 }
 
 .setting-description {

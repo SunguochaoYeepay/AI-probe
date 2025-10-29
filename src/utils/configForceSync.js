@@ -1,5 +1,5 @@
 // 配置强制同步工具 - 手动触发配置同步
-import configSyncService from '../services/configSyncService.js'
+import { configSyncService } from '../services/configSyncService.js'
 import configValidator from './configValidator.js'
 import dataSyncConfigValidator from './dataSyncConfigValidator.js'
 

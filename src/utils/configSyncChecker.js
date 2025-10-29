@@ -1,5 +1,5 @@
 // 配置同步状态检查工具
-import configSyncService from '../services/configSyncService.js'
+import { configSyncService } from '../services/configSyncService.js'
 
 class ConfigSyncChecker {
   constructor() {

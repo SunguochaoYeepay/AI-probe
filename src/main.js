@@ -15,7 +15,7 @@ import './utils/dataSyncConfigValidator' // 数据同步配置验证工具
 import './utils/dataSyncDebugger' // 数据同步调试工具
 import './utils/configForceSync' // 配置强制同步工具
 import './utils/configMismatchFixer' // 配置不匹配修复工具
-import configSyncService from './services/configSyncService.js'
+import { configSyncService } from './services/configSyncService.js'
 
 // 配置ECharts以减少性能警告
 echarts.registerTheme('default', {
@@ -93,9 +93,10 @@ configSyncService.init(store)
 
 app.mount('#app')
 
-// 延迟加载数据库配置，确保store已初始化
-setTimeout(async () => {
-  console.log('🔄 开始从数据库同步配置...')
-  await configSyncService.loadConfigFromDatabase()
-  console.log('✅ 配置同步完成')
-}, 1000)
+// 🚀 修复：应用启动时立即从数据库获取配置，不使用localStorage
+console.log('🔄 应用启动，立即从数据库获取配置...')
+configSyncService.loadConfigFromDatabase().then(() => {
+  console.log('✅ 配置加载完成')
+}).catch(error => {
+  console.error('❌ 配置加载失败，使用默认配置:', error)
+})
