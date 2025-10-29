@@ -85,9 +85,9 @@ export function useProjectConfig() {
       }
       currentBuryPoints.value = config
       
-      // 检查是否已有正确的数据库配置（175, 172）
+      // 检查是否已有有效的项目配置
       const currentProjectConfig = store.state.projectConfig
-      const hasCorrectDatabaseConfig = currentProjectConfig.visitBuryPointId === 175 && currentProjectConfig.clickBuryPointId === 172
+      const hasCorrectDatabaseConfig = currentProjectConfig.visitBuryPointId && currentProjectConfig.clickBuryPointId
       
       if (hasCorrectDatabaseConfig) {
         console.log('🔒 检测到数据库配置，保持现有配置不变')

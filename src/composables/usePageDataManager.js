@@ -225,9 +225,16 @@ export function usePageDataManager() {
     try {
       console.log('🔍 开始加载可用页面列表...')
       
-      // 获取访问埋点数据（ID: 110）
+      // 🚀 修复：从配置中动态获取访问埋点ID
+      const projectConfig = store.state.projectConfig
+      const visitBuryPointId = projectConfig.visitBuryPointId
+      
+      if (!visitBuryPointId) {
+        throw new Error('访问埋点配置不完整，请先配置访问埋点')
+      }
+      
       const dateRange = [dayjs().subtract(7, 'day'), dayjs()]
-      const visitDataResult = await fetchMultiDayData(110, dateRange)
+      const visitDataResult = await fetchMultiDayData(visitBuryPointId, dateRange)
       const visitData = visitDataResult?.data || []
       
       console.log('📊 原始访问数据数量:', visitData.length)
@@ -272,10 +279,17 @@ export function usePageDataManager() {
     try {
       console.log('🔍 开始加载页面按钮数据...')
       
-      // 获取点击埋点数据（ID: 109）
+      // 🚀 修复：从配置中动态获取点击埋点ID
+      const projectConfig = store.state.projectConfig
+      const clickBuryPointId = projectConfig.clickBuryPointId
+      
+      if (!clickBuryPointId) {
+        throw new Error('点击埋点配置不完整，请先配置点击埋点')
+      }
+      
       const dateRange = [dayjs().subtract(7, 'day'), dayjs()]
-      console.log('🔍 准备获取埋点ID 109的数据，日期范围:', dateRange)
-      const clickDataResult = await fetchMultiDayData(109, dateRange)
+      console.log('🔍 准备获取埋点ID', clickBuryPointId, '的数据，日期范围:', dateRange)
+      const clickDataResult = await fetchMultiDayData(clickBuryPointId, dateRange)
       const clickData = clickDataResult?.data || []
       console.log('🔍 获取到的点击数据结果:', clickDataResult)
       

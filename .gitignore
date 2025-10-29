@@ -39,6 +39,11 @@ Thumbs.db
 .cache/
 .parcel-cache/
 
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
 # 其他
 *.tgz
 *.tar.gz

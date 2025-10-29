@@ -652,11 +652,25 @@ export function useRequirementAnalysis() {
         progress: 30
       })
       
+      // 🚀 修复：从配置中动态获取埋点ID
+      const projectConfig = store.state.projectConfig
+      const visitBuryPointId = projectConfig.visitBuryPointId
+      const clickBuryPointId = projectConfig.clickBuryPointId
+      
+      if (!visitBuryPointId || !clickBuryPointId) {
+        throw new Error('埋点配置不完整，请先配置访问埋点和点击埋点')
+      }
+      
+      console.log('🎯 使用配置的埋点ID:', {
+        visitBuryPointId,
+        clickBuryPointId
+      })
+      
       // 获取访问埋点数据（用户行为路径分析只使用页面浏览数据）
-      const visitDataResult = await fetchMultiDayData(110, dateRange) // 访问埋点ID: 110
+      const visitDataResult = await fetchMultiDayData(visitBuryPointId, dateRange)
       
       // 🚀 修复：漏斗图分析需要同时获取点击数据
-      const clickDataResult = await fetchMultiDayData(109, dateRange) // 点击埋点ID: 109
+      const clickDataResult = await fetchMultiDayData(clickBuryPointId, dateRange)
       
       // 提取数据数组
       const visitData = visitDataResult?.data || []

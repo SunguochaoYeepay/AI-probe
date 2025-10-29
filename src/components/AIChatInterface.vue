@@ -892,6 +892,66 @@ const handleFunnelConfigClose = () => {
   showFunnelConfig.value = false
 }
 
+// 🚀 监听配置加载完成，自动设置默认埋点选择
+watch(
+  () => [
+    store.state.projectConfig.visitBuryPointId,
+    store.state.projectConfig.clickBuryPointId,
+    selectedAnalysisType.value
+  ],
+  ([visitBuryPointId, clickBuryPointId, analysisType]) => {
+    // 只在配置加载完成且当前没有选择埋点时设置默认值
+    if (selectedBuryPointId.value !== null) {
+      return // 已经有选择，不覆盖
+    }
+    
+    // 只有当配置存在时才设置默认值
+    if (!visitBuryPointId && !clickBuryPointId) {
+      return // 配置还未加载完成
+    }
+    
+    console.log('🔍 检测到配置已加载，自动设置默认埋点选择', {
+      visitBuryPointId,
+      clickBuryPointId,
+      analysisType,
+      currentSelected: selectedBuryPointId.value
+    })
+    
+    // 根据分析类型选择默认埋点
+    let defaultPointId = null
+    
+    switch (analysisType) {
+      case 'page_analysis':
+        // 页面分析默认使用访问埋点
+        defaultPointId = visitBuryPointId
+        break
+      case 'click_analysis':
+      case 'query_analysis':
+        // 点击分析和查询条件分析默认使用点击埋点
+        defaultPointId = clickBuryPointId
+        break
+      case 'behavior_analysis':
+        // 行为分析默认使用点击埋点
+        defaultPointId = clickBuryPointId || visitBuryPointId
+        break
+      default:
+        // 默认优先使用点击埋点，如果没有则使用访问埋点
+        defaultPointId = clickBuryPointId || visitBuryPointId
+    }
+    
+    if (defaultPointId) {
+      selectedBuryPointId.value = defaultPointId
+      console.log('✅ 自动设置默认埋点选择:', defaultPointId, '（分析类型:', analysisType, '）')
+      
+      // 同时更新store中的选择
+      store.dispatch('updateApiConfig', {
+        selectedPointId: defaultPointId
+      })
+    }
+  },
+  { immediate: true } // 立即执行一次，处理配置已加载的情况
+)
+
 // 监听 store 中的漏斗配置抽屉状态
 watch(() => store.state.funnelConfigDrawerVisible, (newValue) => {
   if (newValue) {

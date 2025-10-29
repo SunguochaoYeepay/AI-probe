@@ -31,10 +31,22 @@ class ConfigSyncService {
   }
 
   // 从数据库加载配置
-  async loadConfigFromDatabase() {
+  async loadConfigFromDatabase(retryCount = 0) {
+    const maxRetries = 3
+    const retryDelay = 1000
+    
+    // 先检查连接状态
+    await this.checkConnection()
+    
     if (!this.isConnected) {
-      console.log('⚠️ 后端服务未连接，跳过数据库配置加载')
-      return false
+      if (retryCount < maxRetries) {
+        console.log(`⚠️ 后端服务未连接，${retryDelay}ms后重试 (${retryCount + 1}/${maxRetries})`)
+        await new Promise(resolve => setTimeout(resolve, retryDelay))
+        return this.loadConfigFromDatabase(retryCount + 1)
+      } else {
+        console.log('❌ 后端服务连接失败，跳过数据库配置加载')
+        return false
+      }
     }
 
     try {

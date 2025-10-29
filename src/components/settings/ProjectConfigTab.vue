@@ -232,9 +232,9 @@ const waitForDatabaseConfig = async () => {
   let waitTime = 0
   
   while (waitTime < maxWaitTime) {
-    // 检查是否有数据库配置（175, 172）而不是API配置（171, 174）
+    // 检查是否有有效的项目配置
     const projectConfig = store.state.projectConfig
-    const hasCorrectConfig = projectConfig.visitBuryPointId === 175 && projectConfig.clickBuryPointId === 172
+    const hasCorrectConfig = projectConfig.visitBuryPointId && projectConfig.clickBuryPointId
     
     if (hasCorrectConfig) {
       console.log('✅ 数据库配置已同步完成')
