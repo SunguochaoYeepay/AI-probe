@@ -227,7 +227,18 @@ class ScheduledUpdateService {
     // 按项目分组，优化API调用
     const tasksByProject = new Map()
     for (const task of updateTasks) {
+      // 🚀 修复：添加防护代码，检查对象是否存在
+      if (!task || !task.chart || !task.chart.config || !task.chart.config.dataSource) {
+        console.warn('⚠️ [ScheduledUpdateService] 跳过无效的图表任务:', task)
+        continue
+      }
+      
       const projectId = task.chart.config.dataSource.projectId
+      if (!projectId) {
+        console.warn('⚠️ [ScheduledUpdateService] 图表缺少 projectId:', task.chart.id)
+        continue
+      }
+      
       if (!tasksByProject.has(projectId)) {
         tasksByProject.set(projectId, [])
       }

@@ -165,6 +165,7 @@
 <script setup>
 import { ref, watch, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
+import { buildApiUrl } from '@/config/environment'
 import { 
   ReloadOutlined
 } from '@ant-design/icons-vue'
@@ -346,7 +347,7 @@ const handleSave = async () => {
     
     // 🚀 配置统一化：保存到SQLite数据库（唯一数据源）
     try {
-      const response = await fetch('http://localhost:3004/api/config', {
+      const response = await fetch(buildApiUrl('/api/config'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

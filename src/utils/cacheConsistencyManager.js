@@ -7,6 +7,7 @@ import dayjs from 'dayjs'
 import { yeepayAPI } from '@/api'
 import { dataPreloadService } from '@/services/dataPreloadService'
 import { message } from 'ant-design-vue'
+import { buildApiUrl } from '@/config/environment'
 
 class CacheConsistencyManager {
   constructor() {
@@ -168,7 +169,7 @@ class CacheConsistencyManager {
     
     try {
       // 检查后端服务状态
-      const response = await fetch('http://localhost:3004/api/preload/status')
+      const response = await fetch(buildApiUrl('/api/preload/status'))
       if (!response.ok) {
         issues.push({
           type: 'BACKEND_UNAVAILABLE',
@@ -490,7 +491,7 @@ class CacheConsistencyManager {
     
     try {
       // 触发后端数据预加载服务刷新
-      const response = await fetch('http://localhost:3004/api/preload/trigger', {
+      const response = await fetch(buildApiUrl('/api/preload/trigger'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -514,7 +515,7 @@ class CacheConsistencyManager {
     
     try {
       // 触发后端数据预加载服务刷新
-      const response = await fetch('http://localhost:3004/api/preload/trigger', {
+      const response = await fetch(buildApiUrl('/api/preload/trigger'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })

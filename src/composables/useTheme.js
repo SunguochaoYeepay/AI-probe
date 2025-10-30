@@ -1,27 +1,17 @@
 import { ref, computed, watch } from 'vue'
+import { DEFAULT_THEME_CONFIG } from '@/config/defaults'
 
 // 主题配置
-const THEMES = {
-  light: {
-    name: '亮色主题',
-    value: 'light',
-    class: 'light-theme'
-  },
-  dark: {
-    name: '暗黑主题', 
-    value: 'dark',
-    class: 'dark-theme'
-  }
-}
+const THEMES = DEFAULT_THEME_CONFIG.THEMES
 
 // 全局状态
-const currentTheme = ref('light')
+const currentTheme = ref(DEFAULT_THEME_CONFIG.DEFAULT_THEME)
 const isSystemDark = ref(false)
 
 // 初始化主题
 const initTheme = () => {
   // 检查本地存储
-  const savedTheme = localStorage.getItem('app-theme')
+  const savedTheme = localStorage.getItem(DEFAULT_THEME_CONFIG.STORAGE_KEY)
   if (savedTheme && THEMES[savedTheme]) {
     currentTheme.value = savedTheme
   } else {
@@ -33,7 +23,7 @@ const initTheme = () => {
     // 监听系统主题变化
     mediaQuery.addEventListener('change', (e) => {
       isSystemDark.value = e.matches
-      if (!localStorage.getItem('app-theme')) {
+      if (!localStorage.getItem(DEFAULT_THEME_CONFIG.STORAGE_KEY)) {
         currentTheme.value = isSystemDark.value ? 'dark' : 'light'
         applyTheme(currentTheme.value)
       }
@@ -66,6 +56,9 @@ const applyTheme = (theme) => {
     root.style.setProperty('--border-color', '#303030')
     root.style.setProperty('--card-bg', '#1f1f1f')
     root.style.setProperty('--shadow-color', 'rgba(0, 0, 0, 0.3)')
+    
+    // 设置 Ant Design 暗色主题
+    root.setAttribute('data-theme', 'dark')
   } else {
     root.style.setProperty('--bg-color', '#f5f5f5')
     root.style.setProperty('--bg-color-light', '#ffffff')
@@ -74,6 +67,9 @@ const applyTheme = (theme) => {
     root.style.setProperty('--border-color', '#d9d9d9')
     root.style.setProperty('--card-bg', '#ffffff')
     root.style.setProperty('--shadow-color', 'rgba(0, 0, 0, 0.1)')
+    
+    // 设置 Ant Design 亮色主题
+    root.setAttribute('data-theme', 'light')
   }
 }
 
@@ -89,12 +85,12 @@ const setTheme = (theme) => {
   
   currentTheme.value = theme
   applyTheme(theme)
-  localStorage.setItem('app-theme', theme)
+  localStorage.setItem(DEFAULT_THEME_CONFIG.STORAGE_KEY, theme)
 }
 
 // 重置为系统主题
 const resetToSystemTheme = () => {
-  localStorage.removeItem('app-theme')
+  localStorage.removeItem(DEFAULT_THEME_CONFIG.STORAGE_KEY)
   currentTheme.value = isSystemDark.value ? 'dark' : 'light'
   applyTheme(currentTheme.value)
 }
@@ -103,7 +99,7 @@ const resetToSystemTheme = () => {
 const themeName = computed(() => THEMES[currentTheme.value]?.name || '未知主题')
 const isDark = computed(() => currentTheme.value === 'dark')
 const isLight = computed(() => currentTheme.value === 'light')
-const isSystemTheme = computed(() => !localStorage.getItem('app-theme'))
+const isSystemTheme = computed(() => !localStorage.getItem(DEFAULT_THEME_CONFIG.STORAGE_KEY))
 
 // 监听主题变化
 watch(currentTheme, (newTheme) => {

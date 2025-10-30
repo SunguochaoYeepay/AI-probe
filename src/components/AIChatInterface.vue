@@ -1032,6 +1032,12 @@ defineExpose({
   padding: 20px;
 }
 
+/* 暗色主题支持 */
+.dark-theme .config-section {
+  background: #1f1f1f !important;
+  border: 1px solid #303030 !important;
+}
+
 .config-item {
   display: flex;
   flex-direction: column;
@@ -1099,6 +1105,12 @@ defineExpose({
 .message.ai .message-avatar {
   background: #f0f0f0;
   color: #666;
+}
+
+/* 暗色主题支持 */
+.dark-theme .message.ai .message-avatar {
+  background: #303030 !important;
+  color: #cccccc !important;
 }
 
 .message-content {
@@ -1257,6 +1269,19 @@ defineExpose({
   padding: 4px 8px;
   background: #f0f2f5;
   border: 1px solid #e8e9ea;
+}
+
+/* 暗色主题支持 */
+.dark-theme .suggestion-tag {
+  background: #303030 !important;
+  border-color: #404040 !important;
+  color: #ffffff !important;
+}
+
+.dark-theme .suggestion-tag:hover {
+  background: #404040 !important;
+  border-color: #1890ff !important;
+  color: #1890ff !important;
 }
 
 .suggestion-tag:hover {

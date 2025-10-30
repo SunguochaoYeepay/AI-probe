@@ -48,7 +48,7 @@
               <div v-else class="manual-input">
                 <a-input 
                   v-model:value="projectConfigForm.selectedProjectId" 
-                  placeholder="请输入项目ID (如: event1021)"
+                  :placeholder="`请输入项目ID (如: ${defaultProjectId})`"
                   @change="onProjectSelect"
                 />
                 <div style="color: #999; font-size: 12px; margin-top: 4px;">
@@ -206,7 +206,7 @@
           </a-form-item>
           
           <a-form-item label="Ollama 服务地址">
-            <a-input v-model:value="ollamaConfigForm.baseURL" placeholder="http://localhost:11434" />
+            <a-input v-model:value="ollamaConfigForm.baseURL" :placeholder="defaultOllamaUrl" />
           </a-form-item>
           
           <a-form-item label="使用的模型">
@@ -244,6 +244,8 @@ import {
 import { useStore } from 'vuex'
 import { useProjectConfig } from '@/composables/useProjectConfig'
 import { dataPreloadService } from '@/services/dataPreloadService'
+import { API_CONFIG } from '@/config/api'
+import { getOllamaConfig } from '@/config/environment'
 
 // Store
 const store = useStore()
@@ -359,6 +361,16 @@ watch(() => props.visible, (newVisible) => {
 const visible = computed({
   get: () => props.open,
   set: (value) => emit('update:open', value)
+})
+
+// 默认项目ID
+const defaultProjectId = computed(() => {
+  return API_CONFIG.dynamic.defaultProjectId
+})
+
+// 默认Ollama地址
+const defaultOllamaUrl = computed(() => {
+  return getOllamaConfig().baseUrl
 })
 
 // 方法

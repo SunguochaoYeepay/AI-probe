@@ -7,6 +7,7 @@ import { ref, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import { backendChartService as chartDB } from '@/services/backendChartService'
+import { buildApiUrl } from '@/config/environment'
 import { aggregationService } from '@/utils/aggregationService'
 import { yeepayAPI } from '@/api'
 import { useStore } from 'vuex'
@@ -548,7 +549,7 @@ export function useChartManager() {
   const getStats = async () => {
     try {
       // 返回后端服务统计信息
-      const response = await fetch('http://localhost:3004/api/preload/status')
+      const response = await fetch(buildApiUrl('/api/preload/status'))
       if (response.ok) {
         const data = await response.json()
         return {
@@ -571,7 +572,7 @@ export function useChartManager() {
   const clearAll = async () => {
     try {
       // 触发后端数据预加载服务刷新
-      const response = await fetch('http://localhost:3004/api/preload/trigger', {
+      const response = await fetch(buildApiUrl('/api/preload/trigger'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })

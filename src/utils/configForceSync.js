@@ -2,10 +2,12 @@
 import { configSyncService } from '../services/configSyncService.js'
 import configValidator from './configValidator.js'
 import dataSyncConfigValidator from './dataSyncConfigValidator.js'
+import { buildApiUrl } from '@/config/environment'
 
 class ConfigForceSync {
   constructor() {
-    this.isEnabled = process.env.NODE_ENV === 'development'
+    // 在浏览器环境中，使用 import.meta.env 而不是 process.env
+    this.isEnabled = import.meta.env?.MODE === 'development'
   }
 
   // 强制同步所有配置
@@ -115,7 +117,7 @@ class ConfigForceSync {
 
     try {
       // 获取数据库配置
-      const response = await fetch('http://localhost:3004/api/config')
+      const response = await fetch(buildApiUrl('/api/config'))
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }

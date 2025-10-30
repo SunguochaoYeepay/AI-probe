@@ -8,11 +8,18 @@ import swaggerJsdoc from 'swagger-jsdoc'
 import swaggerUi from 'swagger-ui-express'
 import BackendDataPreloadService from './dataPreloadService.js'
 
+// 默认配置常量
+const DEFAULT_CONFIG = {
+  PORT: 3004,
+  BACKEND_URL: 'http://localhost:3004',
+  CONTACT_EMAIL: 'guochao.sun@yeepay.com'
+}
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const app = express()
-const PORT = 3004
+const PORT = process.env.PORT || DEFAULT_CONFIG.PORT
 
 // Swagger配置
 const swaggerOptions = {
@@ -24,12 +31,12 @@ const swaggerOptions = {
       description: '基于SQLite的数据聚合和图表生成API',
       contact: {
         name: 'Yeepay Team',
-        email: 'guochao.sun@yeepay.com'
+        email: process.env.CONTACT_EMAIL || DEFAULT_CONFIG.CONTACT_EMAIL
       }
     },
     servers: [
       {
-        url: 'http://localhost:3004',
+        url: process.env.BACKEND_URL || DEFAULT_CONFIG.BACKEND_URL,
         description: '开发环境'
       }
     ],
@@ -529,6 +536,63 @@ app.post('/api/charts', (req, res) => {
   )
 })
 
+// 获取图表统计信息 - 必须在 /api/charts/:id 之前
+app.get('/api/charts/stats', (req, res) => {
+  console.log('📊 [Backend] 收到统计信息请求')
+  
+  try {
+    const stats = {
+      charts: 0,
+      chartData: 0,
+      totalSize: 0
+    }
+
+    // 统计图表数量
+    db.get('SELECT COUNT(*) as count FROM charts', (err, row) => {
+      if (err) {
+        console.error('统计图表数量失败:', err)
+        res.status(500).json({ error: err.message })
+        return
+      }
+      stats.charts = row.count
+      console.log('📊 [Backend] 图表数量:', stats.charts)
+
+      // 统计图表数据数量
+      db.get('SELECT COUNT(*) as count FROM chart_data', (err, row) => {
+        if (err) {
+          console.error('统计图表数据数量失败:', err)
+          res.status(500).json({ error: err.message })
+          return
+        }
+        stats.chartData = row.count
+        console.log('📊 [Backend] 图表数据数量:', stats.chartData)
+
+        // 计算数据库文件大小
+        import('fs').then(fs => {
+          try {
+            const stats_file = fs.statSync(dbPath)
+            stats.totalSize = stats_file.size
+          } catch (error) {
+            console.error('获取数据库文件大小失败:', error)
+            stats.totalSize = 0
+          }
+          
+          console.log('📊 [Backend] 返回统计信息:', stats)
+          res.json(stats)
+        }).catch((error) => {
+          console.error('导入fs模块失败:', error)
+          stats.totalSize = 0
+          console.log('📊 [Backend] 返回统计信息:', stats)
+          res.json(stats)
+        })
+      })
+    })
+  } catch (error) {
+    console.error('获取统计信息失败:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // 获取单个图表配置
 app.get('/api/charts/:id', (req, res) => {
   const { id } = req.params
@@ -693,46 +757,6 @@ app.put('/api/charts/:id', (req, res) => {
   })
 })
 
-// 获取图表统计信息
-app.get('/api/charts/stats', (req, res) => {
-  const stats = {
-    charts: 0,
-    chartData: 0,
-    totalSize: 0
-  }
-
-  // 统计图表数量
-  db.get('SELECT COUNT(*) as count FROM charts', (err, row) => {
-    if (err) {
-      res.status(500).json({ error: err.message })
-      return
-    }
-    stats.charts = row.count
-
-    // 统计图表数据数量
-    db.get('SELECT COUNT(*) as count FROM chart_data', (err, row) => {
-      if (err) {
-        res.status(500).json({ error: err.message })
-        return
-      }
-      stats.chartData = row.count
-
-      // 计算数据库文件大小
-      import('fs').then(fs => {
-        try {
-          const stats_file = fs.statSync(dbPath)
-          stats.totalSize = stats_file.size
-        } catch (error) {
-          stats.totalSize = 0
-        }
-        res.json(stats)
-      }).catch(() => {
-        stats.totalSize = 0
-        res.json(stats)
-      })
-    })
-  })
-})
 
 // 清理数据库
 app.post('/api/charts/clear', (req, res) => {
@@ -1152,7 +1176,8 @@ app.post('/api/preload/reload-config', (req, res) => {
 
 // 启动服务器
 app.listen(PORT, async () => {
-  console.log(`🚀 本地服务器启动成功: http://localhost:${PORT}`)
+  const serverUrl = process.env.BACKEND_URL || DEFAULT_CONFIG.BACKEND_URL
+  console.log(`🚀 本地服务器启动成功: ${serverUrl}`)
   console.log(`📊 数据库路径: ${dbPath}`)
   
   // 初始化数据预加载服务

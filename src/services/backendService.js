@@ -164,7 +164,7 @@ class BackendService {
   shouldUseBackend(dataSize) {
     // 开发环境：优先使用前端处理，避免时序问题
     // 生产环境：根据数据量决定
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env?.MODE === 'development') {
       // 在开发环境下，优先使用前端处理，确保一致性
       return false  // 始终使用前端处理，避免时序问题
     }

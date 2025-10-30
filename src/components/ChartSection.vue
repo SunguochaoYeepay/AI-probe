@@ -363,4 +363,17 @@ const onTimeRangeChange = (e) => {
   color: #8c8c8c;
   font-size: 14px;
 }
+
+/* 暗色主题支持 */
+.dark-theme .generating-chart {
+  background: #1f1f1f !important;
+}
+
+.dark-theme .generating-text h3 {
+  color: #ffffff !important;
+}
+
+.dark-theme .generating-text p {
+  color: #cccccc !important;
+}
 </style>

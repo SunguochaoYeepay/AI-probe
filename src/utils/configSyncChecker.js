@@ -1,5 +1,6 @@
 // 配置同步状态检查工具
 import { configSyncService } from '../services/configSyncService.js'
+import { buildApiUrl } from '@/config/environment'
 
 class ConfigSyncChecker {
   constructor() {
@@ -41,7 +42,7 @@ class ConfigSyncChecker {
   // 检查后端连接
   async checkBackendConnection() {
     try {
-      const response = await fetch('http://localhost:3004/api/health', {
+      const response = await fetch(buildApiUrl('/api/health'), {
         method: 'GET',
         timeout: 3000
       })
@@ -55,7 +56,7 @@ class ConfigSyncChecker {
   // 检查数据库访问
   async checkDatabaseAccess() {
     try {
-      const response = await fetch('http://localhost:3004/api/stats')
+      const response = await fetch(buildApiUrl('/api/stats'))
       this.checkResults.databaseAccess = response.ok
     } catch (error) {
       this.checkResults.databaseAccess = false
@@ -66,7 +67,7 @@ class ConfigSyncChecker {
   // 检查各配置类型
   async checkConfigTypes() {
     try {
-      const response = await fetch('http://localhost:3004/api/config')
+      const response = await fetch(buildApiUrl('/api/config'))
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }
@@ -137,7 +138,7 @@ class ConfigSyncChecker {
   // 检查特定配置类型
   async checkSpecificConfig(type) {
     try {
-      const response = await fetch(`http://localhost:3004/api/config/${type}`)
+      const response = await fetch(buildApiUrl(`/api/config/${type}`))
       return response.ok
     } catch (error) {
       console.warn(`⚠️ 检查${type}配置失败:`, error.message)

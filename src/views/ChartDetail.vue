@@ -524,6 +524,11 @@ const transformChartData = async (data, config, chartInfo = null) => {
       sampleItem: data.length > 0 ? data[0] : null
     })
     
+    // 🚀 调试：输出完整的数据样本
+    if (data.length > 0) {
+      console.log('🔍 [ChartDetail] 完整数据样本:', data.slice(0, 2))
+    }
+    
     console.log(`📊 [ChartDetail] 使用统一数据处理器工厂，分析类型: ${config.chartType}，数据格式: ${format}`)
     
     // 🚀 修复：构建正确的分析参数
@@ -779,9 +784,21 @@ const transformChartData = async (data, config, chartInfo = null) => {
     }
 
     // 使用统一的数据处理逻辑
-    const result = dataProcessorFactory.process(config.chartType, processedData, processedOptions)
+    const result = await dataProcessorFactory.process(config.chartType, processedData, processedOptions)
     
     console.log('✅ [ChartDetail] 统一数据处理完成:', result)
+    
+    // 🚀 修复：检查 result 是否有效
+    if (!result) {
+      console.error('❌ [ChartDetail] 数据处理结果为空')
+      throw new Error('数据处理结果为空')
+    }
+    
+    // 🚀 修复：检查 result 是否包含必需的属性
+    if (!result.categories || !Array.isArray(result.categories)) {
+      console.error('❌ [ChartDetail] 数据处理结果缺少 categories 属性:', result)
+      throw new Error('数据处理结果缺少 categories 属性')
+    }
     
     // 🚀 修复：漏斗图数据特殊处理
     if (config.chartType === 'behavior_funnel' || config.chartType === 'conversion_funnel') {

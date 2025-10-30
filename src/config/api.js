@@ -1,22 +1,24 @@
 // API配置管理
+import { DEFAULT_PROJECT, DEFAULT_URLS } from './defaults'
+
 export const API_CONFIG = {
   // 动态配置支持
   dynamic: {
     enabled: true,
-    probeApiUrl: 'https://probe.yeepay.com',
-    defaultProjectId: 'event1021'
+    probeApiUrl: DEFAULT_URLS.PROBE,
+    defaultProjectId: DEFAULT_PROJECT.ID
   },
   
   // 默认埋点配置（作为备用）
   defaultBuryPoints: {
     visit: {
-      id: 175,
+      id: DEFAULT_PROJECT.VISIT_BURY_POINT_ID,
       name: '页面访问埋点',
       description: '记录页面访问行为',
       type: 'single'
     },
     click: {
-      id: 109,
+      id: DEFAULT_PROJECT.CLICK_BURY_POINT_ID,
       name: '按钮点击埋点', 
       description: '记录按钮点击行为',
       type: 'single'
@@ -26,15 +28,15 @@ export const API_CONFIG = {
   // 环境配置
   environments: {
     development: {
-      projectId: "event1021",
-      baseUrl: "https://probe.yeepay.com",
+      projectId: DEFAULT_PROJECT.ID,
+      baseUrl: DEFAULT_URLS.PROBE,
       accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI1MzVjYzQ1MC04MjVkLTExZWItYjhjZC0zOWUwNTJhNjY2ZGMiLCJjb21wYW55SWQiOiIxIiwidXNlclR5cGUiOiJzdXBlckFkbWluIiwiZW1haWxOYW1lIjoiZ3VvY2hhby5zdW5AeWVlcGF5LmNvbSIsIm5pY2tuYW1lIjoi566h55CG5ZGYIiwiaWF0IjoxNzU5OTk1NjMxLCJleHAiOjQ2MTExOTU2MzF9.L-h9sF_6Cm6J6akCmy2pzHHK-UgkHnzu5LsAvgT99ZA",
       defaultDate: "2025-01-10",
       pageSize: 1000
     },
     production: {
-      projectId: "event1021",
-      baseUrl: "https://probe.yeepay.com",
+      projectId: DEFAULT_PROJECT.ID,
+      baseUrl: DEFAULT_URLS.PROBE,
       accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI1MzVjYzQ1MC04MjVkLTExZWItYjhjZC0zOWUwNTJhNjY2ZGMiLCJjb21wYW55SWQiOiIxIiwidXNlclR5cGUiOiJzdXBlckFkbWluIiwiZW1haWxOYW1lIjoiZ3VvY2hhby5zdW5AeWVlcGF5LmNvbSIsIm5pY2tuYW1lIjoi566h55CG5ZGYIiwiaWF0IjoxNzU5OTk1NjMxLCJleHAiOjQ2MTExOTU2MzF9.L-h9sF_6Cm6J6akCmy2pzHHK-UgkHnzu5LsAvgT99ZA",
       defaultDate: "today",
       pageSize: 100

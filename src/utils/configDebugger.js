@@ -3,7 +3,8 @@ import configValidator from './configValidator.js'
 
 class ConfigDebugger {
   constructor() {
-    this.isEnabled = process.env.NODE_ENV === 'development'
+    // 在浏览器环境中，使用 import.meta.env 而不是 process.env
+    this.isEnabled = import.meta.env?.MODE === 'development'
   }
 
   // 调试配置状态

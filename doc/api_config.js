@@ -3,20 +3,22 @@
  * 用于获取真实的埋点数据
  */
 
+import { DEFAULT_URLS, DEFAULT_PROJECT, DEFAULT_API_CONFIG, DEFAULT_PAGE_SIZES } from '../src/config/defaults.js';
+
 class YeepayAPI {
     constructor() {
-        this.baseURL = 'https://probe.yeepay.com';
+        this.baseURL = DEFAULT_URLS.PROBE;
         this.endpoints = {
             search: '/tracker/buryPointTest/search'
         };
         
         // 默认配置
         this.defaultConfig = {
-            projectId: 'event1021',
-            selectedPointId: 110,
+            projectId: DEFAULT_PROJECT.ID,
+            selectedPointId: DEFAULT_PROJECT.VISIT_BURY_POINT_ID,
             dataType: 'list',
             order: 'descend',
-            pageSize: 30,
+            pageSize: DEFAULT_PAGE_SIZES.API_SEARCH,
             page: 1
         };
     }
@@ -32,8 +34,8 @@ class YeepayAPI {
             'accept-language': 'en,zh-CN;q=0.9,zh;q=0.8',
             'access-token': accessToken,
             'content-type': 'text/plain;charset=UTF-8',
-            'origin': 'https://probe.yeepay.com',
-            'referer': 'https://probe.yeepay.com/webfunny_event/eventSearch.html',
+            'origin': DEFAULT_API_CONFIG.ORIGIN,
+            'referer': DEFAULT_API_CONFIG.REFERER,
             'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
         };
     }

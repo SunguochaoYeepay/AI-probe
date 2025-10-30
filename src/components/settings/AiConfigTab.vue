@@ -10,7 +10,7 @@
       </a-form-item>
       
       <a-form-item label="Ollama 服务地址">
-        <a-input v-model:value="ollamaConfigForm.baseURL" placeholder="http://localhost:11434" />
+        <a-input v-model:value="ollamaConfigForm.baseURL" :placeholder="defaultOllamaConfig.baseUrl" />
         <div style="color: #999; font-size: 12px; margin-top: 4px;">
           Ollama服务的地址，确保服务正在运行
         </div>
@@ -71,8 +71,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
+import { buildApiUrl, getOllamaConfig } from '@/config/environment'
 import { useStore } from 'vuex'
 import OllamaService from '@/utils/ollamaService'
 
@@ -82,12 +83,15 @@ const store = useStore()
 // 创建 ollamaService 实例
 const ollamaService = new OllamaService()
 
+// 获取默认配置
+const defaultOllamaConfig = getOllamaConfig()
+
 // 表单数据
 const ollamaConfigForm = ref({
   enabled: false,
-  baseURL: 'http://localhost:11434',
+  baseURL: defaultOllamaConfig.baseUrl,
   model: 'qwen:latest',
-  timeout: 30000,
+  timeout: defaultOllamaConfig.timeout,
   maxRetries: 2
 })
 
@@ -119,9 +123,9 @@ const loadConfig = () => {
   const ollamaConfig = store.state.ollamaConfig || {}
   ollamaConfigForm.value = {
     enabled: ollamaConfig.enabled || false,
-    baseURL: ollamaConfig.baseURL || 'http://localhost:11434',
+    baseURL: ollamaConfig.baseURL || defaultOllamaConfig.baseUrl,
     model: ollamaConfig.model || 'qwen:latest',
-    timeout: ollamaConfig.timeout || 30000,
+    timeout: ollamaConfig.timeout || defaultOllamaConfig.timeout,
     maxRetries: ollamaConfig.maxRetries || 2
   }
 }
@@ -183,7 +187,7 @@ const handleSave = async () => {
     
     // 🚀 配置统一化：保存到SQLite数据库（唯一数据源）
     try {
-      const response = await fetch('http://localhost:3004/api/config', {
+      const response = await fetch(buildApiUrl('/api/config'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

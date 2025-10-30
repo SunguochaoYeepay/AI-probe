@@ -5,7 +5,7 @@ import { getOllamaConfig } from '@/config/environment'
 // 从localStorage加载配置的辅助函数（仅作为备用，数据库配置优先）
 const loadConfigFromStorage = () => {
   // 只在开发模式下从localStorage加载，生产环境完全依赖数据库
-  if (process.env.NODE_ENV !== 'development') {
+  if (import.meta.env?.MODE !== 'development') {
     return {
       visitBuryPointId: null,
       clickBuryPointId: null,

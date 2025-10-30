@@ -8,6 +8,7 @@ import cron from 'node-cron'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
+import { DEFAULT_URLS, DEFAULT_TIMEOUTS, DEFAULT_PROJECT, DEFAULT_API_CONFIG } from '../../src/config/defaults.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -70,15 +71,15 @@ class BackendDataPreloadService {
           this.accessToken = apiConfig.accessToken
           this.projectId = apiConfig.projectId
           // 🚀 修复：支持多种URL字段名
-          this.probeApiUrl = apiConfig.baseUrl || apiConfig.probeApiUrl || 'https://probe.yeepay.com'
+          this.probeApiUrl = apiConfig.baseUrl || apiConfig.probeApiUrl || DEFAULT_URLS.PROBE
           console.log('✅ API配置已加载:')
           console.log('🔑 项目ID:', this.projectId)
           console.log('🌐 API地址:', this.probeApiUrl)
           console.log('🎫 访问令牌状态:', this.accessToken ? '已配置' : '未配置')
         } else {
           console.warn('⚠️ 未找到API配置，使用默认值')
-          this.probeApiUrl = 'https://probe.yeepay.com'
-          this.projectId = 'event1021'
+          this.probeApiUrl = DEFAULT_URLS.PROBE
+          this.projectId = process.env.DEFAULT_PROJECT_ID || DEFAULT_PROJECT.ID
         }
         
         // 加载项目配置
@@ -289,17 +290,17 @@ class BackendDataPreloadService {
           'Accept': '*/*',
           'Accept-Language': 'en,zh-CN;q=0.9,zh;q=0.8',
           'Connection': 'keep-alive',
-          'Origin': 'https://probe.yeepay.com',
-          'Referer': 'https://probe.yeepay.com/webfunny_event/eventSearch.html',
+          'Origin': DEFAULT_API_CONFIG.ORIGIN,
+          'Referer': DEFAULT_API_CONFIG.REFERER,
           'Sec-Fetch-Dest': 'empty',
           'Sec-Fetch-Mode': 'cors',
           'Sec-Fetch-Site': 'same-origin',
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
           'access-token': this.accessToken,
           'Content-Type': 'text/plain;charset=UTF-8',
-          'wf-t': '78d60508-8149-4109-94b0-d80c412647e1'
+          'wf-t': DEFAULT_API_CONFIG.WF_T
         },
-        timeout: 30000
+        timeout: DEFAULT_TIMEOUTS.REQUEST
       })
 
       console.log(`🔍 [DEBUG] API响应状态: ${response.status}`)

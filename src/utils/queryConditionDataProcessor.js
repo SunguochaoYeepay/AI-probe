@@ -1021,7 +1021,7 @@ export class QueryConditionDataProcessor {
     // 检查页面名称
     if (pageName && item.pageName !== pageName) {
       // 只在调试模式下输出不匹配日志
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env?.MODE === 'development') {
         this.logger.log('❌ [QueryConditionDataProcessor] 页面名称不匹配:', {
           itemPageName: item.pageName,
           targetPageName: pageName,

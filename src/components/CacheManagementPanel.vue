@@ -218,6 +218,7 @@
 <script>
 import { ref, onMounted, onUnmounted } from 'vue'
 import { message } from 'ant-design-vue'
+import { buildApiUrl } from '@/config/environment'
 import { 
   DatabaseOutlined,
   ReloadOutlined,
@@ -463,7 +464,7 @@ export default {
       
       // 保存到数据库
       try {
-        const response = await fetch('http://localhost:3004/api/config', {
+        const response = await fetch(buildApiUrl('/api/config'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

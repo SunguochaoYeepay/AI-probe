@@ -324,7 +324,7 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
       const isMatch = this.isDataMatch(item, analysis)
       
       // 只在调试模式下输出详细日志
-      if (process.env.NODE_ENV === 'development' && index < 5) {
+      if (import.meta.env?.MODE === 'development' && index < 5) {
         this.logger.log(`🔍 [PageAccessDataProcessor] 数据项 ${index} 匹配检查:`, {
           item: item,
           isMatch: isMatch,
@@ -368,7 +368,7 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
       }
 
       // 只在开发模式下输出详细日志
-      if (process.env.NODE_ENV === 'development' && index < 3) {
+      if (import.meta.env?.MODE === 'development' && index < 3) {
         this.logger.log(`🔍 [PageAccessDataProcessor] 数据项 ${index} 处理完成:`, {
           date: date,
           pv: dayData.pv,
@@ -488,7 +488,7 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
     const { pageName } = analysis.parameters || {}
     
     // 只在开发模式下输出简要日志（减少频率）
-    if (process.env.NODE_ENV === 'development' && Math.random() < 0.05) {
+    if (import.meta.env?.MODE === 'development' && Math.random() < 0.05) {
       this.logger.log(`🔍 [PageAccessDataProcessor] 数据匹配检查:`, {
         itemPageName: item.pageName,
         targetPageName: pageName,
@@ -552,7 +552,7 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
       const matchResult = smartMatch(pageName, itemPageName)
       if (!matchResult) {
         // 只在调试模式下输出不匹配日志
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env?.MODE === 'development') {
           this.logger.log(`❌ [PageAccessDataProcessor] 页面名称不匹配: ${itemPageName} !== ${pageName}`)
         }
         return false
@@ -560,7 +560,7 @@ export class PageAccessDataProcessor extends BaseDataProcessor {
     }
 
     // 只在调试模式下输出成功日志
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env?.MODE === 'development') {
       this.logger.log(`✅ [PageAccessDataProcessor] 数据匹配成功`)
     }
     return true

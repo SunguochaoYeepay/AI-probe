@@ -3,6 +3,8 @@
  * 统一管理所有硬编码的地址和配置
  */
 
+import { DEFAULT_URLS, DEFAULT_TIMEOUTS } from './defaults'
+
 // 获取环境变量
 const getEnvVar = (key, defaultValue) => {
   // 优先使用 window.ENV（运行时配置）
@@ -27,14 +29,14 @@ const getEnvVar = (key, defaultValue) => {
 export const BACKEND_CONFIG = {
   // 开发环境
   development: {
-    baseUrl: getEnvVar('BACKEND_URL', 'http://localhost:3004'),
+    baseUrl: getEnvVar('BACKEND_URL', DEFAULT_URLS.BACKEND),
     healthEndpoint: '/api/health',
     configEndpoint: '/api/config',
     statsEndpoint: '/api/stats'
   },
   // 生产环境
   production: {
-    baseUrl: getEnvVar('BACKEND_URL', 'http://localhost:3004'),
+    baseUrl: getEnvVar('BACKEND_URL', DEFAULT_URLS.BACKEND),
     healthEndpoint: '/api/health',
     configEndpoint: '/api/config',
     statsEndpoint: '/api/stats'
@@ -44,24 +46,24 @@ export const BACKEND_CONFIG = {
 // Ollama AI 配置
 export const OLLAMA_CONFIG = {
   development: {
-    baseUrl: getEnvVar('OLLAMA_URL', 'http://localhost:11434'),
-    timeout: 30000
+    baseUrl: getEnvVar('OLLAMA_URL', DEFAULT_URLS.OLLAMA),
+    timeout: DEFAULT_TIMEOUTS.OLLAMA
   },
   production: {
-    baseUrl: getEnvVar('OLLAMA_URL', 'http://localhost:11434'),
-    timeout: 30000
+    baseUrl: getEnvVar('OLLAMA_URL', DEFAULT_URLS.OLLAMA),
+    timeout: DEFAULT_TIMEOUTS.OLLAMA
   }
 }
 
 // Probe API 配置
 export const PROBE_CONFIG = {
   development: {
-    baseUrl: getEnvVar('PROBE_URL', 'https://probe.yeepay.com'),
-    timeout: 10000
+    baseUrl: getEnvVar('PROBE_URL', DEFAULT_URLS.PROBE),
+    timeout: DEFAULT_TIMEOUTS.PROBE
   },
   production: {
-    baseUrl: getEnvVar('PROBE_URL', 'https://probe.yeepay.com'),
-    timeout: 10000
+    baseUrl: getEnvVar('PROBE_URL', DEFAULT_URLS.PROBE),
+    timeout: DEFAULT_TIMEOUTS.PROBE
   }
 }
 

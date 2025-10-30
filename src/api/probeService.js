@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { message } from 'ant-design-vue'
 import { getProbeConfig } from '@/config/environment'
+import { API_CONFIG } from '@/config/api'
 
 /**
  * Probe 系统 API 服务
@@ -92,9 +93,9 @@ class ProbeService {
         // 如果 data 不是数组，可能是空对象或其他结构
         console.warn('API 返回的数据格式不符合预期:', data)
         // 返回一个默认项目
-        projectsMap.set('event1021', {
-          id: 'event1021',
-          name: '默认项目 - event1021',
+        projectsMap.set(API_CONFIG.dynamic.defaultProjectId, {
+          id: API_CONFIG.dynamic.defaultProjectId,
+          name: `默认项目 - ${API_CONFIG.dynamic.defaultProjectId}`,
           teamName: '默认团队',
           teamId: 'default'
         })
@@ -174,9 +175,9 @@ class ProbeService {
         // 返回默认埋点配置
         buryPoints = [
           {
-            id: 110,
-            name: '页面访问埋点',
-            description: '记录页面访问行为',
+            id: API_CONFIG.defaultBuryPoints.visit.id,
+            name: API_CONFIG.defaultBuryPoints.visit.name,
+            description: API_CONFIG.defaultBuryPoints.visit.description,
             fields: [],
             fieldNames: [],
             createBy: 'system',
@@ -185,9 +186,9 @@ class ProbeService {
             projectId: projectId
           },
           {
-            id: 109,
-            name: '按钮点击埋点',
-            description: '记录按钮点击行为',
+            id: API_CONFIG.defaultBuryPoints.click.id,
+            name: API_CONFIG.defaultBuryPoints.click.name,
+            description: API_CONFIG.defaultBuryPoints.click.description,
             fields: [],
             fieldNames: [],
             createBy: 'system',

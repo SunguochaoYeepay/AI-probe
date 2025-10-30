@@ -2,6 +2,12 @@ const { app, BrowserWindow, ipcMain } = require('electron')
 const path = require('path')
 const { spawn } = require('child_process')
 
+// 默认配置常量
+const DEFAULT_PORTS = {
+  VITE: 3000,
+  BACKEND: 3004
+}
+
 // 保持对窗口对象的全局引用
 let mainWindow
 let serverProcess
@@ -46,7 +52,8 @@ function createWindow() {
   
   if (isDev) {
     // 开发环境：加载Vite开发服务器
-    mainWindow.loadURL('http://localhost:3000')
+    const vitePort = process.env.VITE_PORT || DEFAULT_PORTS.VITE
+    mainWindow.loadURL(`http://localhost:${vitePort}`)
     // 打开开发者工具
     mainWindow.webContents.openDevTools()
   } else {
@@ -107,7 +114,7 @@ app.on('before-quit', () => {
 ipcMain.handle('get-server-status', async () => {
   return {
     status: 'running',
-    port: 3004
+    port: process.env.PORT || DEFAULT_PORTS.BACKEND
   }
 })
 

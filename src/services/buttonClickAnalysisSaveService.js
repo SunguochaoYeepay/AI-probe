@@ -1,5 +1,7 @@
 import dayjs from 'dayjs'
 import { backendChartService as chartDB } from '@/services/backendChartService'
+import { useStore } from 'vuex'
+import { API_CONFIG } from '@/config/api'
 
 /**
  * 按钮点击分析保存服务
@@ -186,7 +188,9 @@ export class ButtonClickAnalysisSaveService {
       dataSource: {
         type: 'button_click_analysis',
         pageName: pageName,
-        buttonName: buttonName
+        buttonName: buttonName,
+        projectId: useStore().state.apiConfig?.projectId || API_CONFIG.dynamic.defaultProjectId,
+        selectedPointId: useStore().state.projectConfig?.clickBuryPointId || API_CONFIG.defaultBuryPoints.click.id
       },
       filters: {
         dateRange: {

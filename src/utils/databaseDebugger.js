@@ -3,10 +3,12 @@
  * 统一管理后端SQLite的调试信息
  */
 
+import { buildApiUrl } from '@/config/environment'
+
 class DatabaseDebugger {
   constructor() {
     this.isElectron = window.electronAPI !== undefined
-    this.backendUrl = 'http://localhost:3004'
+    this.backendUrl = buildApiUrl('')
   }
 
   /**

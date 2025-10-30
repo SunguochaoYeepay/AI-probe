@@ -8,6 +8,8 @@ import isSameOrBefore from 'dayjs/plugin/isSameOrBefore'
 import { yeepayAPI } from '@/api'
 import { aggregationService } from '@/utils/aggregationService'
 import store from '@/store'
+import { API_CONFIG } from '@/config/api'
+import { buildApiUrl } from '@/config/environment'
 import dataSyncConfigValidator from '@/utils/dataSyncConfigValidator'
 
 // 扩展 dayjs 功能
@@ -537,7 +539,7 @@ class DataPreloadService {
       const selectedPointId = projectConfig.clickBuryPointId || projectConfig.visitBuryPointId
       return {
         selectedPointId: selectedPointId,
-        projectId: storeConfig?.projectId || 'event1021'
+        projectId: storeConfig?.projectId || API_CONFIG.dynamic.defaultProjectId
       }
     }
     
@@ -548,7 +550,7 @@ class DataPreloadService {
     console.warn('⚠️ 未找到有效的埋点配置，请在配置管理中选择埋点')
     return {
       selectedPointId: null,
-      projectId: storeConfig?.projectId || 'event1021'
+      projectId: storeConfig?.projectId || API_CONFIG.dynamic.defaultProjectId
     }
   }
 
@@ -587,7 +589,7 @@ class DataPreloadService {
    */
   async getBackendCachedData(date, selectedPointId, debugMode = false) {
     try {
-      const response = await fetch(`http://localhost:3004/api/cache/raw-data/${selectedPointId}/${date}`)
+      const response = await fetch(buildApiUrl(`/api/cache/raw-data/${selectedPointId}/${date}`))
       if (response.ok) {
         const data = await response.json()
         console.log(`✅ 从后端获取到缓存数据: ${date} - 埋点${selectedPointId} (${data.length}条)`)
@@ -803,7 +805,7 @@ class DataPreloadService {
     
     try {
       // 触发后端数据预加载服务刷新
-      const response = await fetch('http://localhost:3004/api/preload/trigger', {
+      const response = await fetch(buildApiUrl('/api/preload/trigger'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })

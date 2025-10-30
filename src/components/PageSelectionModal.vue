@@ -7,7 +7,7 @@
     @close="handleCancel"
   >
     <div class="page-selection-content">
-      <p style="margin-bottom: 16px; color: #666;">
+      <p class="modal-description">
         我找到了 {{ totalPagesCount }} 个可用页面，请选择您要分析的页面：
       </p>
       
@@ -320,13 +320,61 @@ const highlightSearchKeyword = (pageName) => {
   border-color: #1890ff;
 }
 
+/* 暗色主题支持 */
+.dark-theme .page-selection-content {
+  color: #ffffff;
+}
+
+.dark-theme .modal-description {
+  color: #cccccc !important;
+}
+
+.dark-theme .search-stats {
+  color: #999999 !important;
+}
+
+.dark-theme .page-list-modal {
+  background: #1f1f1f !important;
+  border-color: #303030 !important;
+}
+
+.dark-theme .page-item {
+  background: #1f1f1f !important;
+  border-bottom-color: #303030 !important;
+  color: #ffffff !important;
+}
+
+.dark-theme .page-item:hover {
+  background-color: #303030 !important;
+}
+
+.dark-theme .page-item-all {
+  background: linear-gradient(to right, #1f1f1f, #2a2a2a) !important;
+  border-bottom-color: #1890ff !important;
+}
+
+.dark-theme .page-item-all:hover {
+  background: linear-gradient(to right, #303030, #404040) !important;
+}
+
+.dark-theme .page-name {
+  color: #ffffff !important;
+}
+
+.dark-theme .page-name :deep(mark) {
+  background-color: #ffeb3b !important;
+  color: #000000 !important;
+}
+
+.dark-theme .pagination-section {
+  border-top-color: #303030 !important;
+}
+
 /* 响应式优化 */
 @media (max-width: 768px) {
   .page-selection-content {
     max-height: 500px;
   }
-  
- 
   
   .page-item {
     padding: 10px 12px;

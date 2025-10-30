@@ -3,9 +3,11 @@
  * 替代IndexedDB，使用后端SQLite数据库
  */
 
+import { buildApiUrl } from '@/config/environment'
+
 class BackendChartService {
   constructor() {
-    this.baseURL = 'http://localhost:3004/api'
+    this.baseURL = buildApiUrl('/api')
   }
 
   /**

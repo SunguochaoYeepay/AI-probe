@@ -4,6 +4,7 @@ import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import { cacheConsistencyManager } from '@/utils/cacheConsistencyManager'
 import { dataPreloadService } from '@/services/dataPreloadService'
+import { buildApiUrl } from '@/config/environment'
 import configValidator from '@/utils/configValidator'
 
 export function useDataConsistency() {
@@ -267,7 +268,7 @@ export function useDataConsistency() {
       
       // 检查后端服务状态
       try {
-        const response = await fetch('http://localhost:3004/api/preload/status')
+        const response = await fetch(buildApiUrl('/api/preload/status'))
         if (response.ok) {
           const backendData = await response.json()
           stats.backendStatus = backendData.data.isRunning ? 'running' : 'stopped'

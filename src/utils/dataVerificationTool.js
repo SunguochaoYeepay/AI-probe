@@ -6,6 +6,7 @@
 import dayjs from 'dayjs'
 import { yeepayAPI } from '@/api'
 import { dataPreloadService } from '@/services/dataPreloadService'
+import { buildApiUrl } from '@/config/environment'
 
 class DataVerificationTool {
   constructor() {
@@ -329,7 +330,7 @@ class DataVerificationTool {
   async checkCacheMetadata(date, pointId) {
     try {
       // 检查后端服务状态
-      const response = await fetch('http://localhost:3004/api/preload/status')
+      const response = await fetch(buildApiUrl('/api/preload/status'))
       if (!response.ok) {
         return {
           name: 'cache_metadata',

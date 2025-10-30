@@ -2,11 +2,15 @@
  * Ollama 本地 LLM 服务
  * 用于需求理解和智能分析
  */
+import { getOllamaConfig } from '@/config/environment'
+
 export class OllamaService {
   constructor(config = {}) {
-    this.baseURL = config.baseURL || 'http://localhost:11434'
+    const ollamaConfig = getOllamaConfig()
+    // 在浏览器环境中，使用 import.meta.env 而不是 process.env
+    this.baseURL = config.baseURL || import.meta.env?.VITE_OLLAMA_URL || ollamaConfig.baseUrl
     this.model = config.model || 'qwen:latest'
-    this.timeout = config.timeout || 30000
+    this.timeout = config.timeout || ollamaConfig.timeout
   }
 
   /**
