@@ -4,7 +4,7 @@
  */
 
 import { yeepayAPI } from '@/api'
-import { chartDB } from '@/utils/indexedDBManager'
+import { backendChartService as chartDB } from '@/services/backendChartService'
 import { aggregationService } from '@/utils/aggregationService'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'

@@ -476,17 +476,49 @@ app.get('/api/charts', (req, res) => {
       res.status(500).json({ error: err.message })
       return
     }
-    res.json(rows)
+    
+    // 解析config字段并提取category信息
+    const charts = rows.map(row => {
+      try {
+        const config = JSON.parse(row.config)
+        return {
+          id: row.id,
+          name: row.name,
+          config: config,
+          chartType: row.chart_type,
+          category: row.category || config.category || '页面分析', // 优先使用数据库字段，然后config，最后默认值
+          createdAt: row.created_at,
+          updatedAt: row.updated_at
+        }
+      } catch (error) {
+        console.error('解析图表配置失败:', error)
+        return {
+          id: row.id,
+          name: row.name,
+          config: {},
+          chartType: row.chart_type,
+          category: '页面分析',
+          createdAt: row.created_at,
+          updatedAt: row.updated_at
+        }
+      }
+    })
+    
+    res.json(charts)
   })
 })
 
 // 创建图表
 app.post('/api/charts', (req, res) => {
-  const { id, name, config, chartType } = req.body
+  const { id, name, description, category, config, chartType, tags, status, createdAt, updatedAt } = req.body
+  
+  console.log('🔍 [Backend] 接收到的图表数据:', {
+    id, name, description, category, chartType, tags, status
+  })
   
   db.run(
-    'INSERT OR REPLACE INTO charts (id, name, config, chart_type) VALUES (?, ?, ?, ?)',
-    [id, name, JSON.stringify(config), chartType],
+    'INSERT OR REPLACE INTO charts (id, name, description, category, config, chart_type, tags, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, name, description, category, JSON.stringify(config), chartType, JSON.stringify(tags), status, createdAt, updatedAt],
     function(err) {
       if (err) {
         res.status(500).json({ error: err.message })
@@ -497,10 +529,38 @@ app.post('/api/charts', (req, res) => {
   )
 })
 
+// 获取单个图表配置
+app.get('/api/charts/:id', (req, res) => {
+  const { id } = req.params
+  
+  db.get('SELECT * FROM charts WHERE id = ?', [id], (err, row) => {
+    if (err) {
+      res.status(500).json({ error: err.message })
+      return
+    }
+    
+    if (!row) {
+      res.status(404).json({ error: '图表不存在' })
+      return
+    }
+    
+    const chart = {
+      id: row.id,
+      name: row.name,
+      config: JSON.parse(row.config),
+      chartType: row.chart_type,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }
+    
+    res.json(chart)
+  })
+})
+
 // 获取图表数据
 app.get('/api/charts/:id/data', (req, res) => {
   const { id } = req.params
-  const { startDate, endDate } = req.query
+  const { startDate, endDate, limit } = req.query
   
   let query = 'SELECT * FROM chart_data WHERE chart_id = ?'
   let params = [id]
@@ -508,6 +568,13 @@ app.get('/api/charts/:id/data', (req, res) => {
   if (startDate && endDate) {
     query += ' AND date BETWEEN ? AND ?'
     params.push(startDate, endDate)
+  }
+  
+  query += ' ORDER BY date ASC'
+  
+  if (limit) {
+    query += ' LIMIT ?'
+    params.push(parseInt(limit))
   }
   
   db.all(query, params, (err, rows) => {
@@ -518,11 +585,176 @@ app.get('/api/charts/:id/data', (req, res) => {
     
     const data = rows.map(row => ({
       date: row.date,
-      data: JSON.parse(row.data)
+      ...JSON.parse(row.data)
     }))
     
     res.json(data)
   })
+})
+
+// 保存单天图表数据
+app.post('/api/charts/:id/data', (req, res) => {
+  const { id } = req.params
+  const { date, data } = req.body
+  
+  db.run(
+    'INSERT OR REPLACE INTO chart_data (chart_id, date, data) VALUES (?, ?, ?)',
+    [id, date, JSON.stringify(data)],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message })
+        return
+      }
+      res.json({ success: true, message: '数据保存成功' })
+    }
+  )
+})
+
+// 批量保存图表数据
+app.post('/api/charts/data/batch', (req, res) => {
+  const { dataList } = req.body
+  
+  if (!Array.isArray(dataList) || dataList.length === 0) {
+    return res.status(400).json({ error: '数据列表不能为空' })
+  }
+  
+  const stmt = db.prepare('INSERT OR REPLACE INTO chart_data (chart_id, date, data) VALUES (?, ?, ?)')
+  
+  try {
+    dataList.forEach(item => {
+      stmt.run(item.chartId, item.date, JSON.stringify(item))
+    })
+    stmt.finalize()
+    res.json({ success: true, message: `成功保存 ${dataList.length} 条数据` })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// 删除图表
+app.delete('/api/charts/:id', (req, res) => {
+  const { id } = req.params
+  
+  db.run('DELETE FROM charts WHERE id = ?', [id], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message })
+      return
+    }
+    
+    if (this.changes === 0) {
+      res.status(404).json({ error: '图表不存在' })
+      return
+    }
+    
+    // 同时删除相关数据
+    db.run('DELETE FROM chart_data WHERE chart_id = ?', [id], (err) => {
+      if (err) {
+        console.warn('删除图表数据时出错:', err.message)
+      }
+    })
+    
+    res.json({ success: true, message: '图表删除成功' })
+  })
+})
+
+// 更新图表配置
+app.put('/api/charts/:id', (req, res) => {
+  const { id } = req.params
+  const { name, description, category, chartType, config, tags, status } = req.body
+
+  if (!chartType || !config) {
+    res.status(400).json({ error: '缺少必要参数: chartType 和 config' })
+    return
+  }
+
+  const updateQuery = `
+    UPDATE charts 
+    SET name = ?, description = ?, category = ?, chart_type = ?, config = ?, tags = ?, status = ?, updated_at = CURRENT_TIMESTAMP 
+    WHERE id = ?
+  `
+
+  db.run(updateQuery, [name, description, category, chartType, JSON.stringify(config), JSON.stringify(tags), status, id], function(err) {
+    if (err) {
+      console.error('更新图表失败:', err)
+      res.status(500).json({ error: err.message })
+      return
+    }
+
+    if (this.changes === 0) {
+      res.status(404).json({ error: '图表不存在' })
+      return
+    }
+
+    res.json({ 
+      success: true, 
+      message: '图表更新成功',
+      id: id
+    })
+  })
+})
+
+// 获取图表统计信息
+app.get('/api/charts/stats', (req, res) => {
+  const stats = {
+    charts: 0,
+    chartData: 0,
+    totalSize: 0
+  }
+
+  // 统计图表数量
+  db.get('SELECT COUNT(*) as count FROM charts', (err, row) => {
+    if (err) {
+      res.status(500).json({ error: err.message })
+      return
+    }
+    stats.charts = row.count
+
+    // 统计图表数据数量
+    db.get('SELECT COUNT(*) as count FROM chart_data', (err, row) => {
+      if (err) {
+        res.status(500).json({ error: err.message })
+        return
+      }
+      stats.chartData = row.count
+
+      // 计算数据库文件大小
+      import('fs').then(fs => {
+        try {
+          const stats_file = fs.statSync(dbPath)
+          stats.totalSize = stats_file.size
+        } catch (error) {
+          stats.totalSize = 0
+        }
+        res.json(stats)
+      }).catch(() => {
+        stats.totalSize = 0
+        res.json(stats)
+      })
+    })
+  })
+})
+
+// 清理数据库
+app.post('/api/charts/clear', (req, res) => {
+  try {
+    db.run('DELETE FROM charts', (err) => {
+      if (err) {
+        res.status(500).json({ error: err.message })
+        return
+      }
+      
+      db.run('DELETE FROM chart_data', (err) => {
+        if (err) {
+          res.status(500).json({ error: err.message })
+          return
+        }
+        
+        res.json({ success: true, message: '数据库清理完成' })
+      })
+    })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
 })
 
 /**

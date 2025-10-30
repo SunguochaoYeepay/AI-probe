@@ -99,7 +99,7 @@ import {
   CloseCircleOutlined 
 } from '@ant-design/icons-vue'
 import { scheduledUpdateService } from '@/services/scheduledUpdateService'
-import { chartDB } from '@/utils/indexedDBManager'
+import { backendChartService as chartDB } from '@/services/backendChartService'
 import dayjs from 'dayjs'
 
 // 响应式数据

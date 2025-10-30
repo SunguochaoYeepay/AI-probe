@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { chartDB } from '@/utils/indexedDBManager'
+import { backendChartService as chartDB } from '@/services/backendChartService'
 
 /**
  * 按钮点击分析保存服务

@@ -56,7 +56,7 @@ export class QueryConditionDataProcessor {
         let pv = 0
         let uv = 0
         
-        // 优先检查metrics对象（IndexedDB保存的格式）
+        // 优先检查metrics对象（后端保存的格式）
         if (item.metrics && typeof item.metrics === 'object') {
           pv = item.metrics.pv || 0
           uv = item.metrics.uv || 0

@@ -69,7 +69,7 @@ import {
 import dayjs from 'dayjs'
 import { RequirementParser } from '@/utils/requirementParser'
 import { useDataFetch } from '@/composables/useDataFetch'
-import { chartDB } from '@/utils/indexedDBManager'
+import { backendChartService as chartDB } from '@/services/backendChartService'
 import { useChart } from '@/composables/useChart'
 import { useChartManager } from '@/composables/useChartManager'
 import { useChartSave } from '@/composables/useChartSave'

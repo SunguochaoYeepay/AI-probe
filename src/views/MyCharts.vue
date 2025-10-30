@@ -323,11 +323,25 @@ const filteredCharts = computed(() => {
   return chartsByCategory.value[activeCategory.value] || []
 })
 
+// 路由参数到分类的映射
+const categoryMapping = {
+  'page-analysis': 'page',
+  'user-behavior': 'behavior', 
+  'query-condition': 'query',
+  'conversion': 'conversion',
+  'overview': 'overview'
+}
+
 // 监听路由参数变化
 watch(() => route.query, (newQuery) => {
-  activeCategory.value = newQuery.category || 'page'
+  const routeCategory = newQuery.category || 'page-analysis'
+  activeCategory.value = categoryMapping[routeCategory] || 'page'
   activeType.value = newQuery.type || ''
-  console.log('路由参数变化:', { category: activeCategory.value, type: activeType.value })
+  console.log('路由参数变化:', { 
+    routeCategory, 
+    mappedCategory: activeCategory.value, 
+    type: activeType.value 
+  })
 }, { immediate: true })
 
 // 筛选后的图表列表

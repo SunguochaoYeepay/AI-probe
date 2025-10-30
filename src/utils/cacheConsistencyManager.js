@@ -544,7 +544,7 @@ class CacheConsistencyManager {
         window.dataCache.clear()
       }
       
-      // 2. 清理相关的IndexedDB缓存
+      // 2. 清理相关的后端缓存
       const dates = this.generateDateRange(dateRange)
       for (const pointId of selectedPointIds) {
         for (const date of dates) {

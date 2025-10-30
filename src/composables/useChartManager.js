@@ -6,7 +6,7 @@
 import { ref, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
-import { chartDB } from '@/utils/indexedDBManager'
+import { backendChartService as chartDB } from '@/services/backendChartService'
 import { aggregationService } from '@/utils/aggregationService'
 import { yeepayAPI } from '@/api'
 import { useStore } from 'vuex'
@@ -99,11 +99,13 @@ export function useChartManager() {
       const chartId = `chart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       
       // 构造完整的图表对象
+      console.log('🔍 [ChartManager] chartConfig.category:', chartConfig.category)
       const chart = {
         id: chartId,
         name: chartConfig.name || '未命名图表',
         description: chartConfig.description || '',
         category: chartConfig.category || '页面分析',
+        tags: chartConfig.tags || [],
         config: {
           chartType: chartConfig.chartType,
           dataSource: {
@@ -136,6 +138,12 @@ export function useChartManager() {
       }
       
       // 保存图表配置
+      console.log('🔍 [ChartManager] 传递给chartDB.saveChart的chart对象:', {
+        id: chart.id,
+        name: chart.name,
+        category: chart.category,
+        description: chart.description
+      })
       await chartDB.saveChart(chart)
       console.log(`✅ 图表配置已保存: ${chart.name}`)
       

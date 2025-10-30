@@ -512,7 +512,7 @@ class DataPreloadService {
    * 缓存原始数据
    */
   async cacheRawData(date, data, selectedPointId) {
-    // 🚀 简化架构：不再使用前端IndexedDB缓存
+    // 🚀 简化架构：不再使用前端缓存
     // 数据现在由后端统一管理和缓存
     console.log(`📝 数据已由后端服务缓存: ${date} - 埋点${selectedPointId}`)
   }
@@ -671,7 +671,7 @@ class DataPreloadService {
         allData.push(...dayData)
       } else {
         console.log(`❌ ${date}: 无缓存数据`)
-        // 🚀 简化架构：不再检查前端IndexedDB缓存
+        // 🚀 简化架构：不再检查前端缓存
         console.log(`  🔍 数据由后端服务管理`)
       }
     }

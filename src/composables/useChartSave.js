@@ -1,7 +1,7 @@
 import { useStore } from 'vuex'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
-import { chartDB } from '@/utils/indexedDBManager'
+import { backendChartService as chartDB } from '@/services/backendChartService'
 import { useChartManager } from '@/composables/useChartManager'
 import { useChart } from '@/composables/useChart'
 import { aggregationService } from '@/utils/aggregationService'
@@ -29,7 +29,8 @@ export function useChartSave() {
       console.time('saveChart')
       const chartData = store.state.chartConfig.data
       const effectiveAnalysis = store.state.analysisResult || store.state.chartConfig.analysis || {}
-      const chartType = effectiveAnalysis.chartType
+      // 🚀 修复：优先使用 chartConfig.analysis 中的 chartType，确保按钮点击分析等特殊类型不被覆盖
+      const chartType = store.state.chartConfig?.analysis?.chartType || effectiveAnalysis.chartType
       
       console.log('🔍 chartType 来源检查:', {
         fromAnalysisResult: store.state.analysisResult?.chartType,

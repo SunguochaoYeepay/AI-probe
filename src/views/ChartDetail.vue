@@ -162,7 +162,7 @@ import dayjs from 'dayjs'
 import { useChartManager } from '@/composables/useChartManager'
 import AppLayout from '@/components/AppLayout.vue'
 import { ChartGenerator } from '@/utils/chartGenerator'
-import { chartDB } from '@/utils/indexedDBManager'
+import { backendChartService as chartDB } from '@/services/backendChartService'
 
 const router = useRouter()
 const route = useRoute()
