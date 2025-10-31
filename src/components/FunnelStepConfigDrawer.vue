@@ -4,6 +4,9 @@
     title="🎯 转化步骤配置"
     width="600px"
     placement="right"
+    :mask="true"
+    :mask-closable="true"
+    :z-index="1000"
     @close="handleClose"
   >
     <div class="funnel-step-config">

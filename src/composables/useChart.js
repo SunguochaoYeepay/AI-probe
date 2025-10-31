@@ -314,7 +314,7 @@ export function useChart() {
           const format = isAggregated ? 'aggregated' : 'raw'
           
           // 使用数据处理器工厂处理数据
-          const chartData = dataProcessorFactory.process(analysisWithDateRange.chartType, data, {
+          const chartData = await dataProcessorFactory.process(analysisWithDateRange.chartType, data, {
             format: format,
             analysis: analysisWithDateRange,
             queryCondition: analysisWithDateRange.parameters?.queryCondition || '',

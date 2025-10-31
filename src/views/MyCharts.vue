@@ -344,6 +344,26 @@ watch(() => route.query, (newQuery) => {
   })
 }, { immediate: true })
 
+// 强制设置表格标题暗色主题
+const forceTableHeaderDarkTheme = () => {
+  const tableHeaders = document.querySelectorAll('.ant-table-thead th')
+  tableHeaders.forEach(header => {
+    header.style.setProperty('background-color', '#1f1f1f', 'important')
+    header.style.setProperty('color', '#ffffff', 'important')
+    header.style.setProperty('border-bottom', '1px solid #303030', 'important')
+  })
+}
+
+// 监听主题变化
+watch(() => {
+  const root = document.documentElement
+  return root.classList.contains('dark-theme')
+}, (isDark) => {
+  if (isDark) {
+    setTimeout(forceTableHeaderDarkTheme, 100)
+  }
+}, { immediate: true })
+
 // 筛选后的图表列表
 const displayCharts = computed(() => {
   let charts = filteredCharts.value
@@ -403,6 +423,14 @@ const displayCharts = computed(() => {
 
   return charts
 })
+
+// 监听表格数据变化
+watch(() => displayCharts.value, () => {
+  const root = document.documentElement
+  if (root.classList.contains('dark-theme')) {
+    setTimeout(forceTableHeaderDarkTheme, 100)
+  }
+}, { immediate: true })
 
 // 移除hasActiveFilters计算属性，不再需要
 
@@ -797,9 +825,9 @@ watch(() => route.query.category, (val) => {
 .filter-section {
   margin-bottom: 24px;
   padding: 16px;
-  background: #fafafa;
+  background: var(--bg-color-light, #fafafa);
   border-radius: 6px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--border-color, #f0f0f0);
 }
 
 .charts-list {
@@ -853,40 +881,136 @@ watch(() => route.query.category, (val) => {
   }
 }
 
-// 修复表格头部主题问题
-:deep(.ant-table-thead > tr > th) {
+/* 暗色主题支持 */
+.dark-theme {
+  .filter-section {
+    background: #1f1f1f !important;
+    border-color: #303030 !important;
+  }
+  
+  .chart-name-cell {
+    .chart-title {
+      color: #1890ff !important;
+    }
+    
+    .chart-subtitle {
+      color: #cccccc !important;
+    }
+  }
+  
+  .stats-suffix {
+    color: #999999 !important;
+  }
+}
+
+/* 表格头部主题问题 - 亮色主题 */
+:not(.dark-theme) :deep(.ant-table-thead > tr > th) {
   background-color: #fafafa !important;
   color: #262626 !important;
   border-bottom: 1px solid #f0f0f0 !important;
 }
 
-:deep(.ant-table-thead > tr > th:hover) {
+:not(.dark-theme) :deep(.ant-table-thead > tr > th:hover) {
   background-color: #f5f5f5 !important;
 }
 
-// 修复筛选条件区域主题问题
-.filter-section {
-  background-color: #fafafa !important;
-  border: 1px solid #f0f0f0 !important;
+/* 表格头部主题问题 - 暗色主题 - 提高优先级 */
+.dark-theme :deep(.ant-table-thead > tr > th),
+.dark-theme :deep(.ant-table-thead th),
+.dark-theme :deep(.ant-table-thead .ant-table-cell) {
+  background-color: #1f1f1f !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid #303030 !important;
 }
 
-// 修复筛选区域内的输入框和按钮样式
-:deep(.filter-section .ant-input) {
+.dark-theme :deep(.ant-table-thead > tr > th:hover),
+.dark-theme :deep(.ant-table-thead th:hover),
+.dark-theme :deep(.ant-table-thead .ant-table-cell:hover) {
+  background-color: #303030 !important;
+}
+
+/* 强制覆盖 - 最高优先级 */
+.dark-theme :deep(.ant-table-thead) th {
+  background-color: #1f1f1f !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid #303030 !important;
+}
+
+.dark-theme :deep(.ant-table-thead) th:hover {
+  background-color: #303030 !important;
+}
+
+/* 使用更具体的选择器强制覆盖 */
+.dark-theme .ant-table-thead th,
+.dark-theme .ant-table-thead > tr > th,
+.dark-theme .ant-table-thead .ant-table-cell {
+  background-color: #1f1f1f !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid #303030 !important;
+}
+
+.dark-theme .ant-table-thead th:hover,
+.dark-theme .ant-table-thead > tr > th:hover,
+.dark-theme .ant-table-thead .ant-table-cell:hover {
+  background-color: #303030 !important;
+}
+
+/* 针对可能的 Ant Design 版本差异 */
+.dark-theme .ant-table-thead th.ant-table-cell {
+  background-color: #1f1f1f !important;
+  color: #ffffff !important;
+}
+
+/* 使用属性选择器提高优先级 */
+.dark-theme [class*="ant-table-thead"] th {
+  background-color: #1f1f1f !important;
+  color: #ffffff !important;
+}
+
+/* 筛选区域内的输入框和按钮样式 - 亮色主题 */
+:not(.dark-theme) :deep(.filter-section .ant-input) {
   background-color: #fff !important;
   color: #262626 !important;
   border-color: #d9d9d9 !important;
 }
 
-:deep(.filter-section .ant-select-selector) {
+:not(.dark-theme) :deep(.filter-section .ant-select-selector) {
   background-color: #fff !important;
   color: #262626 !important;
   border-color: #d9d9d9 !important;
 }
 
-:deep(.filter-section .ant-btn) {
+:not(.dark-theme) :deep(.filter-section .ant-btn) {
   background-color: #fff !important;
   color: #262626 !important;
   border-color: #d9d9d9 !important;
+}
+
+/* 筛选区域内的输入框和按钮样式 - 暗色主题 */
+.dark-theme :deep(.filter-section .ant-input) {
+  background-color: #1f1f1f !important;
+  color: #ffffff !important;
+  border-color: #303030 !important;
+}
+
+.dark-theme :deep(.filter-section .ant-input::placeholder) {
+  color: #999999 !important;
+}
+
+.dark-theme :deep(.filter-section .ant-select-selector) {
+  background-color: #1f1f1f !important;
+  color: #ffffff !important;
+  border-color: #303030 !important;
+}
+
+.dark-theme :deep(.filter-section .ant-select-arrow) {
+  color: #ffffff !important;
+}
+
+.dark-theme :deep(.filter-section .ant-btn) {
+  background-color: #1f1f1f !important;
+  color: #ffffff !important;
+  border-color: #303030 !important;
 }
 </style>
 

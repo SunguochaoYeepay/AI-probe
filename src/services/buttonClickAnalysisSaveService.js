@@ -18,10 +18,11 @@ export class ButtonClickAnalysisSaveService {
    * @param {Object} params.effectiveAnalysis - 分析配置
    * @param {Array} params.recentDates - 最近日期列表
    * @param {string} params.chartType - 图表类型
+   * @param {Object} params.storeState - Vuex store 状态
    * @returns {Promise<Object>} 保存结果
    */
   async saveButtonClickAnalysis(params) {
-    const { chartData, effectiveAnalysis, recentDates, chartType } = params
+    const { chartData, effectiveAnalysis, recentDates, chartType, storeState } = params
     
     console.log('🔧 [ButtonClickSaveService] 开始保存按钮点击分析')
     console.log('🔍 [ButtonClickSaveService] 分析参数:', {
@@ -36,7 +37,7 @@ export class ButtonClickAnalysisSaveService {
       const processedData = await this.processButtonClickData(chartData, effectiveAnalysis, recentDates)
       
       // 2. 构建图表配置
-      const chartConfig = this.buildChartConfig(effectiveAnalysis, chartType)
+      const chartConfig = this.buildChartConfig(effectiveAnalysis, chartType, storeState)
       
       // 3. 构建图表信息
       const chartInfo = this.buildChartInfo(effectiveAnalysis, chartType)
@@ -174,9 +175,10 @@ export class ButtonClickAnalysisSaveService {
    * 构建图表配置
    * @param {Object} effectiveAnalysis - 分析配置
    * @param {string} chartType - 图表类型
+   * @param {Object} storeState - Vuex store 状态
    * @returns {Object} 图表配置
    */
-  buildChartConfig(effectiveAnalysis, chartType) {
+  buildChartConfig(effectiveAnalysis, chartType, storeState) {
     console.log('🔧 [ButtonClickSaveService] 构建图表配置')
     
     // 安全获取页面名称和按钮名称，避免 undefined
@@ -189,8 +191,8 @@ export class ButtonClickAnalysisSaveService {
         type: 'button_click_analysis',
         pageName: pageName,
         buttonName: buttonName,
-        projectId: useStore().state.apiConfig?.projectId || API_CONFIG.dynamic.defaultProjectId,
-        selectedPointId: useStore().state.projectConfig?.clickBuryPointId || API_CONFIG.defaultBuryPoints.click.id
+        projectId: storeState?.apiConfig?.projectId || API_CONFIG.dynamic.defaultProjectId,
+        selectedPointId: storeState?.projectConfig?.clickBuryPointId || API_CONFIG.defaultBuryPoints.click.id
       },
       filters: {
         dateRange: {

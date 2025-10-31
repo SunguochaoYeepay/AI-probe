@@ -188,12 +188,43 @@ export function useChartSave() {
           chartData,
           effectiveAnalysis,
           recentDates,
-          chartType
+          chartType,
+          storeState: store.state
         })
         console.log('✅ [Home] 按钮点击分析保存完成:', saveResult)
+        
+        // 显示保存成功消息
+        if (saveResult.success) {
+          message.success(`图表"${saveResult.chartName}"已保存（${saveResult.dataCount}天数据）`)
+          
+          // 提示用户查看
+          const key = `save-chart-${Date.now()}`
+          message.info({
+            content: '图表已保存，点击查看',
+            duration: 5,
+            key,
+            onClick: () => {
+              message.destroy(key)
+              window.open('/my-charts', '_blank')
+            }
+          })
+        }
+        
+        console.timeEnd('saveChart')
+        console.groupEnd()
         return saveResult
       } else if (isQueryConditionAnalysis) {
         // 🚀 修复：检查是否已有处理好的多条件数据
+        console.log('🔍 [Home] 查询条件分析 - chartData结构检查:', {
+          type: typeof chartData,
+          isArray: Array.isArray(chartData),
+          hasCategories: !!(chartData && chartData.categories),
+          hasConditionData: !!(chartData && chartData.conditionData),
+          hasUvData: !!(chartData && chartData.uvData),
+          hasPvData: !!(chartData && chartData.pvData),
+          keys: chartData ? Object.keys(chartData).join(', ') : 'null'
+        })
+        console.log('🔍 [Home] chartData完整内容:', JSON.stringify(chartData, null, 2))
         const processedChartData = store.state.chartConfig.data
         if (processedChartData && typeof processedChartData === 'object' && !Array.isArray(processedChartData) && processedChartData.conditionData) {
           console.log('📊 [Home] 使用已处理的多条件数据保存')
@@ -643,6 +674,8 @@ export function useChartSave() {
       'page_analysis': '页面分析',
       'click_analysis': '用户行为',
       'behavior_analysis': '用户行为',
+      'button_click_analysis': '用户行为',        // 添加按钮点击分析映射
+      'button_click_daily': '用户行为',           // 添加按钮点击日分析映射
       'query_condition_analysis': '查询条件分析',
       'conversion_analysis': '转化分析'
     }

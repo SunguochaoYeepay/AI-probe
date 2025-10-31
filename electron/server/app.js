@@ -160,8 +160,12 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS charts (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
+      description TEXT,
+      category TEXT,
       config TEXT NOT NULL,
       chart_type TEXT NOT NULL,
+      tags TEXT,
+      status TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
@@ -190,6 +194,36 @@ db.serialize(() => {
       UNIQUE(bury_point_id, date)
     )
   `)
+  
+  // 数据库迁移：为现有表添加缺失的字段
+  db.run(`ALTER TABLE charts ADD COLUMN description TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('添加 description 字段失败:', err)
+    }
+  })
+  
+  db.run(`ALTER TABLE charts ADD COLUMN category TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('添加 category 字段失败:', err)
+    }
+  })
+  
+  db.run(`ALTER TABLE charts ADD COLUMN tags TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('添加 tags 字段失败:', err)
+    }
+  })
+  
+  db.run(`ALTER TABLE charts ADD COLUMN status TEXT`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('添加 status 字段失败:', err)
+    }
+  })
+
+  // 一次性回填：根据 chart_type 为缺失或错误的 category 赋值
+  db.run(`UPDATE charts SET category = '用户行为' WHERE (category IS NULL OR category = '' OR category = '页面分析') AND chart_type IN ('button_click_analysis','button_click_daily')`)
+  db.run(`UPDATE charts SET category = '查询条件分析' WHERE (category IS NULL OR category = '' OR category = '页面分析') AND chart_type = 'query_condition_analysis'`)
+  db.run(`UPDATE charts SET category = '转化分析' WHERE (category IS NULL OR category = '' OR category = '页面分析') AND chart_type IN ('behavior_funnel','conversion_funnel')`)
 })
 
 console.log('📊 数据库初始化完成')
@@ -488,12 +522,30 @@ app.get('/api/charts', (req, res) => {
     const charts = rows.map(row => {
       try {
         const config = JSON.parse(row.config)
+        // 后端兜底：当category缺失时依据chart_type推断
+        let resolvedCategory = row.category || config.category
+        if (!resolvedCategory) {
+          const t = row.chart_type || config.chartType
+          if (t === 'button_click_analysis' || t === 'button_click_daily') {
+            resolvedCategory = '用户行为'
+          } else if (t === 'query_condition_analysis') {
+            resolvedCategory = '查询条件分析'
+          } else if (t === 'behavior_funnel' || t === 'conversion_funnel') {
+            resolvedCategory = '转化分析'
+          } else {
+            resolvedCategory = '页面分析'
+          }
+        }
+
         return {
           id: row.id,
           name: row.name,
+          description: row.description,
           config: config,
           chartType: row.chart_type,
-          category: row.category || config.category || '页面分析', // 优先使用数据库字段，然后config，最后默认值
+          category: resolvedCategory,
+          tags: row.tags ? JSON.parse(row.tags) : [],
+          status: row.status || 'active',
           createdAt: row.created_at,
           updatedAt: row.updated_at
         }
@@ -502,9 +554,12 @@ app.get('/api/charts', (req, res) => {
         return {
           id: row.id,
           name: row.name,
+          description: row.description,
           config: {},
           chartType: row.chart_type,
-          category: '页面分析',
+          category: row.category || '页面分析',
+          tags: row.tags ? JSON.parse(row.tags) : [],
+          status: row.status || 'active',
           createdAt: row.created_at,
           updatedAt: row.updated_at
         }
@@ -517,7 +572,18 @@ app.get('/api/charts', (req, res) => {
 
 // 创建图表
 app.post('/api/charts', (req, res) => {
-  const { id, name, description, category, config, chartType, tags, status, createdAt, updatedAt } = req.body
+  let { id, name, description, category, config, chartType, tags, status, createdAt, updatedAt } = req.body
+  // 保存兜底：当未提供或提供为默认“页面分析”但类型明确时，依据 chartType 纠正分类
+  if (!category || category === '' || category === '页面分析') {
+    const t = chartType || (config && config.chartType)
+    if (t === 'button_click_analysis' || t === 'button_click_daily') {
+      category = '用户行为'
+    } else if (t === 'query_condition_analysis') {
+      category = '查询条件分析'
+    } else if (t === 'behavior_funnel' || t === 'conversion_funnel') {
+      category = '转化分析'
+    }
+  }
   
   console.log('🔍 [Backend] 接收到的图表数据:', {
     id, name, description, category, chartType, tags, status
@@ -608,11 +674,31 @@ app.get('/api/charts/:id', (req, res) => {
       return
     }
     
+    const parsedConfig = JSON.parse(row.config)
+    // 后端兜底：当category缺失时依据chart_type/配置推断
+    let resolvedCategory = row.category || parsedConfig.category
+    if (!resolvedCategory) {
+      const t = row.chart_type || parsedConfig.chartType
+      if (t === 'button_click_analysis' || t === 'button_click_daily') {
+        resolvedCategory = '用户行为'
+      } else if (t === 'query_condition_analysis') {
+        resolvedCategory = '查询条件分析'
+      } else if (t === 'behavior_funnel' || t === 'conversion_funnel') {
+        resolvedCategory = '转化分析'
+      } else {
+        resolvedCategory = '页面分析'
+      }
+    }
+
     const chart = {
       id: row.id,
       name: row.name,
-      config: JSON.parse(row.config),
+      description: row.description,
+      category: resolvedCategory,
+      config: parsedConfig,
       chartType: row.chart_type,
+      tags: row.tags ? JSON.parse(row.tags) : [],
+      status: row.status || 'active',
       createdAt: row.created_at,
       updatedAt: row.updated_at
     }

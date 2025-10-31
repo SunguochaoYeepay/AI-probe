@@ -4,10 +4,13 @@
     :title="selectionType === 'queries' ? `选择查询条件 - ${pageName}` : `选择按钮 - ${pageName}`"
     width="800px"
     placement="right"
+    :mask="true"
+    :mask-closable="true"
+    :z-index="1000"
     @close="handleCancel"
   >
     <div class="selection-content">
-      <p style="margin-bottom: 16px; color: #666;">
+      <p class="modal-description">
         该页面共有 {{ buttons.length }} 个{{ selectionType === 'queries' ? '查询条件' : '按钮' }}，请选择您要分析的{{ selectionType === 'queries' ? '查询条件' : '按钮' }}：
       </p>
       
@@ -484,5 +487,95 @@ watch(visible, (newVal) => {
 
 :deep(.ant-table-tbody > tr:hover > td) {
   background-color: #f5f5f5;
+}
+
+/* 暗色主题支持 */
+.dark-theme .modal-description {
+  color: #cccccc !important;
+}
+
+.dark-theme .group-summary-title {
+  color: #1890ff !important;
+}
+
+.dark-theme .group-type {
+  color: #1890ff !important;
+}
+
+.dark-theme .group-item-content {
+  color: #ffffff !important;
+}
+
+.dark-theme .group-indent {
+  color: #999999 !important;
+}
+
+.dark-theme .item-name {
+  color: #ffffff !important;
+}
+
+.dark-theme .multi-selection-footer {
+  background-color: #1f1f1f !important;
+  border-color: #303030 !important;
+}
+
+.dark-theme .selected-items span {
+  color: #ffffff !important;
+}
+
+/* 表格暗色主题 */
+.dark-theme :deep(.ant-table-tbody > tr.ant-table-row-level-0 > td) {
+  background-color: #1f1f1f !important;
+  border-bottom-color: #303030 !important;
+}
+
+.dark-theme :deep(.ant-table-tbody > tr.ant-table-row-level-1 > td) {
+  background-color: #1f1f1f !important;
+}
+
+.dark-theme :deep(.ant-table-tbody > tr.ant-table-row-level-0:hover > td) {
+  background-color: #303030 !important;
+}
+
+.dark-theme :deep(.ant-table-tbody > tr.ant-table-row-level-1:hover > td) {
+  background-color: #303030 !important;
+}
+
+.dark-theme :deep(.ant-table-tbody > tr:hover > td) {
+  background-color: #303030 !important;
+}
+
+/* 统计标签暗色主题 */
+.dark-theme :deep(.ant-tag) {
+  color: #ffffff !important;
+}
+
+.dark-theme :deep(.ant-tag-blue) {
+  background-color: #1890ff !important;
+  color: #ffffff !important;
+}
+
+.dark-theme :deep(.ant-tag-green) {
+  background-color: #52c41a !important;
+  color: #ffffff !important;
+}
+
+/* 复选框暗色主题 */
+.dark-theme :deep(.ant-checkbox-wrapper) {
+  color: #ffffff !important;
+}
+
+.dark-theme :deep(.ant-checkbox) {
+  color: #ffffff !important;
+}
+
+.dark-theme :deep(.ant-checkbox-checked .ant-checkbox-inner) {
+  background-color: #1890ff !important;
+  border-color: #1890ff !important;
+}
+
+.dark-theme :deep(.ant-checkbox-inner) {
+  background-color: #1f1f1f !important;
+  border-color: #303030 !important;
 }
 </style>

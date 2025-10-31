@@ -215,28 +215,32 @@ class BackendChartService {
         throw new Error('图表不存在')
       }
 
-      // 合并更新
-      const updatedChart = {
-        ...existingChart,
-        ...updates,
+      // 字段级更新：仅允许修改 config.scheduledUpdate / config.dataRange 等必要字段
+      const mergedConfig = {
+        ...(existingChart.config || {}),
+        ...(updates.config || {}),
+        // 将顶层传入的 dataRange/scheduledUpdate 合并进 config 下，避免顶层覆盖元数据
+        ...(updates.dataRange ? { dataRange: updates.dataRange } : {}),
+        ...(updates.scheduledUpdate ? { scheduledUpdate: updates.scheduledUpdate } : {})
+      }
+
+      const payload = {
+        id: existingChart.id,
+        name: existingChart.name, // 不改
+        description: existingChart.description, // 不改
+        category: existingChart.category, // 不改
+        config: mergedConfig, // 仅更新允许的配置
+        chartType: (existingChart.config && existingChart.config.chartType) || existingChart.chartType || 'unknown',
+        tags: existingChart.tags, // 不改
+        status: existingChart.status, // 不改
+        createdAt: existingChart.createdAt,
         updatedAt: new Date().toISOString()
       }
 
-      // 保存更新后的图表
+      // 保存更新后的图表（仍走统一入口，但只提交受控字段）
       const result = await this.request('/charts', {
         method: 'POST',
-        body: JSON.stringify({
-          id: updatedChart.id,
-          name: updatedChart.name,
-          description: updatedChart.description,
-          category: updatedChart.category,
-          config: updatedChart.config,
-          chartType: updatedChart.config.chartType || 'unknown',
-          tags: updatedChart.tags,
-          status: updatedChart.status,
-          createdAt: updatedChart.createdAt,
-          updatedAt: updatedChart.updatedAt
-        })
+        body: JSON.stringify(payload)
       })
 
       console.log('✅ [BackendChartService] 图表更新成功:', result)

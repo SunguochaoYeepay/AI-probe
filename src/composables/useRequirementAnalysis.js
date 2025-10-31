@@ -441,6 +441,13 @@ export function useRequirementAnalysis() {
         selectedAnalysisType: 'query_condition_analysis'
       })
       
+      // 🚀 修复：保存查询条件参数到store，供后续保存图表时使用
+      store.dispatch('updateQueryConditionAnalysisParams', {
+        pageName,
+        queryCondition,
+        queryData
+      })
+      
       const analysis = {
         intent: 'query_condition_analysis',
         chartType: 'query_condition_analysis',

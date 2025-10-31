@@ -4,6 +4,9 @@
     :title="modalTitle"
     width="800px"
     placement="right"
+    :mask="true"
+    :mask-closable="true"
+    :z-index="1000"
     @close="handleCancel"
   >
     <div class="page-selection-content">

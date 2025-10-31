@@ -309,6 +309,10 @@ onMounted(async () => {
     color: #ffffff !important;
   }
   
+  .ant-table-thead > tr > th:hover {
+    background: #303030 !important;
+  }
+  
   .ant-table-tbody > tr > td {
     background: #1f1f1f !important;
     border-bottom-color: #303030 !important;
@@ -317,6 +321,33 @@ onMounted(async () => {
   
   .ant-table-tbody > tr:hover > td {
     background: #303030 !important;
+  }
+  
+  /* 表格头部强制覆盖 - 最高优先级 */
+  .ant-table-thead th,
+  .ant-table-thead > tr > th,
+  .ant-table-thead th.ant-table-cell {
+    background: #1f1f1f !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid #303030 !important;
+  }
+  
+  .ant-table-thead th:hover,
+  .ant-table-thead > tr > th:hover,
+  .ant-table-thead th.ant-table-cell:hover {
+    background: #303030 !important;
+  }
+  
+  /* 使用属性选择器提高优先级 */
+  [class*="ant-table-thead"] th {
+    background: #1f1f1f !important;
+    color: #ffffff !important;
+  }
+  
+  /* 针对可能的 Ant Design 内联样式 */
+  .ant-table-thead th[style] {
+    background: #1f1f1f !important;
+    color: #ffffff !important;
   }
   
   /* 分页组件 */
@@ -342,8 +373,58 @@ onMounted(async () => {
     color: #ffffff !important;
   }
   
-  /* 抽屉组件 */
-  .ant-drawer {
+  /* 分页组件箭头 */
+  .ant-pagination-prev,
+  .ant-pagination-next {
+    background: #1f1f1f !important;
+    border-color: #303030 !important;
+  }
+  
+  .ant-pagination-prev a,
+  .ant-pagination-next a {
+    color: #ffffff !important;
+  }
+  
+  .ant-pagination-prev:hover,
+  .ant-pagination-next:hover {
+    border-color: #1890ff !important;
+  }
+  
+  .ant-pagination-prev:hover a,
+  .ant-pagination-next:hover a {
+    color: #1890ff !important;
+  }
+  
+  .ant-pagination-disabled {
+    background: #1f1f1f !important;
+    border-color: #303030 !important;
+  }
+  
+  .ant-pagination-disabled a {
+    color: #666666 !important;
+  }
+  
+  /* 分页大小选择器 */
+  .ant-pagination-options {
+    color: #ffffff !important;
+  }
+  
+  .ant-pagination-options .ant-select {
+    color: #ffffff !important;
+  }
+  
+  .ant-pagination-options .ant-select-selector {
+    background: #1f1f1f !important;
+    border-color: #303030 !important;
+    color: #ffffff !important;
+  }
+  
+  .ant-pagination-options .ant-select-arrow {
+    color: #ffffff !important;
+  }
+  
+  /* 抽屉组件 - 只设置内容区域，不设置整个容器背景 */
+  .ant-drawer-content-wrapper {
     background: #1f1f1f !important;
   }
   
@@ -363,6 +444,11 @@ onMounted(async () => {
   .ant-drawer-body {
     background: #1f1f1f !important;
     color: #ffffff !important;
+  }
+  
+  /* 抽屉蒙层 - 只设置透明度，不重复添加 */
+  .ant-drawer-mask {
+    background-color: rgba(0, 0, 0, 0.45) !important;
   }
   
   /* 空状态组件 */

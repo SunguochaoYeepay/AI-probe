@@ -1027,9 +1027,12 @@ defineExpose({
   flex-direction: row;
   align-items: flex-end;
   gap: 16px;;
-  background: #fafafa;
+  background: var(--bg-color-light, #fafafa);
   flex-wrap: wrap;
   padding: 20px;
+  border: 1px solid var(--border-color, #e8e8e8);
+  border-radius: 8px;
+  margin-bottom: 16px;
 }
 
 /* 暗色主题支持 */
@@ -1073,7 +1076,6 @@ defineExpose({
   margin-bottom: 16px;
   width: 100%;
   overflow-x: hidden;
-  border-top: 1px solid #e8e9ea;
   padding: 16px;
 }
 

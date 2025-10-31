@@ -376,9 +376,9 @@ const getCategoryByAnalysisType = (analysisType) => {
 .left-panel {
   height: calc(100vh - 120px);
   min-height: 600px;
-  background: #ffffff;
+  background: var(--card-bg, #ffffff);
   border-radius: 8px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-color, #e8e8e8);
   overflow-y: auto;
 }
 
@@ -387,13 +387,15 @@ const getCategoryByAnalysisType = (analysisType) => {
   min-height: 600px;
   border-radius: 8px;
   overflow-y: auto;
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e8e8e8);
 }
 
 .panel-title {
   margin: 0 0 20px 0;
   font-size: 18px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-color, #333);
   border-bottom: 2px solid #1890ff;
   padding-bottom: 8px;
 }
@@ -424,7 +426,7 @@ const getCategoryByAnalysisType = (analysisType) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #666;
+  color: var(--text-color-secondary, #666);
 }
 
 .date-picker-item {
@@ -452,13 +454,13 @@ const getCategoryByAnalysisType = (analysisType) => {
   gap: 8px;
   margin-top: 12px;
   padding: 12px;
-  background: #f5f7fa;
+  background: var(--bg-color-light, #f5f7fa);
   border-radius: 6px;
 }
 
 .prompt-label {
   font-size: 13px;
-  color: #666;
+  color: var(--text-color-secondary, #666);
   font-weight: 500;
   margin-right: 4px;
 }
