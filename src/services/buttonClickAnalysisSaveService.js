@@ -63,11 +63,22 @@ export class ButtonClickAnalysisSaveService {
    */
   async processButtonClickData(chartData, effectiveAnalysis, recentDates) {
     console.log('🔧 [ButtonClickSaveService] 处理按钮点击数据')
+    console.log('🔍 [ButtonClickSaveService] 数据类型:', typeof chartData, Array.isArray(chartData))
+    console.log('🔍 [ButtonClickSaveService] effectiveAnalysis:', effectiveAnalysis)
+    console.log('🔍 [ButtonClickSaveService] effectiveAnalysis.parameters:', effectiveAnalysis.parameters)
     
     const initialData = {}
     
     if (chartData && typeof chartData === 'object' && !Array.isArray(chartData) && chartData.categories) {
       console.log('📊 [ButtonClickSaveService] 数据已经是图表格式，直接转换')
+      console.log('🔍 [ButtonClickSaveService] chartData结构:', {
+        categoriesLength: chartData.categories?.length,
+        uvDataLength: chartData.uvData?.length,
+        pvDataLength: chartData.pvData?.length,
+        categoriesSample: chartData.categories?.slice(0, 3),
+        uvDataSample: chartData.uvData?.slice(0, 3),
+        pvDataSample: chartData.pvData?.slice(0, 3)
+      })
       
       chartData.categories.forEach((date, index) => {
         if (recentDates.includes(date)) {
@@ -89,21 +100,26 @@ export class ButtonClickAnalysisSaveService {
     } else {
       console.log('🔧 [ButtonClickSaveService] 从原始数据聚合UV/PV')
       
+      // 🚀 修复：优先使用parameters中的页面和按钮名称
+      const pageName = effectiveAnalysis.parameters?.pageName || effectiveAnalysis.pageName
+      const buttonName = effectiveAnalysis.parameters?.buttonName || effectiveAnalysis.buttonName
+      console.log('🔍 [ButtonClickSaveService] 提取的页面和按钮名称:', { pageName, buttonName })
+      
       for (const date of recentDates) {
         const dayData = chartData.filter(d => 
           dayjs(d.createdAt).format('YYYY-MM-DD') === date
         )
         
         if (dayData.length > 0) {
-          // 安全获取页面名称和按钮名称
-          const pageName = effectiveAnalysis.pageName || effectiveAnalysis.parameters?.pageName
-          const buttonName = effectiveAnalysis.buttonName || effectiveAnalysis.parameters?.buttonName
+          console.log(`🔍 [ButtonClickSaveService] ${date}: 处理${dayData.length}条数据，页面=${pageName}, 按钮=${buttonName}`)
           
           const buttonClickData = dayData.filter(item => 
             item.type === 'click' && 
             item.pageName === pageName && 
             item.content === buttonName
           )
+          
+          console.log(`🔍 [ButtonClickSaveService] ${date}: 过滤后${buttonClickData.length}条匹配数据`)
           
           let uv = 0
           let pv = 0
@@ -117,6 +133,7 @@ export class ButtonClickAnalysisSaveService {
           })
           
           uv = uvSet.size
+          console.log(`🔍 [ButtonClickSaveService] ${date}: UV=${uv}, PV=${pv}`)
           
           initialData[date] = {
             metrics: {
@@ -181,9 +198,9 @@ export class ButtonClickAnalysisSaveService {
   buildChartConfig(effectiveAnalysis, chartType, storeState) {
     console.log('🔧 [ButtonClickSaveService] 构建图表配置')
     
-    // 安全获取页面名称和按钮名称，避免 undefined
-    const pageName = effectiveAnalysis.pageName || effectiveAnalysis.parameters?.pageName || '未知页面'
-    const buttonName = effectiveAnalysis.buttonName || effectiveAnalysis.parameters?.buttonName || '未知按钮'
+    // 🚀 修复：优先使用parameters中的页面和按钮名称
+    const pageName = effectiveAnalysis.parameters?.pageName || effectiveAnalysis.pageName || '未知页面'
+    const buttonName = effectiveAnalysis.parameters?.buttonName || effectiveAnalysis.buttonName || '未知按钮'
     
     const config = {
       chartType,
@@ -245,9 +262,9 @@ export class ButtonClickAnalysisSaveService {
   buildChartInfo(effectiveAnalysis, chartType) {
     console.log('🔧 [ButtonClickSaveService] 构建图表信息')
     
-    // 安全获取页面名称和按钮名称，避免 undefined
-    const pageName = effectiveAnalysis.pageName || effectiveAnalysis.parameters?.pageName || '未知页面'
-    const buttonName = effectiveAnalysis.buttonName || effectiveAnalysis.parameters?.buttonName || '未知按钮'
+    // 🚀 修复：优先使用parameters中的页面和按钮名称
+    const pageName = effectiveAnalysis.parameters?.pageName || effectiveAnalysis.pageName || '未知页面'
+    const buttonName = effectiveAnalysis.parameters?.buttonName || effectiveAnalysis.buttonName || '未知按钮'
     
     const timestamp = dayjs().format('MM-DD HH:mm')
     const chartName = `分析页面"${pageName}"的"${buttonName}"按钮点击情况 (${timestamp})`

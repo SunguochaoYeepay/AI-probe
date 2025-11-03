@@ -28,7 +28,8 @@ export function useChartSave() {
       console.groupCollapsed('💾 [Home] 保存图表 - 优化版本')
       console.time('saveChart')
       const chartData = store.state.chartConfig.data
-      const effectiveAnalysis = store.state.analysisResult || store.state.chartConfig.analysis || {}
+      // 🚀 修复：优先使用 chartConfig.analysis，确保按钮点击分析等特殊类型正确识别
+      const effectiveAnalysis = store.state.chartConfig.analysis || store.state.analysisResult || {}
       // 🚀 修复：优先使用 chartConfig.analysis 中的 chartType，确保按钮点击分析等特殊类型不被覆盖
       const chartType = store.state.chartConfig?.analysis?.chartType || effectiveAnalysis.chartType
       

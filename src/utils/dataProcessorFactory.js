@@ -56,6 +56,9 @@ export class ButtonClickDataProcessor extends BaseDataProcessor {
         
         this.logger.log('🔍 [ButtonClickDataProcessor] 数据项标准化:', {
           originalItem: item,
+          itemKeys: Object.keys(item),
+          hasMetrics: item.metrics !== undefined,
+          metricsKeys: item.metrics ? Object.keys(item.metrics) : [],
           extractedPv: pv,
           extractedUv: uv,
           date: item.date || item.createdAt
