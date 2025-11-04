@@ -584,8 +584,16 @@ export function useChartSave() {
     
     // 漏斗图数据是对象类型，直接保存
     if (chartData && typeof chartData === 'object' && chartData.steps) {
-      // 为每个日期创建相同的漏斗图数据
-      for (const date of recentDates) {
+      // 🚀 修复：漏斗图也应该保存7天数据，生成最近7天的日期范围
+      const dates = []
+      const endDate = dayjs()
+      for (let i = 6; i >= 0; i--) {
+        dates.push(endDate.subtract(i, 'day').format('YYYY-MM-DD'))
+      }
+      console.log('📅 [Home] 漏斗图生成7天日期范围:', dates)
+      
+      // 为每个日期创建相同的漏斗图数据（因为漏斗图是基于整体数据的聚合结果）
+      for (const date of dates) {
         // 🚀 修复：确保所有数据都可以被序列化
         initialData[date] = {
           date: date,

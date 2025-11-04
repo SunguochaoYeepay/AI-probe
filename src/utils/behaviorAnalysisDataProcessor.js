@@ -609,31 +609,52 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     for (const step of customSteps) {
       if (step.type === 'page') {
         // 页面访问匹配
-        if (step.pageBehavior === '任意' || step.pageBehavior === dataItem.pageBehavior) {
-          if (step.targetPage === '任意页面' || step.targetPage === dataItem.pageName) {
-            matchedSteps.push(step.name)
-          }
+        const pageBehaviorMatch = step.pageBehavior === '任意' || step.pageBehavior === dataItem.pageBehavior
+        const pageNameMatch = step.targetPage === '任意页面' || step.targetPage === dataItem.pageName
+        
+        if (pageBehaviorMatch && pageNameMatch) {
+          matchedSteps.push(step.name)
+          console.log(`✅ [MatchSteps] 页面匹配成功: step=${step.name}, targetPage=${step.targetPage}, actualPage=${dataItem.pageName}`)
         }
       } else if (step.type === 'button') {
         // 🚀 修复：按钮点击步骤需要更精确的匹配
         // 只处理点击数据
         if (dataType === 'click') {
-          if (step.targetPage === '任意页面' || step.targetPage === dataItem.pageName) {
+          const pageMatch = step.targetPage === '任意页面' || step.targetPage === dataItem.pageName
+          
+          if (pageMatch) {
             // 检查是否有具体的按钮操作配置
             if (step.buttonOperation && step.buttonOperation !== '任意') {
               // 如果有具体按钮操作，需要精确匹配
               if (dataItem.content === step.buttonOperation) {
                 matchedSteps.push(step.name)
+                console.log(`✅ [MatchSteps] 按钮精确匹配成功: step=${step.name}, buttonOperation=${step.buttonOperation}`)
               }
             } else {
               // 如果没有具体按钮操作，使用内容条件匹配
               if (this.isContentConditionMatch(dataItem, step)) {
                 matchedSteps.push(step.name)
+                console.log(`✅ [MatchSteps] 按钮内容条件匹配成功: step=${step.name}`)
               }
             }
           }
         }
       }
+    }
+    
+    if (matchedSteps.length === 0 && customSteps.length > 0) {
+      // 调试：打印第一个步骤配置和第一个数据项的详细信息
+      console.log('🔍 [MatchSteps] 无匹配，调试信息:', {
+        stepType: customSteps[0]?.type,
+        stepConfig: customSteps[0],
+        dataType,
+        dataItem: {
+          type: dataItem.type,
+          pageName: dataItem.pageName,
+          pageBehavior: dataItem.pageBehavior,
+          content: dataItem.content
+        }
+      })
     }
     
     return matchedSteps

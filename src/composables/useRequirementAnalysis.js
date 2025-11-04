@@ -709,7 +709,7 @@ export function useRequirementAnalysis() {
       // 获取页面菜单数据
       const pageMenuData = store.state.projectConfig?.pageMenuData || null
       
-      const processedData = dataProcessorFactory.process(processorType, {
+      const processedData = await dataProcessorFactory.process(processorType, {
         visitData: visitData || [],
         clickData: clickData || []
       }, {
@@ -735,7 +735,7 @@ export function useRequirementAnalysis() {
       })
       
       // 生成图表
-      await generateChart(analysis, processedData, 'chart-container')
+      await generateChart(analysis, processedData, dateRange)
       
       // 保存图表配置到 store，包括漏斗步骤数据
       const chartConfig = {
