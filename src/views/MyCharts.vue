@@ -326,10 +326,15 @@ const filteredCharts = computed(() => {
 // 路由参数到分类的映射
 const categoryMapping = {
   'page-analysis': 'page',
-  'user-behavior': 'behavior', 
+  'user-behavior': 'behavior',
+  'query-condition-analysis': 'query',
+  'conversion-analysis': 'conversion',
+  'overview': 'overview',
+  // 兼容旧的路由参数
+  'click-analysis': 'behavior',
+  'query-analysis': 'query',
   'query-condition': 'query',
-  'conversion': 'conversion',
-  'overview': 'overview'
+  'conversion': 'conversion'
 }
 
 // 监听路由参数变化
@@ -379,8 +384,10 @@ const displayCharts = computed(() => {
           return config.chartType === 'button_click_analysis' || config.chartType === 'button_click_daily'
         case 'query-conditions':
           return config.chartType === 'query_condition_analysis'
+        case 'behavior-funnel':
+          return config.chartType === 'behavior_funnel'
         case 'conversion-funnel':
-          return config.chartType === 'behavior_funnel' || config.chartType === 'conversion_funnel'
+          return config.chartType === 'conversion_funnel' || config.chartType === 'behavior_funnel'
         default:
           return true
       }
@@ -773,14 +780,18 @@ const getDisplayChartName = (record) => {
 onMounted(async () => {
   await init()
   stats.value = await getStats()
-  // 从路由查询参数同步分类，例如 ?category=page-analysis|click-analysis|query-analysis|conversion|overview|all
+  // 从路由查询参数同步分类，例如 ?category=page-analysis|user-behavior|query-condition-analysis|conversion-analysis|overview|all
   const categoryMap = {
     'page-analysis': 'page',
+    'user-behavior': 'behavior',
+    'query-condition-analysis': 'query',
+    'conversion-analysis': 'conversion',
+    'overview': 'overview',
+    'all': 'all',
+    // 兼容旧的路由参数
     'click-analysis': 'behavior',
     'query-analysis': 'query',
-    'conversion': 'conversion',
-    'overview': 'overview',
-    'all': 'all'
+    'conversion': 'conversion'
   }
   const incoming = route.query.category
   if (typeof incoming === 'string' && categoryMap[incoming]) {
@@ -792,11 +803,15 @@ onMounted(async () => {
 watch(() => route.query.category, (val) => {
   const categoryMap = {
     'page-analysis': 'page',
+    'user-behavior': 'behavior',
+    'query-condition-analysis': 'query',
+    'conversion-analysis': 'conversion',
+    'overview': 'overview',
+    'all': 'all',
+    // 兼容旧的路由参数
     'click-analysis': 'behavior',
     'query-analysis': 'query',
-    'conversion': 'conversion',
-    'overview': 'overview',
-    'all': 'all'
+    'conversion': 'conversion'
   }
   if (typeof val === 'string' && categoryMap[val]) {
     activeCategory.value = categoryMap[val]

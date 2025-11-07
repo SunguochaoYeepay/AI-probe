@@ -46,82 +46,66 @@
         <span>创建图表</span>
       </a-menu-item>
 
-      <!-- 页面分析 -->
-      <a-sub-menu key="page-analysis">
+      <!-- 数据分析 -->
+      <a-sub-menu key="data-analysis">
         <template #icon>
-          <FileTextOutlined />
+          <BarChartOutlined />
         </template>
-        <template #title>页面分析</template>
-        <a-menu-item key="page-visits">
+        <template #title>数据分析</template>
+        
+        <!-- 页面分析 -->
+        <a-sub-menu key="page-analysis">
           <template #icon>
-            <BarChartOutlined />
+            <FileTextOutlined />
           </template>
-          <span>页面访问量</span>
-        </a-menu-item>
-        <a-menu-item key="button-clicks">
-          <template #icon>
-            <ThunderboltOutlined />
-          </template>
-          <span>按钮点击</span>
-        </a-menu-item>
-        <a-menu-item key="query-conditions">
-          <template #icon>
-            <SearchOutlined />
-          </template>
-          <span>查询条件分析</span>
-        </a-menu-item>
-      </a-sub-menu>
+          <template #title>页面分析</template>
+          <a-menu-item key="page-visits">
+            <template #icon>
+              <BarChartOutlined />
+            </template>
+            <span>页面访问量</span>
+          </a-menu-item>
+          <a-menu-item key="button-clicks">
+            <template #icon>
+              <ThunderboltOutlined />
+            </template>
+            <span>按钮点击</span>
+          </a-menu-item>
+          <a-menu-item key="query-conditions">
+            <template #icon>
+              <SearchOutlined />
+            </template>
+            <span>查询条件分析</span>
+          </a-menu-item>
+        </a-sub-menu>
 
-      <!-- 用户行为 -->
-      <a-sub-menu key="user-behavior">
-        <template #icon>
-          <UserOutlined />
-        </template>
-        <template #title>用户行为</template>
-        <a-menu-item key="user-journey">
+        <!-- 用户行为 -->
+        <a-sub-menu key="user-behavior">
           <template #icon>
-            <NodeIndexOutlined />
+            <UserOutlined />
           </template>
-          <span>用户路径</span>
-        </a-menu-item>
-        <a-menu-item key="user-duration">
-          <template #icon>
-            <ClockCircleOutlined />
-          </template>
-          <span>停留时长</span>
-        </a-menu-item>
-        <a-menu-item key="device-analysis">
-          <template #icon>
-            <MobileOutlined />
-          </template>
-          <span>设备分析</span>
-        </a-menu-item>
-      </a-sub-menu>
+          <template #title>用户行为</template>
+          <a-menu-item key="behavior-funnel">
+            <template #icon>
+              <FunnelPlotOutlined />
+            </template>
+            <span>转化漏斗</span>
+          </a-menu-item>
+        </a-sub-menu>
 
-      <!-- 转化分析 -->
-      <a-sub-menu key="conversion-analysis">
-        <template #icon>
-          <SwapOutlined />
-        </template>
-        <template #title>转化分析</template>
-        <a-menu-item key="conversion-funnel">
+        <!-- 转化分析 -->
+        <a-sub-menu key="conversion-analysis">
           <template #icon>
-            <FunnelPlotOutlined />
+            <SwapOutlined />
           </template>
-          <span>转化漏斗</span>
-        </a-menu-item>
-        <a-menu-item key="click-conversion">
-          <template #icon>
-            <ThunderboltOutlined />
-          </template>
-          <span>点击转化</span>
-        </a-menu-item>
-        <a-menu-item key="flow-analysis">
-          <template #icon>
-            <ApartmentOutlined />
-          </template>
-          <span>流程分析</span>
-        </a-menu-item>
+          <template #title>转化分析</template>
+          <a-menu-item key="conversion-funnel">
+            <template #icon>
+              <FunnelPlotOutlined />
+            </template>
+            <span>转化漏斗</span>
+          </a-menu-item>
+        </a-sub-menu>
       </a-sub-menu>
 
       <!-- 设置 -->
@@ -145,16 +129,10 @@ import {
   DashboardOutlined,
   FileTextOutlined,
   UserOutlined,
-  NodeIndexOutlined,
-  ClockCircleOutlined,
-  MobileOutlined,
   SwapOutlined,
   FunnelPlotOutlined,
   ThunderboltOutlined,
-  ApartmentOutlined,
   SettingOutlined,
-  UnorderedListOutlined,
-  DatabaseOutlined,
   PlusOutlined,
   SearchOutlined
 } from '@ant-design/icons-vue'
@@ -172,7 +150,7 @@ const props = defineProps({
 // 响应式数据
 const collapsed = ref(false)
 const selectedKeys = ref([props.currentPage])
-const openKeys = ref(['page-analysis'])
+const openKeys = ref(['data-analysis', 'page-analysis'])
 
 // 监听currentPage变化
 watch(() => props.currentPage, (newPage) => {
@@ -201,26 +179,16 @@ const onMenuClick = ({ key }) => {
       router.push('/my-charts?category=page-analysis&type=' + key)
       break
     case 'button-clicks':
-      router.push('/my-charts?category=click-analysis&type=' + key)
+      router.push('/my-charts?category=user-behavior&type=' + key)
       break
     case 'query-conditions':
-      router.push('/my-charts?category=query-analysis&type=' + key)
+      router.push('/my-charts?category=query-condition-analysis&type=' + key)
       break
-    case 'user-journey':
-    case 'user-duration':
-    case 'device-analysis':
-      router.push('/my-charts?category=click-analysis&type=' + key)
+    case 'behavior-funnel':
+      router.push('/my-charts?category=user-behavior&type=behavior_funnel')
       break
     case 'conversion-funnel':
-    case 'click-conversion':
-    case 'flow-analysis':
-      router.push('/my-charts?category=conversion&type=' + key)
-      break
-    case 'chart-management':
-      router.push('/my-charts?tab=management')
-      break
-    case 'data-source':
-      router.push('/project-config')
+      router.push('/my-charts?category=conversion-analysis&type=conversion_funnel')
       break
     case 'settings':
       router.push('/settings')
