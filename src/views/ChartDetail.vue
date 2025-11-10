@@ -124,7 +124,7 @@
         
         <a-table
           :columns="tableColumns"
-          :data-source="chartData"
+          :data-source="displayTableData"
           :pagination="{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }"
           size="small"
           :scroll="{ x: 800 }"
@@ -160,6 +160,7 @@ import {
 import * as echarts from 'echarts'
 import dayjs from 'dayjs'
 import { useChartManager } from '@/composables/useChartManager'
+import { dataPreloadService } from '@/services/dataPreloadService'
 import AppLayout from '@/components/AppLayout.vue'
 import { ChartGenerator } from '@/utils/chartGenerator'
 import { backendChartService as chartDB } from '@/services/backendChartService'
@@ -182,6 +183,8 @@ const dateRange = ref(null)
 const chartInstance = ref(null)
 const deleteModal = ref(false)
 const selectedTimeRange = ref('7') // 默认7天，会在loadData中根据图表配置更新
+const funnelDataRef = ref(null)
+const behaviorFunnelCache = new Map()
 
 // 计算属性
 const needUpdate = computed(() => {
@@ -215,6 +218,18 @@ const dynamicCurrentPage = computed(() => {
 })
 
 const keyMetrics = computed(() => {
+  const chartType = chart.value?.config?.chartType
+  if (chartType === 'behavior_funnel' || chartType === 'conversion_funnel') {
+    if (!funnelDataRef.value) {
+      return {}
+    }
+    return {
+      totalParticipants: funnelDataRef.value.totalParticipants || 0,
+      overallConversionRate: funnelDataRef.value.overallConversionRate || 0,
+      averageTotalDuration: funnelDataRef.value.averageTotalDuration || 0
+    }
+  }
+
   if (!chartData.value || chartData.value.length === 0) {
     return {}
   }
@@ -225,6 +240,39 @@ const keyMetrics = computed(() => {
 })
 
 const tableColumns = computed(() => {
+  const chartType = chart.value?.config?.chartType
+  if (chartType === 'behavior_funnel' || chartType === 'conversion_funnel') {
+    return [
+      {
+        title: '步骤',
+        dataIndex: 'stepName',
+        key: 'stepName',
+        width: 200
+      },
+      {
+        title: '参与人数 (UV)',
+        dataIndex: 'participantCount',
+        key: 'participantCount',
+        align: 'right',
+        width: 140
+      },
+      {
+        title: '转化率',
+        dataIndex: 'conversionRate',
+        key: 'conversionRate',
+        align: 'right',
+        width: 120
+      },
+      {
+        title: '平均耗时(秒)',
+        dataIndex: 'averageDuration',
+        key: 'averageDuration',
+        align: 'right',
+        width: 140
+      }
+    ]
+  }
+
   const columns = [
     {
       title: '日期',
@@ -251,10 +299,28 @@ const tableColumns = computed(() => {
   return columns
 })
 
+const displayTableData = computed(() => {
+  const chartType = chart.value?.config?.chartType
+  if (chartType === 'behavior_funnel' || chartType === 'conversion_funnel') {
+    if (!funnelDataRef.value || !Array.isArray(funnelDataRef.value.steps)) {
+      return []
+    }
+    return funnelDataRef.value.steps.map((step, index) => ({
+      key: step.stepId || `step_${index}`,
+      stepName: step.stepName,
+      participantCount: step.participantCount || 0,
+      conversionRate: typeof step.conversionRate === 'number' ? `${step.conversionRate}%` : (step.conversionRate || '0%'),
+      averageDuration: step.averageDuration || 0
+    }))
+  }
+  return chartData.value || []
+})
+
 // 方法
 const loadData = async () => {
   try {
     loading.value = true
+    funnelDataRef.value = null
     
     // 等待数据库初始化完成
     await waitForDatabaseInit()
@@ -342,10 +408,14 @@ const renderChart = async () => {
     // 准备数据（转换格式）
     const transformedData = await transformChartData(chartData.value, chart.value.config, chart.value)
     
+    const transformedCount = Array.isArray(transformedData)
+      ? transformedData.length
+      : (transformedData?.steps ? transformedData.steps.length : 0)
+
     console.log('🎯 准备渲染图表:', {
       chartType: chart.value.config.chartType,
       originalDataCount: chartData.value.length,
-      transformedDataCount: transformedData.length,
+      transformedDataCount: transformedCount,
       transformedData: transformedData
     })
     
@@ -491,6 +561,71 @@ const renderChart = async () => {
   
   // 响应式
   window.addEventListener('resize', handleResize)
+}
+
+const generateBehaviorFunnelData = async (config, chartInfo) => {
+  if (!dateRange.value) {
+    console.warn('⚠️ [ChartDetail] 无日期范围信息，无法重新聚合漏斗数据')
+    return null
+  }
+
+  const startDate = dateRange.value.startDate
+  const endDate = dateRange.value.endDate
+  if (!startDate || !endDate) {
+    console.warn('⚠️ [ChartDetail] 日期范围不完整，无法重新聚合漏斗数据')
+    return null
+  }
+
+  const visitPointId = config.dataSource?.visitPointId || config.dataSource?.selectedPointId
+  const clickPointId = config.dataSource?.clickPointId || null
+
+  if (!visitPointId) {
+    console.warn('⚠️ [ChartDetail] 未配置访问埋点ID，无法重新聚合漏斗数据')
+    return null
+  }
+
+  const cacheKey = `${visitPointId || 'na'}_${clickPointId || 'none'}_${startDate}_${endDate}`
+  if (behaviorFunnelCache.has(cacheKey)) {
+    return behaviorFunnelCache.get(cacheKey)
+  }
+
+  const range = [dayjs(startDate), dayjs(endDate)]
+  const visitData = await dataPreloadService.getMultiDayCachedData(range, visitPointId)
+  let clickData = []
+  if (clickPointId) {
+    clickData = await dataPreloadService.getMultiDayCachedData(range, clickPointId)
+  }
+
+  if ((!visitData || visitData.length === 0) && (!clickData || clickData.length === 0)) {
+    console.warn('⚠️ [ChartDetail] 漏斗日期范围内无可用数据', { startDate, endDate })
+    return null
+  }
+
+  const { dataProcessorFactory } = await import('@/utils/dataProcessorFactory')
+
+  const funnelOptions = {
+    format: 'raw',
+    analysisType: 'behavior_funnel',
+    dateRange: { startDate, endDate },
+    funnelName: chartInfo?.name || '用户行为转化漏斗',
+    funnelSteps: config.funnelSteps || chartInfo?.config?.funnelSteps || null,
+    analysis: chartInfo?.config?.analysis || chartInfo?.analysis || {
+      chartType: config.chartType,
+      description: chartInfo?.description || chartInfo?.name || '用户行为转化漏斗'
+    },
+    pageMenuData: chartInfo?.config?.pageMenuData || null
+  }
+
+  const funnelData = await dataProcessorFactory.process('behavior_funnel_analysis', {
+    visitData: visitData || [],
+    clickData: clickData || []
+  }, funnelOptions)
+
+  if (funnelData) {
+    behaviorFunnelCache.set(cacheKey, funnelData)
+  }
+
+  return funnelData
 }
 
 const transformChartData = async (data, config, chartInfo = null) => {
@@ -723,8 +858,18 @@ const transformChartData = async (data, config, chartInfo = null) => {
 
     // 🚀 特殊处理：漏斗图直接使用保存的数据
     if (config.chartType === 'behavior_funnel' || config.chartType === 'conversion_funnel') {
-      console.log('🔧 [ChartDetail] 漏斗图特殊处理：直接使用保存的漏斗图数据')
+      try {
+        const dynamicFunnelData = await generateBehaviorFunnelData(config, chartInfo)
+        if (dynamicFunnelData) {
+          console.log('✅ [ChartDetail] 动态重新聚合漏斗数据成功')
+          funnelDataRef.value = dynamicFunnelData
+          return dynamicFunnelData
+        }
+      } catch (error) {
+        console.error('❌ [ChartDetail] 动态聚合漏斗数据失败，尝试使用保存数据:', error)
+      }
       
+      console.log('🔧 [ChartDetail] 漏斗图回退到保存的漏斗数据')
       // 检查是否有保存的漏斗图数据
       if (format === 'aggregated' && filteredData.length > 0) {
         // 从保存的数据中提取漏斗图数据
@@ -754,7 +899,8 @@ const transformChartData = async (data, config, chartInfo = null) => {
             funnelSteps: firstDataItem.metadata?.funnelSteps || null
           }
           
-          console.log('✅ [ChartDetail] 直接使用保存的漏斗图数据:', funnelData)
+          console.log('✅ [ChartDetail] 使用保存的漏斗图数据:', funnelData)
+          funnelDataRef.value = funnelData
           return funnelData
         } else {
           console.log('🔍 [ChartDetail] 数据格式不匹配，尝试其他格式')
@@ -762,17 +908,18 @@ const transformChartData = async (data, config, chartInfo = null) => {
           // 尝试其他可能的数据格式
           if (firstDataItem.steps && firstDataItem.funnelId) {
             console.log('🔍 [ChartDetail] 找到直接格式的漏斗图数据')
+            funnelDataRef.value = firstDataItem
             return firstDataItem
           }
         }
       }
       
       // 如果没有保存的漏斗图数据，提示用户
-      console.warn('⚠️ [ChartDetail] 没有找到保存的漏斗图数据')
+      console.warn('⚠️ [ChartDetail] 没有找到漏斗图数据')
       console.log('🔍 [ChartDetail] 建议：请重新生成漏斗图以保存数据')
       
       // 返回空的漏斗图数据
-      return {
+      const emptyFunnel = {
         funnelId: 'empty_funnel',
         funnelName: '用户行为转化漏斗',
         steps: [],
@@ -781,6 +928,8 @@ const transformChartData = async (data, config, chartInfo = null) => {
         averageTotalDuration: 0,
         funnelSteps: null
       }
+      funnelDataRef.value = emptyFunnel
+      return emptyFunnel
     }
 
     // 使用统一的数据处理逻辑
@@ -1098,6 +1247,8 @@ const handleResize = () => {
 }
 
 const refreshData = async () => {
+  behaviorFunnelCache.clear()
+  funnelDataRef.value = null
   await loadData()
   message.success('数据已刷新')
 }
@@ -1107,6 +1258,8 @@ const updateNow = async () => {
     refreshing.value = true
     // 强制更新，包括今天的数据
     await updateSingleChart(route.params.id, null, true)
+    behaviorFunnelCache.clear()
+    funnelDataRef.value = null
     await loadData()
   } catch (error) {
     console.error('更新失败:', error)
@@ -1134,7 +1287,7 @@ const exportChart = () => {
 
 const exportData = () => {
   // 导出CSV
-  const csv = convertToCSV(chartData.value)
+  const csv = convertToCSV(displayTableData.value, chart.value?.config?.chartType)
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
@@ -1144,8 +1297,22 @@ const exportData = () => {
   message.success('数据导出成功')
 }
 
-const convertToCSV = (data) => {
+const convertToCSV = (data, chartType) => {
   if (!data || data.length === 0) return ''
+
+  if (chartType === 'behavior_funnel' || chartType === 'conversion_funnel') {
+    const headers = ['步骤', '参与人数 (UV)', '转化率', '平均耗时(秒)']
+    const rows = data.map(item => {
+      const values = [
+        `"${item.stepName || ''}"`,
+        item.participantCount ?? 0,
+        item.conversionRate ?? '0%',
+        item.averageDuration ?? 0
+      ]
+      return values.join(',')
+    })
+    return [headers.join(','), ...rows].join('\n')
+  }
   
   // 表头
   const headers = ['日期', ...Object.keys(data[0].metrics || {})]
@@ -1323,6 +1490,7 @@ const onTimeRangeChange = async (e) => {
     console.log(`📊 [ChartDetail] 新日期范围: ${startDate.format('YYYY-MM-DD')} 至 ${endDate.format('YYYY-MM-DD')}`)
     
     // 获取新时间范围的数据
+    funnelDataRef.value = null
     const result = await getChartData(route.params.id, {
       startDate: startDate.format('YYYY-MM-DD'),
       endDate: endDate.format('YYYY-MM-DD')

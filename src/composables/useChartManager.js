@@ -109,12 +109,26 @@ export function useChartManager() {
         tags: chartConfig.tags || [],
         config: {
           chartType: chartConfig.chartType,
-          dataSource: {
-            mode: chartConfig.mode || 'single',
-            projectId: store.state.projectConfig.projectId || store.state.apiConfig.projectId,
-            selectedPointId: chartConfig.selectedPointId || store.state.apiConfig.selectedPointId,
-            埋点类型: chartConfig.埋点类型 || '访问'
-          },
+          dataSource: (() => {
+            const resolved = {
+              mode: chartConfig.dataSource?.mode || chartConfig.mode || 'single',
+              projectId: chartConfig.dataSource?.projectId || store.state.projectConfig.projectId || store.state.apiConfig.projectId,
+              selectedPointId: chartConfig.dataSource?.selectedPointId || chartConfig.selectedPointId || store.state.apiConfig.selectedPointId,
+              埋点类型: chartConfig.dataSource?.埋点类型 || chartConfig.埋点类型 || '访问'
+            }
+            if (chartConfig.dataSource?.visitPointId) {
+              resolved.visitPointId = chartConfig.dataSource.visitPointId
+            } else if (!resolved.visitPointId) {
+              resolved.visitPointId = resolved.selectedPointId
+            }
+            if (chartConfig.dataSource?.clickPointId) {
+              resolved.clickPointId = chartConfig.dataSource.clickPointId
+              if (!chartConfig.dataSource?.埋点类型 && !chartConfig.埋点类型) {
+                resolved.埋点类型 = '访问+点击'
+              }
+            }
+            return resolved
+          })(),
           filters: chartConfig.filters || {},
           dimensions: chartConfig.dimensions || ['date'],
           metrics: chartConfig.metrics || ['uv', 'pv'],
@@ -125,7 +139,8 @@ export function useChartManager() {
           // 🚀 修复：保存按钮点击分析参数
           buttonParams: chartConfig.buttonParams || null,
           // 🚀 修复：保存漏斗步骤配置
-          funnelSteps: chartConfig.funnelSteps || null
+          funnelSteps: chartConfig.funnelSteps || null,
+          analysis: chartConfig.analysis || null
         },
         updateStrategy: {
           enabled: true,

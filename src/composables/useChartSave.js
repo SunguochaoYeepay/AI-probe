@@ -119,6 +119,20 @@ export function useChartSave() {
       }
       
       
+      const projectConfig = store.state.projectConfig || {}
+      const visitPointId = projectConfig.visitBuryPointId || store.state.apiConfig.selectedPointId
+      const clickPointId = projectConfig.clickBuryPointId || null
+      const dataSourceConfig = {
+        mode: clickPointId ? 'dual' : (store.state.analysisMode || 'single'),
+        projectId: store.state.apiConfig.projectId,
+        selectedPointId: visitPointId,
+        visitPointId: visitPointId,
+        埋点类型: clickPointId ? '访问+点击' : '访问'
+      }
+      if (clickPointId) {
+        dataSourceConfig.clickPointId = clickPointId
+      }
+      
       // 🚀 修复：漏斗图使用正确的分类
       let chartCategory = getCategoryByAnalysisType(store.state.apiConfig.selectedAnalysisType || 'page_analysis')
       if (chartType === 'behavior_funnel' || chartType === 'conversion_funnel') {
@@ -130,9 +144,10 @@ export function useChartSave() {
         description: store.state.currentRequirement || effectiveAnalysis.description || chartName,
         category: chartCategory,
         chartType: chartType,
-        mode: store.state.analysisMode || 'single',
-        selectedPointId: store.state.apiConfig.selectedPointId,
-        埋点类型: (store.state.analysisMode || 'single') === 'dual' ? '访问+点击' : '访问',
+        mode: dataSourceConfig.mode,
+        selectedPointId: dataSourceConfig.selectedPointId,
+        埋点类型: dataSourceConfig.埋点类型,
+        dataSource: dataSourceConfig,
         filters: {
           pageName: extractPageNames(store.state.currentRequirement)[0] || null
         },
@@ -152,6 +167,30 @@ export function useChartSave() {
           pendingDays: uniqueDates.length - recentDates.length,
           lastDataUpdate: recentDates[recentDates.length - 1] || null
         }
+      }
+
+      if (chartType === 'behavior_funnel' || chartType === 'conversion_funnel') {
+        if (!chartConfig.funnelSteps) {
+          if (chartData?.funnelSteps) {
+            chartConfig.funnelSteps = chartData.funnelSteps
+          } else if (store.state.chartConfig?.analysis?.funnelSteps) {
+            chartConfig.funnelSteps = store.state.chartConfig.analysis.funnelSteps
+          } else if (effectiveAnalysis?.funnelSteps) {
+            chartConfig.funnelSteps = effectiveAnalysis.funnelSteps
+          } else if (effectiveAnalysis?.parameters?.funnelSteps) {
+            chartConfig.funnelSteps = effectiveAnalysis.parameters.funnelSteps
+          } else {
+            chartConfig.funnelSteps = null
+          }
+        }
+      }
+
+      chartConfig.analysis = {
+        chartType,
+        description: chartConfig.description,
+        parameters: effectiveAnalysis?.parameters || {},
+        intent: effectiveAnalysis?.intent || store.state.apiConfig?.selectedAnalysisType || '',
+        funnelSteps: chartConfig.funnelSteps || null
       }
       
       // 保存特殊参数
@@ -610,7 +649,11 @@ export function useChartSave() {
             funnelName: chartData.funnelName || '',
             chartType: 'behavior_funnel',
             // 🚀 修复：保存漏斗步骤配置
-            funnelSteps: chartData.funnelSteps || null
+            funnelSteps: chartData.funnelSteps || null,
+            dateRange: {
+              startDate: dates[0],
+              endDate: dates[dates.length - 1]
+            }
           }
         }
       }
