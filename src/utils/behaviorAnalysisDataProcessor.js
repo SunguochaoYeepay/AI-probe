@@ -419,6 +419,7 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
     
     // 1. 根据自定义步骤配置分析数据
     const stepStats = new Map()
+    const userStepTimeline = new Map()
     
     // 初始化步骤统计
     customSteps.forEach((step, index) => {
@@ -440,6 +441,22 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
       visitDataSample: visitData.slice(0, 3),
       clickDataSample: clickData.slice(0, 3)
     })
+
+    const recordUserStep = (userId, stepName, rawTimestamp) => {
+      if (!userId || !stepStats.has(stepName) || !rawTimestamp) return
+      const timeObj = new Date(rawTimestamp)
+      if (Number.isNaN(timeObj.getTime())) return
+      const stats = stepStats.get(stepName)
+      const entry = {
+        stepName,
+        stepOrder: stats.stepOrder,
+        timestamp: timeObj
+      }
+      if (!userStepTimeline.has(userId)) {
+        userStepTimeline.set(userId, [])
+      }
+      userStepTimeline.get(userId).push(entry)
+    }
     
     // 统计访问数据 - 计算平均停留时间
     let totalVisitMatches = 0
@@ -483,6 +500,8 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
             stats.totalDuration += duration
             stats.durations.push(duration)
           }
+
+          recordUserStep(userId, stepName, visit.createdAt || visit.timestamp)
         }
       })
     })
@@ -524,8 +543,7 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
             stats.participantCount++
           }
           
-          // 点击数据没有停留时间，使用默认值
-          stats.durations.push(0)
+        recordUserStep(userId, stepName, click.createdAt || click.timestamp)
         }
       })
     })
@@ -536,6 +554,37 @@ export class BehaviorAnalysisDataProcessor extends BaseDataProcessor {
         name,
         participantCount: stats.participantCount
       }))
+    })
+
+    // 根据用户步骤时间线补充步骤间耗时
+    userStepTimeline.forEach(entries => {
+      if (!entries || entries.length === 0) return
+      entries.sort((a, b) => a.timestamp - b.timestamp)
+
+      const earliestPerStep = new Map()
+      for (const entry of entries) {
+        if (!earliestPerStep.has(entry.stepName) ||
+          entry.timestamp < earliestPerStep.get(entry.stepName).timestamp) {
+          earliestPerStep.set(entry.stepName, entry)
+        }
+      }
+
+      const orderedEntries = Array.from(earliestPerStep.values())
+        .sort((a, b) => a.stepOrder - b.stepOrder)
+
+      for (let i = 1; i < orderedEntries.length; i++) {
+        const prev = orderedEntries[i - 1]
+        const current = orderedEntries[i]
+        const durationSeconds = Math.max(
+          0,
+          Math.round((current.timestamp - prev.timestamp) / 1000)
+        )
+        const stats = stepStats.get(current.stepName)
+        if (stats) {
+          stats.totalDuration += durationSeconds
+          stats.durations.push(durationSeconds)
+        }
+      }
     })
     
     // 3. 转换为数组并排序
