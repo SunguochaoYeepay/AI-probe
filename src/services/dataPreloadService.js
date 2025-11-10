@@ -75,12 +75,20 @@ class DataPreloadService {
             console.log(`🔍 检查后端SQLite: ${date} - 埋点 ${pointId}...`)
             
             // 检查后端SQLite是否有该日期该埋点的数据
-            const hasData = await this.getBackendCachedData(date, pointId)
-            if (hasData && hasData.length > 0) {
-              console.log(`  ✅ 后端SQLite已有数据 (${hasData.length}条)`)
-              successCount++
-            } else {
-              console.log(`  ⚠️ 后端SQLite无数据，等待后端预加载服务处理`)
+            try {
+              const hasData = await this.getBackendCachedData(date, pointId)
+              if (hasData && hasData.length > 0) {
+                console.log(`  ✅ 后端SQLite已有数据 (${hasData.length}条)`)
+                successCount++
+              } else {
+                console.log(`  ⚠️ 后端SQLite数据为空`)
+              }
+            } catch (error) {
+              if (error.isNotFound) {
+                console.log(`  ⚠️ 后端SQLite无数据，等待后端预加载服务处理`)
+              } else {
+                console.error(`  ❌ 检查后端缓存失败:`, error)
+              }
             }
             
             taskIndex++
@@ -232,14 +240,21 @@ class DataPreloadService {
       const cachedLatestTime = Math.max(...cacheData.data.map(d => new Date(d.createdAt).getTime()))
       
       // 🚀 修复：不再直接调用API，只检查后端SQLite缓存
-      const response = await this.getBackendCachedData(date, selectedPointId)
-      if (!response || response.length === 0) {
-        return false // 后端无数据，认为需要更新
-      }
-      
-      const apiData = response || []
-      if (apiData.length === 0) {
-        return false
+      try {
+        const response = await this.getBackendCachedData(date, selectedPointId)
+        if (!response || response.length === 0) {
+          return false // 后端无数据，认为需要更新
+        }
+        
+        const apiData = response || []
+        if (apiData.length === 0) {
+          return false
+        }
+      } catch (error) {
+        if (error.isNotFound) {
+          return false // 后端缓存不存在，认为需要更新
+        }
+        throw error // 其他错误重新抛出
       }
       
       const apiLatestTime = Math.max(...apiData.map(d => new Date(d.createdAt).getTime()))
@@ -308,14 +323,22 @@ class DataPreloadService {
       console.log(`🔍 检查后端SQLite缓存: ${date} - 埋点 ${pointId}...`)
       
       // 🚀 配置统一化：只检查后端SQLite缓存，不调用API
-      const cachedData = await this.getBackendCachedData(date, pointId)
-      
-      if (!cachedData || cachedData.length === 0) {
-        console.log(`⚠️ 后端SQLite无 ${date} - 埋点 ${pointId} 数据，跳过预加载`)
-        return
-      }
+      try {
+        const cachedData = await this.getBackendCachedData(date, pointId)
+        
+        if (!cachedData || cachedData.length === 0) {
+          console.log(`⚠️ 后端SQLite数据为空: ${date} - 埋点 ${pointId}`)
+          return
+        }
 
-      console.log(`✅ 后端SQLite已有 ${date} - 埋点 ${pointId} 数据 (${cachedData.length}条)`)
+        console.log(`✅ 后端SQLite已有 ${date} - 埋点 ${pointId} 数据 (${cachedData.length}条)`)
+      } catch (error) {
+        if (error.isNotFound) {
+          console.log(`⚠️ 后端SQLite无 ${date} - 埋点 ${pointId} 数据，跳过预加载`)
+          return
+        }
+        throw error
+      }
       
     } catch (error) {
       console.error(`检查后端缓存 ${date} - 埋点 ${pointId} 失败:`, error)
@@ -341,20 +364,29 @@ class DataPreloadService {
     console.log(`🔍 从后端SQLite获取数据: ${date} - 埋点 ${pointId}...`)
     
     // 1. 优先从后端SQLite获取
-    const cachedData = await this.getBackendCachedData(date, pointId)
-    
-    if (cachedData && cachedData.length > 0) {
-      console.log(`✅ 从后端SQLite获取到 ${cachedData.length} 条数据`)
-      return cachedData
-    }
-
-    // 2. 后端SQLite无数据，直接调用API作为备用方案
-    console.log(`⚠️ 后端SQLite无数据，直接调用API获取: ${date} - 埋点 ${pointId}`)
-    const apiData = await this.fetchDataFromAPI(date, pointId)
-    
-    if (apiData && apiData.length > 0) {
-      console.log(`✅ 从API获取到 ${apiData.length} 条数据`)
-      return apiData
+    try {
+      const cachedData = await this.getBackendCachedData(date, pointId)
+      
+      if (cachedData && cachedData.length > 0) {
+        console.log(`✅ 从后端SQLite获取到 ${cachedData.length} 条数据`)
+        return cachedData
+      }
+      
+      // 后端缓存存在但数据为空
+      console.log(`⚠️ 后端SQLite数据为空: ${date} - 埋点 ${pointId}`)
+    } catch (error) {
+      if (error.isNotFound) {
+        // 后端缓存不存在，使用API作为备用方案
+        console.log(`⚠️ 后端SQLite无缓存，直接调用API获取: ${date} - 埋点 ${pointId}`)
+        const apiData = await this.fetchDataFromAPI(date, pointId)
+        
+        if (apiData && apiData.length > 0) {
+          console.log(`✅ 从API获取到 ${apiData.length} 条数据`)
+          return apiData
+        }
+      } else {
+        throw error
+      }
     }
 
     console.log(`❌ 无法获取 ${date} - 埋点 ${pointId} 的数据`)
@@ -562,18 +594,26 @@ class DataPreloadService {
     try {
       // 1. 优先从后端数据库获取
       console.log(`🔍 尝试从后端数据库获取 ${date} - 埋点${selectedPointId} 数据...`)
-      const backendData = await this.getBackendCachedData(date, selectedPointId)
-      if (backendData && backendData.length > 0) {
-        console.log(`✅ 从后端数据库获取到 ${backendData.length} 条数据`)
-        return backendData
-      }
-
-      // 2. 后端无数据，直接调用API作为备用方案
-      console.log(`📡 后端无数据，直接调用API获取 ${date} - 埋点${selectedPointId} 数据...`)
-      const apiData = await this.fetchDataFromAPI(date, selectedPointId)
-      if (apiData && apiData.length > 0) {
-        console.log(`✅ 从API获取到 ${apiData.length} 条数据`)
-        return apiData
+      try {
+        const backendData = await this.getBackendCachedData(date, selectedPointId)
+        if (backendData && backendData.length > 0) {
+          console.log(`✅ 从后端数据库获取到 ${backendData.length} 条数据`)
+          return backendData
+        }
+        // 后端缓存存在但数据为空
+        console.log(`⚠️ 后端数据库数据为空: ${date} - 埋点${selectedPointId}`)
+      } catch (error) {
+        if (error.isNotFound) {
+          // 2. 后端缓存不存在，直接调用API作为备用方案
+          console.log(`📡 后端缓存不存在，直接调用API获取 ${date} - 埋点${selectedPointId} 数据...`)
+          const apiData = await this.fetchDataFromAPI(date, selectedPointId)
+          if (apiData && apiData.length > 0) {
+            console.log(`✅ 从API获取到 ${apiData.length} 条数据`)
+            return apiData
+          }
+        } else {
+          throw error
+        }
       }
 
       console.log(`📭 无法获取 ${date} - 埋点${selectedPointId} 的数据`)
@@ -586,29 +626,42 @@ class DataPreloadService {
 
   /**
    * 从后端数据库获取缓存数据
+   * @param {string} date - 日期
+   * @param {string|number} selectedPointId - 埋点ID
+   * @param {boolean} debugMode - 调试模式
+   * @returns {Array} 数据数组，如果404返回空数组
+   * @throws {Error} 如果是非404错误，抛出错误
    */
   async getBackendCachedData(date, selectedPointId, debugMode = false) {
     try {
       const response = await fetch(buildApiUrl(`/api/cache/raw-data/${selectedPointId}/${date}`))
       if (response.ok) {
         const data = await response.json()
-        console.log(`✅ 从后端获取到缓存数据: ${date} - 埋点${selectedPointId} (${data.length}条)`)
+        if (debugMode) {
+          console.log(`✅ 从后端获取到缓存数据: ${date} - 埋点${selectedPointId} (${data.length}条)`)
+        }
         return data || []
       } else if (response.status === 404) {
         // 数据不存在，在调试模式下输出日志
         if (debugMode) {
           console.log(`⚠️ 后端缓存无数据: ${date} - 埋点${selectedPointId} (404)`)
         }
-        return []
+        // 🚀 修复：404时抛出错误，让调用方知道缓存不存在
+        const error = new Error(`后端缓存不存在: ${date} - 埋点${selectedPointId}`)
+        error.status = 404
+        error.isNotFound = true
+        throw error
       } else {
         throw new Error(`HTTP ${response.status}`)
       }
     } catch (error) {
-      // 只在非404错误时输出警告
-      if (!error.message.includes('404')) {
-        console.warn(`从后端获取缓存数据失败: ${error.message}`)
+      // 如果是404错误，重新抛出
+      if (error.isNotFound || (error.message && error.message.includes('404'))) {
+        throw error
       }
-      return []
+      // 其他错误，输出警告并重新抛出
+      console.warn(`从后端获取缓存数据失败: ${error.message}`)
+      throw error
     }
   }
 

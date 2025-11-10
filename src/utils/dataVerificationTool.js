@@ -45,7 +45,17 @@ class DataVerificationTool {
 
       // 2. 获取后端SQLite数据
       console.log('📡 获取后端SQLite数据...')
-      const apiResponse = await dataPreloadService.getBackendCachedData(date, pointId)
+      let apiResponse = []
+      try {
+        apiResponse = await dataPreloadService.getBackendCachedData(date, pointId)
+      } catch (error) {
+        if (error.isNotFound) {
+          console.log(`  ⚠️ 后端缓存不存在: ${date} - 埋点${pointId}`)
+          apiResponse = []
+        } else {
+          throw error
+        }
+      }
       const apiFirstPage = apiResponse || []
       const apiTotal = apiResponse?.length || 0
       console.log(`  ✓ API总数: ${apiTotal} 条`)

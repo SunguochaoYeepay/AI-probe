@@ -70,10 +70,11 @@ class ScheduledUpdateService {
 
   /**
    * 检查并更新所有需要更新的图表
+   * @param {boolean} isManualUpdate - 是否为手动更新，手动更新时会更新最近7天
    */
-  async checkAndUpdate() {
+  async checkAndUpdate(isManualUpdate = false) {
     try {
-      console.log('🔍 检查需要更新的图表...')
+      console.log(`🔍 检查需要更新的图表... (${isManualUpdate ? '手动更新' : '定时更新'})`)
       
       // 获取所有激活的图表
       const charts = await chartDB.getAllCharts({ status: 'active' })
@@ -132,28 +133,69 @@ class ScheduledUpdateService {
           continue
         }
 
-        // 检查昨天的数据是否存在
-        const hasYesterdayData = await chartDB.hasChartData(chart.id, yesterday)
-        console.log(`  - 昨天数据 (${yesterday}): ${hasYesterdayData ? '存在' : '缺失'}`)
-        if (!hasYesterdayData) {
-          chartsToUpdate.push({
-            chart,
-            date: yesterday,
-            priority: 'high' // 昨天数据缺失，高优先级
-          })
-          console.log(`  - 添加更新任务: 昨天数据`)
-        }
+        if (isManualUpdate) {
+          // 🚀 手动更新：维护滚动窗口（最近7天），立即查看时确保数据完整
+          const windowSize = 7 // 滚动窗口大小：7天
+          const windowDates = []
+          for (let i = windowSize - 1; i >= 0; i--) {
+            windowDates.push(dayjs().subtract(i, 'day').format('YYYY-MM-DD'))
+          }
+          
+          console.log(`📅 手动更新：检查滚动窗口（最近${windowSize}天）: ${windowDates.join(', ')}`)
+          
+          for (const date of windowDates) {
+            const hasData = await chartDB.hasChartData(chart.id, date)
+            // 检查数据是否有效（不是空数据）
+            const isValidData = await this.hasValidChartData(chart.id, date)
 
-        // 检查今天的数据是否存在（新增）
-        const hasTodayData = await chartDB.hasChartData(chart.id, today)
-        console.log(`  - 今天数据 (${today}): ${hasTodayData ? '存在' : '缺失'}`)
-        if (!hasTodayData) {
-          chartsToUpdate.push({
-            chart,
-            date: today,
-            priority: 'high' // 今天数据缺失，也是高优先级
-          })
-          console.log(`  - 添加更新任务: 今天数据`)
+            console.log(`  - ${date} 数据: ${hasData ? '存在' : '缺失'}, 有效: ${isValidData ? '是' : '否'}`)
+
+            const alreadyQueued = chartsToUpdate.some(task => task.chart.id === chart.id && task.date === date)
+            if (!alreadyQueued) {
+              chartsToUpdate.push({
+                chart,
+                date,
+                priority: 'high', // 手动更新时都是高优先级
+                forceRefresh: true
+              })
+              if (hasData && isValidData) {
+                console.log(`  - 添加更新任务: ${date}（强制刷新）`)
+              } else {
+                console.log(`  - 添加更新任务: ${date}`)
+              }
+            }
+          }
+        } else {
+          // 🚀 定时更新：增量更新 - 每天只更新昨天的数据
+          // 这是正确的逻辑：历史数据持续累积，50天后应该有50天的数据
+          console.log(`📅 定时更新：增量更新昨天数据 (${yesterday})`)
+          
+          const hasYesterdayData = await chartDB.hasChartData(chart.id, yesterday)
+          const isValidYesterdayData = await this.hasValidChartData(chart.id, yesterday)
+          
+          console.log(`  - 昨天数据 (${yesterday}): ${hasYesterdayData ? '存在' : '缺失'}, 有效: ${isValidYesterdayData ? '是' : '否'}`)
+          
+          // 如果昨天的数据不存在或无效，添加到更新列表
+          if (!hasYesterdayData || !isValidYesterdayData) {
+            chartsToUpdate.push({
+              chart,
+              date: yesterday,
+              priority: 'high' // 昨天的数据，高优先级
+            })
+            console.log(`  - 添加更新任务: 昨天数据`)
+          }
+          
+          // 可选：检查今天的数据（如果今天已经有数据了）
+          const hasTodayData = await chartDB.hasChartData(chart.id, today)
+          if (!hasTodayData) {
+            // 今天的数据优先级较低，因为可能还在收集中
+            chartsToUpdate.push({
+              chart,
+              date: today,
+              priority: 'normal'
+            })
+            console.log(`  - 添加更新任务: 今天数据（可选）`)
+          }
         }
 
         // 检查是否有历史数据需要补充
@@ -176,11 +218,14 @@ class ScheduledUpdateService {
         return
       }
 
-      // 按优先级排序：高优先级（昨天数据）优先处理
+      // 按优先级排序：高优先级（今天、昨天）优先处理，然后是普通优先级，最后是低优先级
       chartsToUpdate.sort((a, b) => {
-        if (a.priority === 'high' && b.priority === 'low') return -1
-        if (a.priority === 'low' && b.priority === 'high') return 1
-        return 0
+        const priorityOrder = { 'high': 0, 'normal': 1, 'low': 2 }
+        const orderA = priorityOrder[a.priority] || 1
+        const orderB = priorityOrder[b.priority] || 1
+        if (orderA !== orderB) return orderA - orderB
+        // 相同优先级时，按日期排序（新的日期优先）
+        return b.date.localeCompare(a.date)
       })
 
       // 批量更新
@@ -255,24 +300,38 @@ class ScheduledUpdateService {
       try {
         console.log(`🔄 更新项目 ${projectId} 的 ${tasks.length} 个任务`)
         
-        // 按日期分组，同一天的数据只获取一次
-        const tasksByDate = new Map()
+        // 🚀 修复：按日期和埋点ID分组，确保每个埋点使用正确的数据
+        const tasksByDateAndPoint = new Map()
         for (const task of tasks) {
-          if (!tasksByDate.has(task.date)) {
-            tasksByDate.set(task.date, [])
+          const selectedPointId = task.chart.config.dataSource.selectedPointId
+          const key = `${task.date}_${selectedPointId}`
+          if (!tasksByDateAndPoint.has(key)) {
+            tasksByDateAndPoint.set(key, {
+              date: task.date,
+              selectedPointId: selectedPointId,
+              tasks: []
+            })
           }
-          tasksByDate.get(task.date).push(task)
+          tasksByDateAndPoint.get(key).tasks.push(task)
         }
 
-        // 逐天更新
-        for (const [date, dayTasks] of tasksByDate) {
+        // 逐天、逐埋点更新
+        for (const [key, group] of tasksByDateAndPoint) {
           try {
-            // 获取该日期的原始数据（只获取一次）
-            const rawData = await this.fetchDayData({
+            const { date, selectedPointId, tasks: dayTasks } = group
+            // 获取该日期和埋点的原始数据
+            const { data: rawData, dataAvailable } = await this.fetchDayData({
               date,
               projectId,
-              selectedPointId: dayTasks[0].chart.config.dataSource.selectedPointId
+              selectedPointId
             })
+
+            // 🚀 修复：如果后端缓存没有数据（404），跳过保存，等待下次重试
+            if (!dataAvailable) {
+              console.log(`⏸️ ${date} 后端缓存数据尚未准备好，跳过保存，等待下次重试`)
+              // 不增加失败计数，因为这是正常的延迟情况
+              continue
+            }
 
             // 为每个图表聚合数据
             for (const task of dayTasks) {
@@ -288,6 +347,14 @@ class ScheduledUpdateService {
                 )
 
                 console.log(`  - 聚合结果:`, aggregated)
+
+                // 🚀 修复：如果原始数据为空且是过滤后为空，检查是否需要保存
+                // 如果原始数据量>0但过滤后为0，说明过滤条件不匹配，保存空记录用于记录
+                // 如果原始数据量为0，说明后端确实没有数据，不应该保存
+                if (aggregated.metadata?.rawRecordCount === 0 && rawData.length === 0) {
+                  console.log(`⏸️ ${task.chart.name} (${date}) 后端确实无数据，跳过保存空记录，等待数据准备`)
+                  continue
+                }
 
                 await chartDB.saveChartData({
                   chartId: task.chart.id,
@@ -334,23 +401,76 @@ class ScheduledUpdateService {
 
   /**
    * 获取指定日期的原始数据
+   * @returns {Object} { data: Array, dataAvailable: boolean } - 数据和数据是否可用的标志
    */
   async fetchDayData({ date, projectId, selectedPointId }) {
     console.log(`📡 从后端SQLite获取 ${date} 的原始数据...`)
     
     // 🚀 修复：使用后端SQLite缓存，不再直接调用API
     const { dataPreloadService } = await import('@/services/dataPreloadService')
-    const response = await dataPreloadService.getBackendCachedData(date, selectedPointId)
     
-    const data = response || []
-    console.log(`✅ 从后端SQLite获取到 ${data.length} 条数据`)
-    
-    // 🚀 如果数据量达到10000条，可能需要分页获取更多数据
-    if (data.length >= 10000) {
-      console.warn(`⚠️ 数据量达到上限 (${data.length}条)，可能存在数据截断`)
+    // 🚀 修复：检查后端缓存是否存在，区分404和数据为空
+    try {
+      // 使用debugMode获取更详细的信息
+      const response = await dataPreloadService.getBackendCachedData(date, selectedPointId, true)
+      
+      // 如果响应是数组且长度>0，说明有数据
+      if (Array.isArray(response) && response.length > 0) {
+        console.log(`✅ 从后端SQLite获取到 ${response.length} 条数据`)
+        
+        // 🚀 如果数据量达到10000条，可能需要分页获取更多数据
+        if (response.length >= 10000) {
+          console.warn(`⚠️ 数据量达到上限 (${response.length}条)，可能存在数据截断`)
+        }
+        
+        return { data: response, dataAvailable: true }
+      } else {
+        // 数组为空，说明后端缓存存在但数据为空（可能是该日期真的没有数据）
+        console.log(`⚠️ 后端缓存存在但数据为空 (${date})，可能是该日期确实没有数据`)
+        return { data: [], dataAvailable: true } // 缓存存在但为空，可以保存空记录表示该日期无数据
+      }
+    } catch (error) {
+      // 检查是否是404错误（后端缓存不存在）
+      if (error.isNotFound || error.status === 404 || (error.message && error.message.includes('404'))) {
+        console.log(`⏸️ 后端缓存不存在 (${date})，数据尚未准备好，等待下次重试`)
+        return { data: [], dataAvailable: false } // 缓存不存在，不保存，等待重试
+      }
+      // 其他错误，输出错误但不保存
+      console.error(`❌ 获取后端缓存数据失败:`, error)
+      return { data: [], dataAvailable: false } // 发生错误时也不保存，等待重试
     }
-    
-    return data
+  }
+
+
+  /**
+   * 检查图表数据是否有效（不是空数据）
+   * @param {string} chartId - 图表ID
+   * @param {string} date - 日期
+   * @returns {boolean} 数据是否有效
+   */
+  async hasValidChartData(chartId, date) {
+    try {
+      const data = await chartDB.getChartData(chartId, {
+        startDate: date,
+        endDate: date,
+        limit: 1
+      })
+      
+      if (!data || data.length === 0) {
+        return false
+      }
+      
+      // 检查数据是否有效（metadata中的rawRecordCount > 0）
+      const firstData = data[0]
+      const metadata = firstData.metadata || {}
+      const rawRecordCount = metadata.rawRecordCount || 0
+      
+      // 如果rawRecordCount为0，说明是空数据
+      return rawRecordCount > 0
+    } catch (error) {
+      console.error(`检查数据有效性失败:`, error)
+      return false
+    }
   }
 
   /**
@@ -380,10 +500,11 @@ class ScheduledUpdateService {
 
   /**
    * 手动触发更新
+   * 🚀 修复：手动更新时，更新最近7天的数据，而不仅仅是昨天和今天
    */
   async manualUpdate() {
     console.log('🔧 手动触发定时更新...')
-    await this.checkAndUpdate()
+    await this.checkAndUpdate(true) // 传入true表示手动更新
   }
 
   /**

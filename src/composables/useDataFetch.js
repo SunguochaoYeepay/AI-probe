@@ -107,9 +107,16 @@ export function useDataFetch() {
     // 🚀 修复：使用后端SQLite缓存，不再直接调用API
     const { dataPreloadService } = await import('@/services/dataPreloadService')
     
-    const response = await dataPreloadService.getBackendCachedData(date, selectedPointId)
-    
-    return response || []
+    try {
+      const response = await dataPreloadService.getBackendCachedData(date, selectedPointId)
+      return response || []
+    } catch (error) {
+      if (error.isNotFound) {
+        console.log(`⚠️ 后端缓存不存在: ${date} - 埋点${selectedPointId}`)
+        return []
+      }
+      throw error
+    }
   }
 
   /**

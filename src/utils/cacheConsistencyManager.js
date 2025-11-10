@@ -126,31 +126,46 @@ class CacheConsistencyManager {
         try {
           // 🚀 优化：只获取后端缓存数据进行比较，不直接调用外部API
           console.log(`  📡 获取后端缓存数据进行比较...`)
-          const backendData = await dataPreloadService.getBackendCachedData(date, pointId, true)
-          
-          // 🔧 修复：智能数据量对比 - 详细调试信息
-          console.log(`🔍 [数据一致性检查] ${date} - 埋点${pointId}:`)
-          console.log(`  📡 后端缓存数据量: ${backendData.length} 条`)
-          
-          // 检查后端缓存是否有数据
-          if (backendData.length === 0) {
-            issues.push({
-              type: 'BACKEND_CACHE_MISSING',
-              severity: 'HIGH',
-              pointId,
-              date,
-              description: `埋点 ${pointId} 在 ${date} 的后端缓存中无数据`,
-              solution: 'TRIGGER_BACKEND_PRELOAD'
-            })
-            console.log(`  ❌ 后端缓存无数据`)
-            continue
+          try {
+            const backendData = await dataPreloadService.getBackendCachedData(date, pointId, true)
+            
+            // 🔧 修复：智能数据量对比 - 详细调试信息
+            console.log(`🔍 [数据一致性检查] ${date} - 埋点${pointId}:`)
+            console.log(`  📡 后端缓存数据量: ${backendData.length} 条`)
+            
+            // 检查后端缓存是否有数据
+            if (backendData.length === 0) {
+              issues.push({
+                type: 'BACKEND_CACHE_MISSING',
+                severity: 'HIGH',
+                pointId,
+                date,
+                description: `埋点 ${pointId} 在 ${date} 的后端缓存中无数据`,
+                solution: 'TRIGGER_BACKEND_PRELOAD'
+              })
+              console.log(`  ❌ 后端缓存无数据`)
+              continue
+            }
+
+            console.log(`  ✅ 后端缓存数据正常: ${backendData.length} 条`)
+          } catch (error) {
+            if (error.isNotFound) {
+              issues.push({
+                type: 'BACKEND_CACHE_MISSING',
+                severity: 'HIGH',
+                pointId,
+                date,
+                description: `埋点 ${pointId} 在 ${date} 的后端缓存不存在`,
+                solution: 'TRIGGER_BACKEND_PRELOAD'
+              })
+              console.log(`  ❌ 后端缓存不存在`)
+            } else {
+              console.warn(`检查 ${date} - 埋点 ${pointId} 时出错:`, error)
+              // 不记录为问题，可能是网络问题
+            }
           }
-          
-          console.log(`  ✅ 后端缓存数据正常: ${backendData.length} 条`)
-          
         } catch (error) {
           console.warn(`检查 ${date} - 埋点 ${pointId} 时出错:`, error)
-          // 不记录为问题，可能是网络问题
         }
       }
     }

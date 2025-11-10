@@ -101,10 +101,21 @@ class AggregationService {
     
     // 按单个页面过滤 - 使用智能匹配逻辑
     if (filters.pageName) {
-      result = result.filter(d => {
-        const itemPageName = d.pageName || d.url || d.path || d.title
-        return this.smartMatch(filters.pageName, itemPageName)
+      // 🚀 调试：记录过滤前的页面名称分布
+      const pageNameDistribution = {}
+      data.forEach(d => {
+        const itemPageName = d.pageName || d.url || d.path || d.title || 'NULL'
+        pageNameDistribution[itemPageName] = (pageNameDistribution[itemPageName] || 0) + 1
       })
+      console.log(`🔍 [AggregationService] 过滤前页面名称分布 (目标: ${filters.pageName}):`, pageNameDistribution)
+      
+      result = data.filter(d => {
+        const itemPageName = d.pageName || d.url || d.path || d.title
+        const matchResult = this.smartMatch(filters.pageName, itemPageName)
+        return matchResult
+      })
+      
+      console.log(`🔍 [AggregationService] 过滤结果: ${data.length}条 → ${result.length}条 (目标页面: ${filters.pageName})`)
     }
     
     // 按多个页面过滤
@@ -134,27 +145,43 @@ class AggregationService {
   smartMatch(target, source) {
     if (!source) return false
     
-    // 1. 精确匹配
-    if (target === source) return true
+    // 🚀 修复：统一处理 # 号，去除首尾的 # 号进行比较
+    const normalizeHash = (str) => {
+      if (!str) return ''
+      return str.replace(/^#+/, '').replace(/#+$/, '').trim()
+    }
     
-    // 2. 去除常见后缀后的精确匹配
-    const cleanTarget = target.replace(/(的访问|访问|页面|page)$/gi, '').trim()
-    const cleanSource = source.replace(/(的访问|访问|页面|page)$/gi, '').trim()
-    if (cleanTarget === cleanSource) return true
+    const normalizedTarget = normalizeHash(target)
+    const normalizedSource = normalizeHash(source)
     
-    // 3. 去除横线字符后的精确匹配
-    const normalizedTarget = target.replace(/[—_\-]/g, '')
-    const normalizedSource = source.replace(/[—_\-]/g, '')
+    // 1. 精确匹配（去除#号后）
     if (normalizedTarget === normalizedSource) return true
     
-    // 4. 简单的包含匹配
+    // 2. 原始精确匹配（保留#号）
+    if (target === source) return true
+    
+    // 3. 去除常见后缀后的精确匹配
+    const cleanTarget = normalizedTarget.replace(/(的访问|访问|页面|page)$/gi, '').trim()
+    const cleanSource = normalizedSource.replace(/(的访问|访问|页面|page)$/gi, '').trim()
+    if (cleanTarget === cleanSource) return true
+    
+    // 4. 去除横线字符后的精确匹配
+    const noDashTarget = cleanTarget.replace(/[—_\-]/g, '')
+    const noDashSource = cleanSource.replace(/[—_\-]/g, '')
+    if (noDashTarget === noDashSource) return true
+    
+    // 5. 简单的包含匹配（去除#号后）
+    if (normalizedSource.includes(normalizedTarget) || normalizedTarget.includes(normalizedSource)) {
+      return true
+    }
+    // 也尝试原始包含匹配
     if (source.includes(target) || target.includes(source)) {
       return true
     }
     
-    // 5. 关键词匹配
-    const targetKeywords = target.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
-    const sourceKeywords = source.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
+    // 6. 关键词匹配（使用去除#号后的字符串）
+    const targetKeywords = normalizedTarget.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
+    const sourceKeywords = normalizedSource.split(/[—_\-的访问页面page]/gi).filter(k => k.trim().length > 1)
     
     let matchCount = 0
     for (const targetKeyword of targetKeywords) {

@@ -213,8 +213,8 @@ const loadChartUpdateStatus = async () => {
         id: chart.id,
         name: chart.name,
         status: needsUpdate ? 'needs_update' : 'up_to_date',
-        lastUpdate: chart.dataRange?.lastDataUpdate,
-        pendingDays: chart.dataRange?.pendingDays || 0
+        lastUpdate: chart.config?.dataRange?.lastDataUpdate || chart.dataRange?.lastDataUpdate,
+        pendingDays: chart.config?.dataRange?.pendingDays || chart.dataRange?.pendingDays || 0
       })
     }
     
